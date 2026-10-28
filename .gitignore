@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager / Xcode
+.build/
+.swiftpm/
+xcuserdata/
+*.xcodeproj/
+DerivedData/
+
+# Artefactos gerados por scripts/bundle.sh e scripts/dmg.sh (publicar em Releases, não no repo)
+DrIsland.app/
+*.dmg
+
+# Configuração local do Claude Code
+.claude/settings.local.json

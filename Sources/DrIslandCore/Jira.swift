@@ -1,0 +1,207 @@
+import Foundation
+
+public struct JiraTask: Equatable, Identifiable, Sendable {
+    public enum Category: Equatable, Sendable { case todo, inProgress, done }
+
+    public var id: String { key }
+    public let key: String
+    public let summary: String
+    public let status: String
+    public let category: Category
+    public let priority: String?
+    public let url: URL
+    public let commentCount: Int?
+    public let labels: [String]
+    /// Names in the "Approvers" field (`approversField`), sorted; `nil` when the field was not returned.
+    public let approvers: [String]?
+    /// Display name of the assignee (nil when unassigned).
+    public let assignee: String?
+    /// Display names of the comments' authors, as returned with the task (nil when not returned).
+    public let commentAuthors: [String]?
+    /// The team marks sprint goals with the label `Sprint_Goal` (any case, `-`/`_`/space tolerated).
+    public var isSprintGoal: Bool {
+        labels.contains { $0.lowercased().filter { $0.isLetter } == "sprintgoal" }
+    }
+
+    public init(key: String, summary: String, status: String, category: Category, priority: String?, url: URL, commentCount: Int? = nil, labels: [String] = [], approvers: [String]? = nil, assignee: String? = nil, commentAuthors: [String]? = nil) {
+        self.commentAuthors = commentAuthors
+        self.assignee = assignee
+        self.commentCount = commentCount
+        self.approvers = approvers
+        self.labels = labels
+        self.key = key; self.summary = summary; self.status = status
+        self.category = category; self.priority = priority; self.url = url
+    }
+}
+
+public struct JiraConfig: Equatable, Sendable {
+    public var site: String
+    public var email: String
+    public var token: String
+    public var jql: String
+    /// Tasks waiting on (or involving) the user as approver; shown in their own block.
+    public var approverJQL: String
+    public var maxResults: Int
+
+    public static let defaultJQL = "assignee = currentUser() AND statusCategory != Done ORDER BY priority DESC, updated DESC"
+
+    /// Earlier default: `approver` is not a JQL field on this Jira (the field is the custom "Approvers", cf[10127]).
+    public static let legacyApproverJQL = "approver = currentUser() AND statusCategory != Done ORDER BY updated DESC"
+    /// The custom "Approvers" field of this Jira (the same one `defaultApproverJQL` filters on).
+    public static let approversField = "customfield_10127"
+    public static let defaultApproverJQL = "cf[10127] = currentUser() AND statusCategory != Done ORDER BY updated DESC"
+
+    public init(site: String, email: String, token: String, jql: String = JiraConfig.defaultJQL,
+                approverJQL: String = JiraConfig.defaultApproverJQL, maxResults: Int = 25) {
+        self.site = site; self.email = email; self.token = token; self.jql = jql; self.approverJQL = approverJQL; self.maxResults = maxResults
+    }
+
+    public var isComplete: Bool { !site.trimmingCharacters(in: .whitespaces).isEmpty && !email.isEmpty && !token.isEmpty }
+}
+
+public enum JiraError: Error, Equatable {
+    case notConfigured
+    case invalidSite
+    case unauthorized
+    case rateLimited
+    case http(Int)
+    case network
+    case invalidResponse
+}
+
+public enum JiraOrder {
+    /// Sprint goals first, then what is in progress, then the rest. Stable: the JQL's own order is kept inside each group.
+    public static func sorted(_ tasks: [JiraTask]) -> [JiraTask] {
+        func rank(_ task: JiraTask) -> Int { task.isSprintGoal ? 0 : task.category == .inProgress ? 1 : 2 }
+        return tasks.enumerated().sorted { (a, b) in
+            let (ra, rb) = (rank(a.element), rank(b.element))
+            return ra != rb ? ra < rb : a.offset < b.offset
+        }.map(\.element)
+    }
+}
+
+public enum JiraParser {
+    public static func parseTasks(_ data: Data, site: URL) throws -> [JiraTask] {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let issues = root["issues"] as? [[String: Any]] else { throw JiraError.invalidResponse }
+        return issues.compactMap { issue in
+            guard let key = issue["key"] as? String,
+                  let fields = issue["fields"] as? [String: Any],
+                  let summary = fields["summary"] as? String else { return nil }
+            let status = fields["status"] as? [String: Any]
+            let categoryKey = (status?["statusCategory"] as? [String: Any])?["key"] as? String
+            return JiraTask(
+                key: key, summary: summary,
+                status: status?["name"] as? String ?? "",
+                category: category(categoryKey),
+                priority: (fields["priority"] as? [String: Any])?["name"] as? String,
+                url: site.appendingPathComponent("browse/\(key)"),
+                commentCount: (fields["comment"] as? [String: Any])?["total"] as? Int,
+                labels: fields["labels"] as? [String] ?? [],
+                approvers: (fields[JiraConfig.approversField] as? [[String: Any]]).map { users in
+                    users.compactMap { ($0["displayName"] as? String) ?? ($0["accountId"] as? String) }.sorted()
+                },
+                assignee: (fields["assignee"] as? [String: Any])?["displayName"] as? String,
+                commentAuthors: ((fields["comment"] as? [String: Any])?["comments"] as? [[String: Any]])?.compactMap { ($0["author"] as? [String: Any])?["displayName"] as? String }
+            )
+        }
+    }
+
+    public static func parseDisplayName(_ data: Data) throws -> String {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let name = root["displayName"] as? String else { throw JiraError.invalidResponse }
+        return name
+    }
+
+    static func category(_ key: String?) -> JiraTask.Category {
+        switch key {
+        case "indeterminate": return .inProgress
+        case "done": return .done
+        default: return .todo
+        }
+    }
+}
+
+public struct JiraClient: Sendable {
+    // Ephemeral: no cookies or disk cache for authenticated Jira responses.
+    public static let defaultSession = URLSession(configuration: .ephemeral)
+
+    private let session: URLSession
+
+    public init(session: URLSession = JiraClient.defaultSession) {
+        self.session = session
+    }
+
+    /// Accepts "empresa.atlassian.net" or a full URL; returns `https://host[:port]`. HTTP is rejected because the token is sent as Basic auth.
+    public static func normalizedSite(_ raw: String) -> URL? {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        if !text.contains("://") { text = "https://" + text }
+        guard let components = URLComponents(string: text), components.scheme == "https",
+              let host = components.host, host.contains(".") else { return nil }
+        var base = URLComponents()
+        base.scheme = "https"
+        base.host = host
+        base.port = components.port
+        return base.url
+    }
+
+    static func authorizationHeader(email: String, token: String) -> String {
+        "Basic " + Data("\(email):\(token)".utf8).base64EncodedString()
+    }
+
+    static func searchURL(site: URL, jql: String, maxResults: Int) -> URL? {
+        var components = URLComponents(url: site.appendingPathComponent("rest/api/3/search/jql"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "jql", value: jql),
+            URLQueryItem(name: "fields", value: "summary,status,priority,comment,labels,assignee," + JiraConfig.approversField),
+            URLQueryItem(name: "maxResults", value: String(max(1, min(maxResults, 50)))),
+        ]
+        return components?.url
+    }
+
+    public func fetchTasks(_ config: JiraConfig) async throws -> [JiraTask] {
+        try await search(config, jql: config.jql)
+    }
+
+    /// The tasks where the user is an approver (`config.approverJQL`).
+    public func fetchApprovals(_ config: JiraConfig) async throws -> [JiraTask] {
+        try await search(config, jql: config.approverJQL)
+    }
+
+    private func search(_ config: JiraConfig, jql: String) async throws -> [JiraTask] {
+        let (site, header) = try prepare(config)
+        guard let url = Self.searchURL(site: site, jql: jql, maxResults: config.maxResults) else { throw JiraError.invalidSite }
+        let data = try await get(url, authorization: header)
+        return try JiraParser.parseTasks(data, site: site)
+    }
+
+    /// Returns the account's display name; used by the settings "Testar" button.
+    public func myself(_ config: JiraConfig) async throws -> String {
+        let (site, header) = try prepare(config)
+        let data = try await get(site.appendingPathComponent("rest/api/3/myself"), authorization: header)
+        return try JiraParser.parseDisplayName(data)
+    }
+
+    private func prepare(_ config: JiraConfig) throws -> (URL, String) {
+        guard config.isComplete else { throw JiraError.notConfigured }
+        guard let site = Self.normalizedSite(config.site) else { throw JiraError.invalidSite }
+        return (site, Self.authorizationHeader(email: config.email, token: config.token))
+    }
+
+    private func get(_ url: URL, authorization: String) async throws -> Data {
+        var request = URLRequest(url: url, timeoutInterval: 20)
+        request.setValue(authorization, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let data: Data
+        let response: URLResponse
+        do { (data, response) = try await session.data(for: request) } catch { throw JiraError.network }
+        guard let http = response as? HTTPURLResponse else { throw JiraError.invalidResponse }
+        switch http.statusCode {
+        case 200..<300: return data
+        case 401, 403: throw JiraError.unauthorized
+        case 429: throw JiraError.rateLimited
+        default: throw JiraError.http(http.statusCode)
+        }
+    }
+}
