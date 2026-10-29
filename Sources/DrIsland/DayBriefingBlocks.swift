@@ -116,8 +116,8 @@ struct TimelineBlock: View {
     let showBriefing: () -> Void
     let openDetails: () -> Void
 
-    static let chartHeight: CGFloat = 54
-    static var contentHeight: CGFloat { IslandLayout.alertsHeader + 6 + chartHeight }
+    nonisolated static let chartHeight: CGFloat = 54
+    nonisolated static var contentHeight: CGFloat { IslandLayout.alertsHeader + 6 + chartHeight }
 
     var body: some View {
         let total = counts.reduce(0, +)
@@ -155,10 +155,10 @@ struct BriefingBlock: View {
     let since: Date
     let dismiss: () -> Void
 
-    static let maxRows = 5
-    static let summaryHeight: CGFloat = 16
+    nonisolated static let maxRows = 5
+    nonisolated static let summaryHeight: CGFloat = 16
 
-    static func contentHeight(rows: Int) -> CGFloat {
+    nonisolated static func contentHeight(rows: Int) -> CGFloat {
         IslandLayout.alertsHeader + 6 + summaryHeight + 4 + CGFloat(max(rows, 1)) * IslandLayout.alertsRow
     }
 

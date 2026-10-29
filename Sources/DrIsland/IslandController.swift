@@ -212,27 +212,21 @@ final class IslandInstance {
         previewing = true
         state.isPreview = true
         panel?.ignoresMouseEvents = true
-        let open = { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.setExpanded(true, reason: "pre-visualizacao")
-                self.panel?.ignoresMouseEvents = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
-                    MainActor.assumeIsolated {
-                        guard let self else { return }
-                        self.previewing = false
-                        self.setExpanded(false, reason: "pre-visualizacao")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in MainActor.assumeIsolated { self?.state.isPreview = false } }
-                    }
-                }
-            }
-        }
+        Task { [weak self] in await self?.playPreview() }
+    }
+
+    private func playPreview() async {
         if state.expanded {
             setExpanded(false, reason: "pre-visualizacao")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9, execute: open)
-        } else {
-            open()
+            try? await Task.sleep(for: .seconds(0.9))
         }
+        setExpanded(true, reason: "pre-visualizacao")
+        panel?.ignoresMouseEvents = true
+        try? await Task.sleep(for: .seconds(1.8))
+        previewing = false
+        setExpanded(false, reason: "pre-visualizacao")
+        try? await Task.sleep(for: .seconds(1))
+        state.isPreview = false
     }
 
     /// Shows a mini island with only what changed for a few seconds. The panel stays click-through and the
@@ -358,7 +352,10 @@ final class IslandController {
             MainActor.assumeIsolated {
                 self?.sync()
                 // The system keeps settling the display layout (and moving windows) for a moment after the notification.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { MainActor.assumeIsolated { self?.sync() } }
+                Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(0.6))
+                    self?.sync()
+                }
             }
         }
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
@@ -377,14 +374,15 @@ final class IslandController {
             }
         }
         // The morning briefing: checked a little after launch and after a wake (the stores need a moment to catch up), then every 5 min.
-        let check: () -> Void = { [weak self] in MainActor.assumeIsolated { self?.openBriefingIfDue() } }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 45, execute: check)
+        checkBriefing(after: 45)
         for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification] {
-            NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { _ in
-                DispatchQueue.main.asyncAfter(deadline: .now() + 60, execute: check)
+            NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.checkBriefing(after: 60) }
             }
         }
-        briefingTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in check() }
+        briefingTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.openBriefingIfDue() }
+        }
         NotificationCenter.default.addObserver(forName: .islandHotKey, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
@@ -402,6 +400,14 @@ final class IslandController {
         }
         if let global = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved], handler: handler) { monitors.append(global) }
         if let local = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved], handler: { event in handler(event); return event }) { monitors.append(local) }
+    }
+
+    /// The stores need a moment to catch up after launch or a wake before the briefing has anything to say.
+    private func checkBriefing(after seconds: Double) {
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            self?.openBriefingIfDue()
+        }
     }
 
     private func openBriefingIfDue() {

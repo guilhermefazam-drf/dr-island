@@ -11,15 +11,12 @@ enum ErrorLog {
 
     private static let queue = DispatchQueue(label: "dr-island.errorlog")
     private static let maxBytes = 512 * 1024
-    private static let stamp: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.timeZone = .current
-        return f
-    }()
+    /// A value type, so `record` can run on any thread (same text as ISO8601DateFormatter with the local time zone).
+    private static let stamp = Date.ISO8601FormatStyle(timeZoneSeparator: .colon, timeZone: .current)
 
     /// Appends one line, `source` being the part of the app it came from ("Jira", "Interface"…).
     static func record(_ source: String, _ message: String) {
-        let line = "\(stamp.string(from: Date())) [\(source)] \(message.replacingOccurrences(of: "\n", with: " ⏎ "))\n"
+        let line = "\(Date.now.formatted(stamp)) [\(source)] \(message.replacingOccurrences(of: "\n", with: " ⏎ "))\n"
         queue.async { append(line) }
     }
 
