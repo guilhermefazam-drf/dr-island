@@ -284,7 +284,7 @@ struct IslandView: View {
             IslandTipLayer(tips: tips, state: state, expandedSize: expandedSize)
         }
         .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
-        .coordinateSpace(name: islandRootSpace)
+        .coordinateSpace(.named(islandRootSpace))
         .environment(tips)
         .animation(.easeOut(duration: 0.2), value: state.expanded)
         .animation(.easeInOut(duration: 0.2), value: syncing)
@@ -292,7 +292,7 @@ struct IslandView: View {
         .onChange(of: anyRefreshing) { _, refreshing in
             guard refreshing else { return }
             syncing = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { syncing = false }
+            Task { try? await Task.sleep(for: .seconds(1)); syncing = false }
         }
         .onChange(of: state.peek) { _, items in
             if items.isEmpty {
@@ -336,7 +336,8 @@ struct IslandView: View {
             withAnimation(motion.height) { heightProgress = expanded ? 1 : 0 }
             if expanded {
                 // The content "arrives" slightly after the bubble starts growing, then settles with a spring.
-                DispatchQueue.main.asyncAfter(deadline: .now() + motion.contentDelay) {
+                Task {
+                    try? await Task.sleep(for: .seconds(motion.contentDelay))
                     guard state.expanded else { return }
                     withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.46 / speed, dampingFraction: min(openDamping + 0.1, 0.95))) { showContent = true }
                 }
@@ -525,7 +526,7 @@ struct IslandView: View {
                     .islandTip(shortcut.folder.map { "\(shortcut.name) · \(($0 as NSString).lastPathComponent)" } ?? shortcut.name)
                 }
             }
-            .coordinateSpace(name: "dock")
+            .coordinateSpace(.named("dock"))
             .onContinuousHover(coordinateSpace: .named("dock")) { phase in
                 switch phase {
                 case .active(let point): withAnimation(.spring(response: 0.22, dampingFraction: 0.7)) { dockX = point.x }
@@ -735,11 +736,16 @@ struct IslandView: View {
         guard alertPulse, !state.expanded else { return }
         alertColor = (prStore.lastChanges.map(\.tone).max() ?? .info).color
         alertOnMini = alertBanner
-        // Two quick flashes.
-        for i in 0..<2 {
-            let start = Double(i) * 0.85
-            DispatchQueue.main.asyncAfter(deadline: .now() + start) { withAnimation(.easeOut(duration: 0.18)) { alertOpacity = 1 } }
-            DispatchQueue.main.asyncAfter(deadline: .now() + start + 0.2) { withAnimation(.easeIn(duration: 0.55)) { alertOpacity = 0 } }
+        flashAlert(times: 2)
+    }
+
+    /// Quick flashes, each starting once the previous one has faded.
+    private func flashAlert(times: Int, after delay: Double = 0) {
+        guard times > 0 else { return }
+        withAnimation(.easeOut(duration: 0.18).delay(delay)) { alertOpacity = 1 } completion: {
+            withAnimation(.easeIn(duration: 0.55).delay(0.02)) { alertOpacity = 0 } completion: {
+                flashAlert(times: times - 1, after: 0.1)
+            }
         }
     }
 
@@ -1145,14 +1151,14 @@ struct IslandView: View {
             }
             return
         }
-        DispatchQueue.main.async {
+        // On the next turn, so the reset above lands before the lap starts.
+        Task {
             withAnimation(.easeInOut(duration: 1.25)) { newSessionLap = 1.3 }
             // The border lights up as the head comes back to where it started.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.95) {
-                withAnimation(.easeOut(duration: 0.2)) { newSessionFlash = 1; newSessionSparkle = 1 }
-                withAnimation(.easeIn(duration: 0.7).delay(0.2)) { newSessionFlash = 0 }
-                withAnimation(.easeIn(duration: 0.6).delay(0.55)) { newSessionSparkle = 0 }
-            }
+            try? await Task.sleep(for: .seconds(0.95))
+            withAnimation(.easeOut(duration: 0.2)) { newSessionFlash = 1; newSessionSparkle = 1 }
+            withAnimation(.easeIn(duration: 0.7).delay(0.2)) { newSessionFlash = 0 }
+            withAnimation(.easeIn(duration: 0.6).delay(0.55)) { newSessionSparkle = 0 }
         }
     }
 
@@ -1167,7 +1173,8 @@ struct IslandView: View {
             }
             return
         }
-        DispatchQueue.main.async {
+        // On the next turn, so the reset above lands before the sweep starts.
+        Task {
             withAnimation(.easeInOut(duration: 0.95)) { sweep = 1.22 }
             withAnimation(.easeOut(duration: 0.25)) { glow = 1 }
             withAnimation(.easeIn(duration: 0.8).delay(0.25)) { glow = 0 }
@@ -1439,7 +1446,10 @@ struct ConfettiBurst: View {
         .onChange(of: tick) { _, _ in
             let now = Date()
             startedAt = now
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.duration + 0.1) { if startedAt == now { startedAt = nil } }
+            Task {
+                try? await Task.sleep(for: .seconds(Self.duration + 0.1))
+                if startedAt == now { startedAt = nil }
+            }
         }
     }
 }
