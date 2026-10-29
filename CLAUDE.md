@@ -31,7 +31,7 @@ open DrIsland.app
 Two modules (see `Package.swift`):
 
 - **`DrIslandCore`** — pure, testable logic with no UI: API clients and parsers (`UsageClient`, `GitHubClient`, `Jira`, `Sprint`), diffing that produces alerts (`PullRequestChanges` → `PRChange`), cost/usage math, quiet hours, focus timer, layout config, Keychain/secret access. All tests target this module (Swift Testing: `import Testing`, `@Suite`/`@Test`/`#expect`). New logic should go here so it can be tested.
-- **`DrIsland`** — the AppKit/SwiftUI app. `main.swift` → `AppDelegate`, which owns one `ObservableObject` store per source (`UsageStore`, `PullRequestStore`, `JiraStore`, `MusicStore`, `CostStore`, `FocusStore`) and hands them all to `IslandController`.
+- **`DrIsland`** — the AppKit/SwiftUI app. `main.swift` → `AppDelegate`, which owns one `@Observable` store per source (`UsageStore`, `PullRequestStore`, `JiraStore`, `MusicStore`, `CostStore`, `FocusStore`) and hands them all to `IslandController`.
 
 Key flows:
 
