@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 import Security
 
 /// Generic-password items in the login keychain. Secrets never touch UserDefaults, files or logs.
@@ -19,7 +20,10 @@ public enum SecretStore {
 
     public static func exists(account: String) -> Bool {
         var query = baseQuery(account)
-        query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
+        // Never prompt: an item that would need to ask reports errSecInteractionNotAllowed instead.
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        query[kSecUseAuthenticationContext as String] = context
         let status = SecItemCopyMatching(query as CFDictionary, nil)
         // errSecInteractionNotAllowed means the item exists but would prompt; that still counts as present.
         return status == errSecSuccess || status == errSecInteractionNotAllowed
