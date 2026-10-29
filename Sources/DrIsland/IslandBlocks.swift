@@ -587,7 +587,9 @@ struct AlertsBlock: View {
         case ..<60: return "agora"
         case ..<3600: return "\(seconds / 60) min"
         case ..<86_400: return "\(seconds / 3600) h"
-        default: return Calendar.current.isDateInYesterday(date) ? "ontem" : "\(seconds / 86_400) d"
+        default:
+            let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
+            return Calendar.current.isDate(date, inSameDayAs: yesterday) ? "ontem" : "\(seconds / 86_400) d"
         }
     }
 }

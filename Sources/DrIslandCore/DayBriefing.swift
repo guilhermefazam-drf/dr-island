@@ -62,7 +62,10 @@ public enum DayBriefing {
     public static func sinceLabel(_ since: Date, now: Date, calendar: Calendar = .current) -> String {
         let time = since.formatted(.dateTime.hour().minute().locale(Locale(identifier: "pt_PT")))
         if calendar.isDate(since, inSameDayAs: now) { return "Desde as \(time)" }
-        if calendar.isDateInYesterday(since) { return "Desde ontem · \(time)" }
+        // Relative to `now`, not the wall clock (`isDateInYesterday` would ignore it).
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(since, inSameDayAs: yesterday) {
+            return "Desde ontem · \(time)"
+        }
         let day = since.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "pt_PT")))
         return "Desde \(day) · \(time)"
     }
