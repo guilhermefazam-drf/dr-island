@@ -8,7 +8,16 @@ CONFIG="${1:-release}"
 SDK="${SDKROOT_OVERRIDE:-/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk}"
 [ -d "$SDK" ] || SDK="$(xcrun --show-sdk-path)"
 
-swift build -c "$CONFIG" --sdk "$SDK" 2>&1 | grep -v "ld: warning" || true
+# Stop on a failed build: otherwise the last good binary in .build would be bundled as if it were new.
+# The linker's "ld: warning" lines are noise and are filtered out of the log.
+LOG="$(mktemp)"
+trap 'rm -f "$LOG"' EXIT
+if ! swift build -c "$CONFIG" --sdk "$SDK" >"$LOG" 2>&1; then
+  grep -v "ld: warning" "$LOG" >&2 || true
+  echo "build failed" >&2
+  exit 1
+fi
+grep -v "ld: warning" "$LOG" || true
 BIN="$(swift build -c "$CONFIG" --sdk "$SDK" --show-bin-path 2>/dev/null)/DrIsland"
 [ -x "$BIN" ] || { echo "build failed: $BIN not found" >&2; exit 1; }
 
