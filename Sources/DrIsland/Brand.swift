@@ -11,3 +11,14 @@ enum Brand {
 }
 
 let linkBlue = Color(red: 0.45, green: 0.68, blue: 1.0)
+
+extension Brand {
+    /// Usage colours: green, then amber and red past the user's thresholds (percentages, 0–100).
+    static func color(forFraction fraction: Double, amber: Double, red: Double) -> Color {
+        switch UsageLevel.level(forFraction: fraction, amber: amber, red: red) {
+        case .normal: green
+        case .warning: self.amber
+        case .critical: self.red
+        }
+    }
+}

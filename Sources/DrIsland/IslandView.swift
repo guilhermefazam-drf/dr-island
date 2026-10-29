@@ -46,7 +46,6 @@ struct IslandView: View {
     @AppStorage(SettingsKey.showOwner) private var showOwner = true
     /// The pulse follows the mini island when that alert is on, otherwise the notch ring.
     @State private var alertOnMini = false
-    @State private var dockX: CGFloat?
     @AppStorage(SettingsKey.showCost) private var showCostLine = false
     @AppStorage(SettingsKey.costEnabled) private var costEnabled = true
     private var showCost: Bool { showCostLine && costEnabled }
@@ -288,82 +287,9 @@ struct IslandView: View {
         rows == 0 ? 0 : IslandLayout.sectionSpacing + IslandLayout.prHeaderHeight + CGFloat(rows) * IslandLayout.prRowHeight
     }
 
-    /// Peak session usage for the last 14 days: the first seven (dimmer) are the previous week, for comparison.
-    @ViewBuilder private var historyChart: some View {
-        if showHistory {
-            let days = UsageHistory.lastDays(14, from: store.history)
-            VStack(spacing: 2) {
-                HStack(alignment: .bottom, spacing: 3) {
-                    ForEach(Array(days.enumerated()), id: \.element.date) { index, entry in
-                        let peak = entry.usage?.sessionPeak
-                        VStack(spacing: 0) {
-                            Spacer(minLength: 0)
-                            Capsule()
-                                .fill(peak.map { color(forFraction: $0) } ?? Color.white.opacity(0.12))
-                                .opacity(index < 7 ? 0.5 : 1)
-                                .frame(height: max(3, 28 * (peak ?? 0)))
-                                .frame(maxWidth: 16)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28)
-                        .islandTip("\(entry.date.formatted(.dateTime.weekday(.wide).day().month())): \(peak.map { "\(Int(($0 * 100).rounded()))%" } ?? "sem dados")")
-                    }
-                }
-                HStack(spacing: 3) {
-                    ForEach(days, id: \.date) { entry in
-                        Text(entry.date.formatted(.dateTime.weekday(.narrow)))
-                            .font(.system(size: 8)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
-                    }
-                }
-            }
-            .frame(height: IslandLayout.historyContent, alignment: .bottom)
-            .blockCard()
-        }
-    }
-
     /// Pinned apps that still exist on disk (an uninstalled app just disappears from the row).
     private var shortcuts: [DevShortcut] {
         ShortcutList.decode(shortcutsJSON).filter { FileManager.default.fileExists(atPath: $0.appPath) }
-    }
-
-    private static let dockIcon: CGFloat = 26
-    private static let dockSpacing: CGFloat = 14
-
-    /// 1 at rest, up to 1.7 right under the pointer, falling off smoothly over about two icons.
-    private func dockScale(at index: Int) -> CGFloat {
-        guard let x = dockX, !reduceMotion else { return 1 }
-        let center = Self.dockIcon / 2 + CGFloat(index) * (Self.dockIcon + Self.dockSpacing)
-        let distance = abs(x - center)
-        return 1 + 0.7 * exp(-pow(distance / 36, 2))
-    }
-
-    @ViewBuilder private var shortcutsRow: some View {
-        if !shortcuts.isEmpty {
-            HStack(spacing: Self.dockSpacing) {
-                ForEach(Array(shortcuts.enumerated()), id: \.element.id) { index, shortcut in
-                    Button { ShortcutLauncher.open(shortcut) } label: {
-                        Image(nsImage: AppIcons.icon(forFile: shortcut.appPath))
-                            .resizable().interpolation(.high).frame(width: Self.dockIcon, height: Self.dockIcon)
-                    }
-                    .buttonStyle(.plain)
-                    .pointingHandCursor()
-                    // Like the Dock: the icon under the pointer grows and its neighbours follow, anchored to the bottom.
-                    .scaleEffect(dockScale(at: index), anchor: .bottom)
-                    .offset(y: -(dockScale(at: index) - 1) * 4)
-                    .islandTip(shortcut.folder.map { "\(shortcut.name) · \(($0 as NSString).lastPathComponent)" } ?? shortcut.name)
-                }
-            }
-            .coordinateSpace(.named("dock"))
-            .onContinuousHover(coordinateSpace: .named("dock")) { phase in
-                switch phase {
-                case .active(let point): withAnimation(.spring(response: 0.22, dampingFraction: 0.7)) { dockX = point.x }
-                case .ended: withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { dockX = nil }
-                }
-            }
-            .frame(height: IslandLayout.shortcutsContent, alignment: .bottom)
-            .blockCard()
-            .fixedSize()
-            .frame(maxWidth: .infinity)   // centred under the columns
-        }
     }
 
     // MARK: Layout (columns of blocks)
@@ -857,11 +783,7 @@ struct IslandView: View {
     }
 
     private func color(forFraction fraction: Double) -> Color {
-        switch UsageLevel.level(forFraction: fraction, amber: amber, red: red) {
-        case .normal: return Color(red: 0x28 / 255, green: 0xC8 / 255, blue: 0x40 / 255)   // macOS zoom button
-        case .warning: return Color(red: 0xFE / 255, green: 0xBC / 255, blue: 0x2E / 255)   // macOS minimise button
-        case .critical: return Color(red: 0xFF / 255, green: 0x5F / 255, blue: 0x57 / 255)   // macOS close button
-        }
+        Brand.color(forFraction: fraction, amber: amber, red: red)
     }
 
     private var ringOpacity: Double {
@@ -1152,7 +1074,7 @@ struct IslandView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()
         case .focus: FocusBlock(store: focusStore)
-        case .history: historyChart
+        case .history: if showHistory { UsageHistoryChart(history: store.history, amber: amber, red: red) }
         case .music: MusicBlock(store: musicStore)
         case .alerts: AlertsBlock(entries: recentAlerts, openAll: openHistory)
         case .briefing: BriefingBlock(entries: briefingEntries, since: Date(timeIntervalSince1970: briefingSince), dismiss: { Briefing.dismiss() })
@@ -1180,7 +1102,7 @@ struct IslandView: View {
                 }
             }
             .frame(height: columnsHeight, alignment: .top)
-            shortcutsRow
+            if !shortcuts.isEmpty { ShortcutsDock(shortcuts: shortcuts) }
         }
         .padding(.horizontal, Self.sidePadding)
         .padding(.top, metrics.height + 6)
