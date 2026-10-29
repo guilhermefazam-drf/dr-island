@@ -196,7 +196,7 @@ struct FocusBlock: View {
                     Circle().trim(from: 0, to: timer.progress(now: context.date, config))
                         .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                    Text(String(format: "%d:%02d", remaining / 60, remaining % 60))
+                    Text(Duration.seconds(remaining), format: .time(pattern: .minuteSecond))
                         .font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit())
                 }
                 .frame(width: IslandLayout.focusContent, height: IslandLayout.focusContent)
@@ -365,7 +365,7 @@ struct MusicBlock: View {
 
     static func clock(_ seconds: TimeInterval) -> String {
         let total = Int(max(0, seconds))
-        return total >= 3600 ? String(format: "%d:%02d:%02d", total / 3600, total % 3600 / 60, total % 60) : String(format: "%d:%02d", total / 60, total % 60)
+        return Duration.seconds(total).formatted(.time(pattern: total >= 3600 ? .hourMinuteSecond : .minuteSecond))
     }
 }
 

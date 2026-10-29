@@ -145,7 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateStatusTitle() {
         if focusStore.timer.isRunning {
             let seconds = Int(focusStore.timer.remaining(now: Date(), focusStore.config).rounded(.up))
-            setStatusText(String(format: "%@ %d:%02d", focusStore.timer.phase == .focus ? "●" : "☕︎", seconds / 60, seconds % 60))
+            let symbol = focusStore.timer.phase == .focus ? "●" : "☕︎"
+            setStatusText("\(symbol) \(Duration.seconds(seconds).formatted(.time(pattern: .minuteSecond)))")
             return
         }
         let show = UserDefaults.standard.bool(forKey: SettingsKey.menuBarText) && store.hasValue

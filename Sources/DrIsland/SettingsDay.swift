@@ -38,7 +38,7 @@ struct DayPage: View {
                     LabeledContent("Eventos", value: "\(entries.count)")
                     LabeledContent("Por fonte", value: DayBriefing.summary(entries))
                     if let peak = DayBriefing.peakHour(counts) {
-                        LabeledContent("Hora mais ativa", value: String(format: "%02dh–%02dh · %d", peak, (peak + 1) % 24, counts[peak]))
+                        LabeledContent("Hora mais ativa", value: "\(Self.twoDigits(peak))h–\(Self.twoDigits((peak + 1) % 24))h · \(counts[peak])")
                     }
                     if let first = entries.first, let last = entries.last {
                         LabeledContent("Primeiro evento", value: first.date.formatted(date: .omitted, time: .shortened))
@@ -52,6 +52,9 @@ struct DayPage: View {
         }
         .formStyle(.grouped)
     }
+
+    /// "07", "13": hours on the clock.
+    private static func twoDigits(_ hour: Int) -> String { hour.formatted(.number.precision(.integerLength(2))) }
 
     private func label(for back: Int) -> String {
         switch back {

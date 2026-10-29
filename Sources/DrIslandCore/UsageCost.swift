@@ -87,16 +87,19 @@ public enum UsageCost {
         return summary
     }
 
+    /// Decimal comma and no thousands separator, whatever the Mac's region ("$1234", "1,3 M").
+    private static let portuguese = Locale(identifier: "pt_PT")
+
     /// "1,2 M", "340 mil", "850".
     public static func compactTokens(_ tokens: Int) -> String {
         switch tokens {
-        case 1_000_000...: return String(format: "%.1f M", Double(tokens) / 1_000_000).replacingOccurrences(of: ".", with: ",")
+        case 1_000_000...: return (Double(tokens) / 1_000_000).formatted(.number.precision(.fractionLength(1)).grouping(.never).locale(portuguese)) + " M"
         case 1_000...: return "\(Int((Double(tokens) / 1000).rounded())) mil"
         default: return "\(tokens)"
         }
     }
 
     public static func dollars(_ cost: Double) -> String {
-        (cost < 10 ? String(format: "$%.2f", cost) : String(format: "$%.0f", cost)).replacingOccurrences(of: ".", with: ",")
+        "$" + cost.formatted(.number.precision(.fractionLength(cost < 10 ? 2 : 0)).grouping(.never).locale(portuguese))
     }
 }

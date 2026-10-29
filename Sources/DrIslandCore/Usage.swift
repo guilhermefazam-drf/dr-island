@@ -76,7 +76,7 @@ public enum RemainingTime {
             let hours = (minutes % (24 * 60)) / 60
             return hours == 0 ? "\(days)d" : "\(days)d \(hours)h"
         }
-        if minutes >= 60 { return "\(minutes / 60)h \(String(format: "%02d", minutes % 60))m" }
+        if minutes >= 60 { return "\(minutes / 60)h \((minutes % 60).formatted(.number.precision(.integerLength(2))))m" }
         return "\(minutes)m"
     }
 }
