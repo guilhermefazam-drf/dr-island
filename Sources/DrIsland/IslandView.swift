@@ -170,6 +170,9 @@ struct IslandView: View {
     @State private var showContent = false
     /// The tooltip being shown (see `islandTip`).
     @State private var tips = IslandTipCenter()
+    /// macOS «Reduzir movimento»: the island fades instead of growing or springing, and the decorative motion (comet,
+    /// sweep, sparkles, confetti, dock magnification) is skipped. Pure opacity effects stay.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Update animation on the ring: a highlight sweeping along it plus a glow pulse.
     @State private var sweep: CGFloat = 0
     @State private var sweepOpacity: Double = 0
@@ -187,6 +190,8 @@ struct IslandView: View {
     /// Change alert on the ring: pulses in the colour of the loudest change.
     @State private var peekProgress: CGFloat = 0
     @State private var peekContent: Double = 0
+    /// Only below 1 with Reduce Motion, where the mini island fades instead of growing out of the notch.
+    @State private var peekOpacity: Double = 1
     @State private var peekItems: [PRChange] = []   // kept while the mini island folds back, so it does not go blank
     @State private var confettiTick = 0
     @AppStorage(SettingsKey.alertConfetti) private var alertConfetti = true
@@ -270,10 +275,23 @@ struct IslandView: View {
         .onChange(of: state.peek) { _, items in
             if items.isEmpty {
                 newSessionOnMini = false
+                if reduceMotion {
+                    withAnimation(.easeIn(duration: 0.2)) { peekContent = 0; peekOpacity = 0 } completion: {
+                        if state.peek.isEmpty { peekProgress = 0 }
+                    }
+                    return
+                }
                 withAnimation(.easeIn(duration: 0.12 / speed)) { peekContent = 0 }
                 withAnimation(.spring(response: 0.34 / speed, dampingFraction: 0.9)) { peekProgress = 0 }
             } else {
                 peekItems = items
+                if reduceMotion {
+                    // Already full size, so it only fades in.
+                    withTransaction(Transaction(animation: nil)) { peekProgress = 1 }
+                    withAnimation(.easeOut(duration: 0.2)) { peekContent = 1; peekOpacity = 1 }
+                    return
+                }
+                peekOpacity = 1
                 // A PR approved (or merged) gets a little party over the mini island.
                 if alertConfetti, items.contains(where: { $0.kind == .approved || $0.kind == .merged }) { confettiTick += 1 }
                 withAnimation(.spring(response: 0.42 / speed, dampingFraction: min(openDamping + 0.05, 0.9))) { peekProgress = 1 }
@@ -298,7 +316,7 @@ struct IslandView: View {
                 // The content "arrives" slightly after the bubble starts growing, then settles with a spring.
                 DispatchQueue.main.asyncAfter(deadline: .now() + motion.contentDelay) {
                     guard state.expanded else { return }
-                    withAnimation(.spring(response: 0.46 / speed, dampingFraction: min(openDamping + 0.1, 0.95))) { showContent = true }
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.46 / speed, dampingFraction: min(openDamping + 0.1, 0.95))) { showContent = true }
                 }
             } else {
                 withAnimation(.easeIn(duration: 0.12 / speed)) { showContent = false }
@@ -460,7 +478,7 @@ struct IslandView: View {
 
     /// 1 at rest, up to 1.7 right under the pointer, falling off smoothly over about two icons.
     private func dockScale(at index: Int) -> CGFloat {
-        guard let x = dockX else { return 1 }
+        guard let x = dockX, !reduceMotion else { return 1 }
         let center = Self.dockIcon / 2 + CGFloat(index) * (Self.dockIcon + Self.dockSpacing)
         let distance = abs(x - center)
         return 1 + 0.7 * exp(-pow(distance / 36, 2))
@@ -614,7 +632,7 @@ struct IslandView: View {
                 .padding(.top, metrics.height + 6)
                 .frame(width: IslandLayout.peekWidth, alignment: .top)
                 .opacity(peekContent)
-                .scaleEffect(0.92 + 0.08 * peekContent, anchor: .top)
+                .scaleEffect(reduceMotion ? 1 : 0.92 + 0.08 * peekContent, anchor: .top)
             }
             .clipShape(shape)
             .overlay(alignment: .top) {
@@ -627,7 +645,7 @@ struct IslandView: View {
                     .opacity(alertOnMini ? alertOpacity : 0)
             }
             .overlay(alignment: .top) { if newSessionOnMini { miniSessionAnimation } }
-            .opacity(state.expanded ? 0 : 1)
+            .opacity(state.expanded ? 0 : peekOpacity)
             .allowsHitTesting(false)
     }
 
@@ -1095,6 +1113,13 @@ struct IslandView: View {
     private func playNewSessionAnimation() {
         guard showBorder, !state.expanded, !state.fullscreen else { return }
         withTransaction(Transaction(animation: nil)) { newSessionLap = 0; newSessionFlash = 0; newSessionSparkle = 0 }
+        if reduceMotion {
+            // No comet or sparkles: the border only lights up.
+            withAnimation(.easeOut(duration: 0.2)) { newSessionFlash = 1 } completion: {
+                withAnimation(.easeIn(duration: 0.7)) { newSessionFlash = 0 }
+            }
+            return
+        }
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 1.25)) { newSessionLap = 1.3 }
             // The border lights up as the head comes back to where it started.
@@ -1109,7 +1134,14 @@ struct IslandView: View {
     private func playUpdateAnimation() {
         guard showBorder, !state.expanded else { return }
         // Reset without animation first, otherwise the sweep would start from where the last one ended.
-        withTransaction(Transaction(animation: nil)) { sweep = 0; sweepOpacity = 1 }
+        withTransaction(Transaction(animation: nil)) { sweep = 0; sweepOpacity = reduceMotion ? 0 : 1 }
+        if reduceMotion {
+            // No sweep along the border: only the glow pulses.
+            withAnimation(.easeOut(duration: 0.25)) { glow = 1 } completion: {
+                withAnimation(.easeIn(duration: 0.8)) { glow = 0 }
+            }
+            return
+        }
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.95)) { sweep = 1.22 }
             withAnimation(.easeOut(duration: 0.25)) { glow = 1 }
@@ -1132,6 +1164,11 @@ struct IslandView: View {
     }
 
     private func motion(opening: Bool) -> Motion {
+        if reduceMotion {
+            // A short, even resize: no overshoot, no staging, no delay before the content fades in.
+            let a = Animation.easeInOut(duration: 0.2)
+            return Motion(width: a, height: a, contentDelay: 0)
+        }
         let s = speed
         let damp = openDamping
         func spring(_ response: Double, _ damping: Double) -> Animation { .spring(response: response / s, dampingFraction: min(max(damping, 0.3), 0.97)) }
@@ -1161,8 +1198,14 @@ struct IslandView: View {
         }
     }
 
+    /// How the open island follows its content growing or shrinking (a section expanded, a block added).
+    private var resizeAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.45 / speed, dampingFraction: min(openDamping + 0.1, 0.95))
+    }
+
     /// Scale and blur the details start from (and return to) while they fade in or out.
     private var contentFrom: (x: CGFloat, y: CGFloat, blur: CGFloat) {
+        if reduceMotion { return (1, 1, 0) }
         switch effect {
         case .spring: return (0.84, 0.84, 8)
         case .genie: return (0.5, 0.6, 6)
@@ -1177,12 +1220,12 @@ struct IslandView: View {
         let from = contentFrom
         let shape = IslandShape(widthProgress: widthProgress, heightProgress: heightProgress,
                                 notchWidth: metrics.width, notchHeight: metrics.height,
-                                funnel: effect == .genie, collapsedRadius: notchCornerRadius)
-        let hinge = effect == .hinge ? -78 * (1 - min(max(heightProgress, 0), 1)) : 0
+                                funnel: effect == .genie && !reduceMotion, collapsedRadius: notchCornerRadius)
+        let hinge = effect == .hinge && !reduceMotion ? -78 * (1 - min(max(heightProgress, 0), 1)) : 0
         return Color.clear
             .frame(width: layoutWidth, height: contentHeight)
-            .animation(.spring(response: 0.45 / speed, dampingFraction: min(openDamping + 0.1, 0.95)), value: contentHeight)
-            .animation(.spring(response: 0.45 / speed, dampingFraction: min(openDamping + 0.1, 0.95)), value: layoutWidth)
+            .animation(resizeAnimation, value: contentHeight)
+            .animation(resizeAnimation, value: layoutWidth)
             .background(alignment: .top) { shape.fill(Color.black) }
             .overlay(alignment: .topTrailing) { HStack(spacing: 2) { restartButton; gearButton } }
             .overlay(alignment: .top) {
@@ -1205,7 +1248,7 @@ struct IslandView: View {
         .buttonStyle(.plain)
         .islandTip("Reiniciar o Dr Island")
         .padding(.top, (metrics.height - 24) / 2)
-        .scaleEffect(showContent ? 1 : 0.5)
+        .scaleEffect(showContent || reduceMotion ? 1 : 0.5)
         .opacity(showContent ? 1 : 0)
         .allowsHitTesting(showContent)
     }
@@ -1219,7 +1262,7 @@ struct IslandView: View {
         .islandTip("Definições")
         .padding(.top, (metrics.height - 24) / 2)
         .padding(.trailing, 20)
-        .scaleEffect(showContent ? 1 : 0.5)
+        .scaleEffect(showContent || reduceMotion ? 1 : 0.5)
         .opacity(showContent ? 1 : 0)
         .allowsHitTesting(showContent)
     }
