@@ -71,7 +71,7 @@ struct HourlyLineChart: View {
                 }
                 ForEach(labelHours(hours), id: \.self) { hour in
                     if let i = hours.firstIndex(of: hour) {
-                        Text(String(format: "%02dh", hour)).font(.system(size: 9)).foregroundStyle(.secondary).monospacedDigit()
+                        Text(hour.formatted(.number.precision(.integerLength(2))) + "h").font(.system(size: 9)).foregroundStyle(.secondary).monospacedDigit()
                             .position(x: min(max(points[i].x, 10), width - 10), y: plotH + 4 + Self.axisHeight / 2)
                     }
                 }
