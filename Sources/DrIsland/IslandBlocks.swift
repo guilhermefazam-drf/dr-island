@@ -178,7 +178,7 @@ struct MarqueeText: View {
 // MARK: - Foco
 
 struct FocusBlock: View {
-    @ObservedObject var store: FocusStore
+    let store: FocusStore
     @Environment(\.islandColumnWidth) private var columnWidth
 
     var body: some View {
@@ -245,7 +245,7 @@ struct FocusBlock: View {
 // MARK: - Música
 
 struct MusicBlock: View {
-    @ObservedObject var store: MusicStore
+    let store: MusicStore
     @Environment(\.islandColumnWidth) private var columnWidth
 
     /// The block's height for a given track: the progress row only exists when the source tells the length.
@@ -370,8 +370,8 @@ struct MusicBlock: View {
 
 struct ClaudeBlock: View {
     @Environment(\.islandColumnWidth) private var columnWidth
-    @ObservedObject var store: UsageStore
-    @ObservedObject var costStore: CostStore
+    let store: UsageStore
+    let costStore: CostStore
     let showCost: Bool
     @AppStorage(SettingsKey.showWeekly) private var showWeekly = true
     @AppStorage(SettingsKey.showForecast) private var showForecast = true

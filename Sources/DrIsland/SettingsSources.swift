@@ -95,7 +95,7 @@ struct ClaudePage: View {
 // MARK: - Custo
 
 struct CostPage: View {
-    @ObservedObject var costStore: CostStore
+    let costStore: CostStore
     @AppStorage(SettingsKey.modelPrices) private var pricesJSON = PriceTable.standard.encoded()
     @AppStorage(SettingsKey.costEnabled) private var enabled = true
     @AppStorage(SettingsKey.showCost) private var showInIsland = false

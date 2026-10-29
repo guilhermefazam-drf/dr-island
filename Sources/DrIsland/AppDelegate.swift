@@ -126,11 +126,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.menu = menu
         statusItem = item
         // The percentage next to the icon follows the usage and the setting.
-        store.objectWillChange.receive(on: RunLoop.main).sink { [weak self] _ in DispatchQueue.main.async { self?.updateStatusTitle() } }.store(in: &cancellables)
+        observeStatusTitle()
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).sink { [weak self] _ in self?.updateStatusTitle() }.store(in: &cancellables)
         updateStatusTitle()
         // While the focus timer runs, the menu bar shows the time left (it needs a tick every second).
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.updateStatusTitle() } }
+    }
+
+    /// Redraws the title whenever a store value it reads changes. Observation fires once per registration (before the
+    /// change lands), so each round re-registers on the next main-actor turn and reads the new value.
+    private func observeStatusTitle() {
+        withObservationTracking { updateStatusTitle() } onChange: { [weak self] in
+            Task { @MainActor in self?.observeStatusTitle() }
+        }
     }
 
     /// The text next to the menu bar icon: the focus timer while it runs, else the session percentage (if enabled).

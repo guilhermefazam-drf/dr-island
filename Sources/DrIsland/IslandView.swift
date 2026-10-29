@@ -2,24 +2,25 @@ import SwiftUI
 import DrIslandCore
 
 @MainActor
-final class IslandState: ObservableObject {
-    @Published var expanded = false
+@Observable
+final class IslandState {
+    var expanded = false
     /// Height of the visible expanded island (the panel itself is always max height); drives the hover hit area.
-    @Published var visibleHeight: CGFloat = 0
-    @Published var visibleWidth: CGFloat = 400
+    var visibleHeight: CGFloat = 0
+    var visibleWidth: CGFloat = 400
     /// "+N mais" clicked: show the full list for that section until the island closes.
-    @Published var showAllPRs = false
-    @Published var showAllReviews = false
-    @Published var showAllJira = false
-    @Published var showAllApprovals = false
-    @Published var showAllOutOfSprint = false
-    @Published var showAllPROutOfSprint = false
+    var showAllPRs = false
+    var showAllReviews = false
+    var showAllJira = false
+    var showAllApprovals = false
+    var showAllOutOfSprint = false
+    var showAllPROutOfSprint = false
     /// The settings preview is driving the island, so closing it must not count as "the user saw the alerts".
-    var isPreview = false
+    @ObservationIgnored var isPreview = false
     /// What the mini island shows while it is up; empty = hidden.
-    @Published var peek: [PRChange] = []
+    var peek: [PRChange] = []
     /// An app is in full screen on this island's display: the border and the notification dots stay hidden (the mini island still shows).
-    @Published var fullscreen = false
+    var fullscreen = false
 }
 
 extension PRChange.Tone {
@@ -160,13 +161,13 @@ struct SyncIcon: View {
 struct IslandView: View {
     let metrics: NotchMetrics
     let expandedSize: CGSize
-    @ObservedObject var state: IslandState
-    @ObservedObject var store: UsageStore
-    @ObservedObject var prStore: PullRequestStore
-    @ObservedObject var jiraStore: JiraStore
-    @ObservedObject var musicStore: MusicStore
-    @ObservedObject var costStore: CostStore
-    @ObservedObject var focusStore: FocusStore
+    let state: IslandState
+    let store: UsageStore
+    let prStore: PullRequestStore
+    let jiraStore: JiraStore
+    let musicStore: MusicStore
+    let costStore: CostStore
+    let focusStore: FocusStore
     var openSettings: () -> Void
     /// Height of the screen this island is on: the columns never grow past half of it, they scroll instead.
     var screenHeight: CGFloat = 900
@@ -239,7 +240,7 @@ struct IslandView: View {
     @AppStorage(SettingsKey.redThreshold) private var red = 85.0
     @AppStorage(SettingsKey.showWeekly) private var showWeekly = true
 
-    @ObservedObject private var network = NetworkMonitor.shared
+    private let network = NetworkMonitor.shared
     /// No network path, or the usage endpoint can't be reached: every number shown is stale.
     private var isOffline: Bool { !network.isOnline || store.status == .offline }
 

@@ -1,13 +1,15 @@
 import AppKit
+import Observation
 import DrIslandCore
 
 /// What is playing in Spotify or Apple Music, read and controlled through AppleScript.
 /// Only apps that are already running are asked (asking would launch them), and the first ask makes macOS
 /// request Automation permission.
 @MainActor
-final class MusicStore: ObservableObject {
-    @Published private(set) var nowPlaying: NowPlaying?
-    @Published private(set) var artwork: NSImage?
+@Observable
+final class MusicStore {
+    private(set) var nowPlaying: NowPlaying?
+    private(set) var artwork: NSImage?
 
     private var loop: Task<Void, Never>?
     private var artworkKey: String?
@@ -96,10 +98,10 @@ final class MusicStore: ObservableObject {
     }
 
     /// True after a control was used on a system source without the Accessibility permission, until it is granted.
-    @Published private(set) var needsAccessibility = false
+    private(set) var needsAccessibility = false
 
     /// True after a control on Spotify or Music was refused by Automation permission, until a command works again.
-    @Published private(set) var needsAutomation = false
+    private(set) var needsAutomation = false
 
     /// Asks again for whichever permission the last control was missing (the warning in the island calls this).
     func requestPermission() {

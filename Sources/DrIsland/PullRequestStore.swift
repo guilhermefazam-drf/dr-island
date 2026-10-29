@@ -1,19 +1,21 @@
 import Foundation
+import Observation
 import DrIslandCore
 
 @MainActor
-final class PullRequestStore: ObservableObject {
+@Observable
+final class PullRequestStore {
     enum Status: Equatable {
         case disabled, loading, ok, notInstalled, notAuthenticated, error(String)
     }
 
-    @Published private(set) var snapshot = PullRequestSnapshot()
-    @Published private(set) var status: Status = .loading
+    private(set) var snapshot = PullRequestSnapshot()
+    private(set) var status: Status = .loading
 
     /// Changes the user has not seen yet; cleared when the island is closed after being opened. Persisted.
-    @Published private(set) var unseen: [PRChange] = []
+    private(set) var unseen: [PRChange] = []
     /// Bumped whenever a reading brought changes, so views can play their alert.
-    @Published private(set) var alertTick = 0
+    private(set) var alertTick = 0
     private(set) var lastChanges: [PRChange] = []
 
     private static let baselineKey = "prBaseline"
@@ -27,7 +29,7 @@ final class PullRequestStore: ObservableObject {
     private var loop: Task<Void, Never>?
     private var failures = 0
     /// True while a real fetch runs (not while the source is disabled), for the sync icon.
-    @Published private(set) var isRefreshing = false
+    private(set) var isRefreshing = false
     private var inFlight = false
 
     init() {

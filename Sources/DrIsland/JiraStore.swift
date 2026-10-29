@@ -1,31 +1,33 @@
 import Foundation
+import Observation
 import DrIslandCore
 
 @MainActor
-final class JiraStore: ObservableObject {
+@Observable
+final class JiraStore {
     enum Status: Equatable {
         case disabled, notConfigured, loading, ok, unauthorized, invalidSite, offline, rateLimited, error(Int)
     }
 
-    @Published private(set) var tasks: [JiraTask] = []
+    private(set) var tasks: [JiraTask] = []
     /// Tasks where the user is approver. `approvalsFailed` = the approver JQL was rejected or the call failed.
-    @Published private(set) var approvals: [JiraTask] = []
+    private(set) var approvals: [JiraTask] = []
     /// The user's own Jira display name, to tell their tasks from the others' in the approvals block.
-    @Published private(set) var myName: String?
-    @Published private(set) var approvalsFailed = false
+    private(set) var myName: String?
+    private(set) var approvalsFailed = false
     /// The active sprint (nil when there is none or the "Sprint" block is off). Read apart from the tasks, so a failure keeps the last one.
-    @Published private(set) var sprint: SprintInfo?
+    private(set) var sprint: SprintInfo?
     private var sprintField: String?
     /// Whether each Jira key found in the PR titles is in the active sprint (see `watchPRKeys`); missing = not known yet.
-    @Published private(set) var prSprint: [String: Bool] = [:]
+    private(set) var prSprint: [String: Bool] = [:]
     private var prKeys: Set<String> = []
-    @Published private(set) var status: Status = .loading
+    private(set) var status: Status = .loading
 
     private let client = JiraClient()
     private var loop: Task<Void, Never>?
     private var failures = 0
     /// True while a real fetch runs (not while the source is disabled), for the sync icon.
-    @Published private(set) var isRefreshing = false
+    private(set) var isRefreshing = false
     private var inFlight = false
     private var cachedToken: String?
     /// Called with Jira changes (new task, status, comments) after a successful reading.

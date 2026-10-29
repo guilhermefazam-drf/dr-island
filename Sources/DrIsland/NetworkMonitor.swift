@@ -1,13 +1,15 @@
 import Foundation
+import Observation
 import Network
 
 /// Tracks whether the Mac has a usable network path. The usage, PR and Jira numbers all come from the internet,
 /// so the island turns its border red while offline and refreshes everything as soon as the connection is back.
 @MainActor
-final class NetworkMonitor: ObservableObject {
+@Observable
+final class NetworkMonitor {
     static let shared = NetworkMonitor()
 
-    @Published private(set) var isOnline = true
+    private(set) var isOnline = true
     /// Called once each time the connection comes back after having been lost.
     var onReconnect: (() -> Void)?
     /// Called as soon as the connection is lost (not for the initial state).
