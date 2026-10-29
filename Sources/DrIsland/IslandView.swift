@@ -85,22 +85,44 @@ enum IslandLayout {
     }
 }
 
-private enum JiraRow {
+private enum JiraRow: Identifiable {
     case task(JiraTask)
     case message(String)
     case more(Int)       // collapsed: expands the section
     case less            // expanded: collapses it again
     case overflow(Int)   // expanded but still more than fits; not clickable
+
+    /// A task keeps its row while others come and go; the trailing rows keep theirs while their count changes.
+    var id: String {
+        switch self {
+        case .task(let task): "task:\(task.id)"
+        case .message: "message"
+        case .more: "more"
+        case .less: "less"
+        case .overflow: "overflow"
+        }
+    }
 }
 
 private enum PRList { case authored, review, outOfSprint }
 
-private enum PRRow {
+private enum PRRow: Identifiable {
     case pr(PullRequest)
     case message(String)
     case more(Int)       // collapsed: expands the section
     case less            // expanded: collapses it again
     case overflow(Int)   // expanded but still more than fits; not clickable
+
+    /// A PR keeps its row while others come and go; the trailing rows keep theirs while their count changes.
+    var id: String {
+        switch self {
+        case .pr(let pr): "pr:\(pr.id)"
+        case .message: "message"
+        case .more: "more"
+        case .less: "less"
+        case .overflow: "overflow"
+        }
+    }
 }
 
 /// Open "U" hugging the outside of the notch, from the top-left edge, round the bottom, to the top-right edge.
@@ -347,7 +369,10 @@ struct IslandView: View {
     private func prRows(for list: PRList) -> [PRRow] {
         if list == .review && !includeReviews { return [] }
         if list == .outOfSprint {
-            let items = (prStore.snapshot.authored + (includeReviews ? prStore.snapshot.reviewRequested : [])).filter(isOutOfSprint)
+            // Each PR once, so its row id is unique in the section.
+            var seen = Set<String>()
+            let items = (prStore.snapshot.authored + (includeReviews ? prStore.snapshot.reviewRequested : []))
+                .filter { isOutOfSprint($0) && seen.insert($0.id).inserted }
             let expanded = state.showAllPROutOfSprint
             let limit = expanded ? IslandLayout.expandedRowLimit : IslandLayout.maxPullRequestRows
             var rows = items.prefix(limit).map(PRRow.pr)
@@ -442,7 +467,7 @@ struct IslandView: View {
             let days = UsageHistory.lastDays(14, from: store.history)
             VStack(spacing: 2) {
                 HStack(alignment: .bottom, spacing: 3) {
-                    ForEach(Array(days.enumerated()), id: \.offset) { index, entry in
+                    ForEach(Array(days.enumerated()), id: \.element.date) { index, entry in
                         let peak = entry.usage?.sessionPeak
                         VStack(spacing: 0) {
                             Spacer(minLength: 0)
@@ -457,7 +482,7 @@ struct IslandView: View {
                     }
                 }
                 HStack(spacing: 3) {
-                    ForEach(Array(days.enumerated()), id: \.offset) { _, entry in
+                    ForEach(days, id: \.date) { entry in
                         Text(entry.date.formatted(.dateTime.weekday(.narrow)))
                             .font(.system(size: 8)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                     }
@@ -756,7 +781,7 @@ struct IslandView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(height: IslandLayout.cardListHeader, alignment: .bottom)
                     .padding(.bottom, 2)
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                ForEach(rows) { row in
                     switch row {
                     case .pr(let pr): prRow(pr)
                     case .message(let text):
@@ -780,7 +805,7 @@ struct IslandView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(height: IslandLayout.cardListHeader, alignment: .bottom)
                     .padding(.bottom, 2)
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                ForEach(rows) { row in
                     switch row {
                     case .task(let task): jiraRow(task, alerts: alerts)
                     case .message(let text):
