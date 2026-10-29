@@ -133,7 +133,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.updateStatusTitle() } }
     }
 
-    /// The text next to the menu bar icon: the focus timer while it runs, else the session percentage (if enabled).
     /// Redraws the title whenever a store value it reads changes. Observation fires once per registration (before the
     /// change lands), so each round re-registers on the next main-actor turn and reads the new value.
     private func observeStatusTitle() {
@@ -142,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// The text next to the menu bar icon: the focus timer while it runs, else the session percentage (if enabled).
     private func updateStatusTitle() {
         if focusStore.timer.isRunning {
             let seconds = Int(focusStore.timer.remaining(now: Date(), focusStore.config).rounded(.up))
