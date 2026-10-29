@@ -15,6 +15,8 @@ final class IslandState {
     var showAllApprovals = false
     var showAllOutOfSprint = false
     var showAllPROutOfSprint = false
+    /// Backlog groups (`BacklogGroup.id`) opened with "+N mais".
+    var expandedBacklog: Set<String> = []
     /// The settings preview is driving the island, so closing it must not count as "the user saw the alerts".
     @ObservationIgnored var isPreview = false
     /// What the mini island shows while it is up; empty = hidden.

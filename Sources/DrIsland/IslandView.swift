@@ -60,6 +60,7 @@ struct IslandView: View {
     @AppStorage(SettingsKey.showHistory) private var showHistory = false
     @AppStorage(SettingsKey.showSprint) private var showSprint = true
     @AppStorage(SettingsKey.showOutOfSprint) private var showOutOfSprint = true
+    @AppStorage(SettingsKey.jiraBacklogEnabled) private var showBacklog = true
     @AppStorage(SettingsKey.shortcuts) private var shortcutsJSON = "[]"
     @AppStorage(SettingsKey.showForecast) private var showForecast = true
     @AppStorage(SettingsKey.alertBanner) private var alertBanner = false
@@ -255,6 +256,25 @@ struct IslandView: View {
         return rows
     }
 
+    private var backlogGroups: [BacklogBlock.Group] {
+        jiraStore.backlog.map { group in
+            BacklogBlock.Group(id: group.id, title: "\(group.title) · \(group.tasks.count)",
+                               rows: jiraTaskRows(group.tasks, expanded: state.expandedBacklog.contains(group.id)))
+        }
+    }
+
+    private var backlogMessage: String? {
+        guard jiraStore.backlog.isEmpty else { return nil }
+        guard jiraStore.status == .ok else { return jiraRows(for: [], expanded: false).first.flatMap { if case .message(let text) = $0 { text } else { nil } } }
+        if jiraStore.backlogFailed { return "Jira: JQL do backlog inválido" }
+        if Settings.jiraBacklogJQL(guessedProject: Backlog.guessProject(from: jiraStore.tasks.map(\.key))) == nil { return "Indica o projeto do backlog nas Definições" }
+        return "Backlog vazio"
+    }
+
+    private func setShowAllBacklog(_ id: String, _ value: Bool) {
+        if value { state.expandedBacklog.insert(id) } else { state.expandedBacklog.remove(id) }
+    }
+
     /// With an active sprint on show, the tasks that are not in it go to their own card.
     private var splitsOutOfSprint: Bool { showSprint && jiraStore.sprint != nil }
     private var outOfSprintTasks: [JiraTask] { splitsOutOfSprint ? jiraStore.tasks.filter { $0.inActiveSprint == false } : [] }
@@ -325,6 +345,7 @@ struct IslandView: View {
         case .claude: return true
         case .pullRequests: return !prRows(for: .authored).isEmpty || !prRows(for: .review).isEmpty || !prRows(for: .outOfSprint).isEmpty
         case .jira: return !jiraRows.isEmpty || !outOfSprintRows.isEmpty || !approvalRows.isEmpty || (showSprint && jiraStore.sprint != nil)
+        case .backlog: return showBacklog && jiraStore.status != .disabled
         case .focus: return showFocus
         case .history: return showHistory
         case .music: return true   // shown disabled when nothing is playing
@@ -348,6 +369,7 @@ struct IslandView: View {
         case .jira:
             let parts = [section(jiraRows.count), section(outOfSprintRows.count), section(approvalRows.count)].filter { $0 > 0 }
             return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
+        case .backlog: return IslandLayout.card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated))
         case .focus: return IslandLayout.card(IslandLayout.focusContent)
         case .history: return IslandLayout.card(IslandLayout.historyContent)
         case .music: return IslandLayout.card(musicStore.nowPlaying.map(MusicBlock.contentHeight) ?? IslandLayout.musicContent)
@@ -820,6 +842,9 @@ struct IslandView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()
+        case .backlog:
+            BacklogBlock(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated,
+                         changes: rowChanges, myName: jiraStore.myName, showAll: setShowAllBacklog)
         case .focus: FocusBlock(store: focusStore)
         case .history: if showHistory { UsageHistoryChart(history: store.history, amber: amber, red: red) }
         case .music: MusicBlock(store: musicStore)

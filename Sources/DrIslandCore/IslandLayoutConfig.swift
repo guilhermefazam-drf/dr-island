@@ -3,13 +3,14 @@ import Foundation
 /// The pieces of the expanded island that can be placed in a column. (The shortcuts dock is not one: it always sits
 /// centred under the columns.)
 public enum IslandBlock: String, CaseIterable, Codable, Sendable {
-    case claude, pullRequests, jira, focus, history, music, alerts, briefing, timeline
+    case claude, pullRequests, jira, backlog, focus, history, music, alerts, briefing, timeline
 
     public var title: String {
         switch self {
         case .claude: return "Claude"
         case .pullRequests: return "Git"
         case .jira: return "Jira"
+        case .backlog: return "Backlog"
         case .focus: return "Foco"
         case .history: return "Histórico"
         case .music: return "Música"
@@ -24,6 +25,7 @@ public enum IslandBlock: String, CaseIterable, Codable, Sendable {
         case .claude: return "gauge.with.dots.needle.50percent"
         case .pullRequests: return "arrow.triangle.pull"
         case .jira: return "checklist"
+        case .backlog: return "tray.full"
         case .focus: return "timer"
         case .history: return "chart.bar"
         case .music: return "music.note"
@@ -54,9 +56,9 @@ public struct IslandLayoutConfig: Codable, Equatable, Sendable {
         IslandLayoutConfig(columns: columns, extraColumnWidth: extra)
     }
 
-    public static let vertical = IslandLayoutConfig(columns: [[.briefing, .claude, .pullRequests, .jira, .focus, .history, .music, .timeline, .alerts]])
-    public static let twoColumns = IslandLayoutConfig(columns: [[.briefing, .claude, .focus, .music, .history, .alerts], [.pullRequests, .jira, .timeline]])
-    public static let threeColumns = IslandLayoutConfig(columns: [[.briefing, .claude, .focus, .history], [.pullRequests, .jira], [.music, .timeline, .alerts]])
+    public static let vertical = IslandLayoutConfig(columns: [[.briefing, .claude, .pullRequests, .jira, .backlog, .focus, .history, .music, .timeline, .alerts]])
+    public static let twoColumns = IslandLayoutConfig(columns: [[.briefing, .claude, .focus, .music, .history, .alerts], [.pullRequests, .jira, .backlog, .timeline]])
+    public static let threeColumns = IslandLayoutConfig(columns: [[.briefing, .claude, .focus, .history], [.pullRequests, .jira, .backlog], [.music, .timeline, .alerts]])
 
     public var columnCount: Int { columns.count }
 

@@ -94,6 +94,9 @@ enum Settings {
             SettingsKey.jiraApproverJQL: JiraConfig.defaultApproverJQL,
             SettingsKey.jiraMaxTasks: 20,
             SettingsKey.jiraRefreshSeconds: 180.0,
+            SettingsKey.jiraBacklogEnabled: true,
+            SettingsKey.jiraBacklogProject: "",
+            SettingsKey.jiraBacklogJQL: "",
         ])
     }
 
@@ -132,6 +135,15 @@ enum Settings {
     static var jiraApproverEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.jiraApproverEnabled) }
     static var jiraRefreshSeconds: TimeInterval {
         min(max(UserDefaults.standard.double(forKey: SettingsKey.jiraRefreshSeconds), 60), 900)
+    }
+    static var jiraBacklogEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.jiraBacklogEnabled) }
+    /// The backlog JQL: the one typed, else the default for the project set (or `guessedProject`); nil without a project.
+    static func jiraBacklogJQL(guessedProject: String?) -> String? {
+        let d = UserDefaults.standard
+        let jql = (d.string(forKey: SettingsKey.jiraBacklogJQL) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !jql.isEmpty { return jql }
+        let project = (d.string(forKey: SettingsKey.jiraBacklogProject) ?? "").trimmingCharacters(in: .whitespaces).uppercased()
+        return (project.isEmpty ? guessedProject : project).map(Backlog.defaultJQL(project:))
     }
     /// `token` is passed in so callers decide when to touch the Keychain.
     static func jiraConfig(token: String) -> JiraConfig {

@@ -12,6 +12,9 @@ struct JiraPage: View {
     @AppStorage(SettingsKey.showSprint) private var showSprint = true
     @AppStorage(SettingsKey.showOutOfSprint) private var showOutOfSprint = true
     @AppStorage(SettingsKey.jiraRefreshSeconds) private var refresh = 180.0
+    @AppStorage(SettingsKey.jiraBacklogEnabled) private var backlogEnabled = true
+    @AppStorage(SettingsKey.jiraBacklogProject) private var backlogProject = ""
+    @AppStorage(SettingsKey.jiraBacklogJQL) private var backlogJQL = ""
     @State private var tokenInput = ""
     @State private var hasToken = SecretStore.exists(account: Settings.jiraTokenAccount)
     @State private var tokenMessage: String?
@@ -54,6 +57,12 @@ struct JiraPage: View {
             Section("Aprovações") {
                 ToggleRow("Mostrar tasks em que sou approver", detail: "Uma secção no card Jira, com as tasks que esperam a tua aprovação.", isOn: $approverEnabled)
                 TextField("JQL", text: $approverJQL, axis: .vertical).lineLimit(2...4)
+            }
+            .disabled(!enabled)
+            Section("Backlog") {
+                ToggleRow("Mostrar o backlog da equipa", detail: "Um card próprio, como a vista Backlog do Jira: uma lista por cada sprint futura e, no fim, as tasks sem sprint. Lê até 100 tasks.", isOn: $backlogEnabled)
+                TextField("Projeto", text: $backlogProject, prompt: Text("vazio = o das tuas tasks (ex.: TEP)"))
+                TextField("JQL", text: $backlogJQL, prompt: Text("vazio = backlog do projeto"), axis: .vertical).lineLimit(2...4)
             }
             .disabled(!enabled)
         }

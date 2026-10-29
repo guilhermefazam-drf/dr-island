@@ -18,6 +18,11 @@ final class JiraStore {
     /// The active sprint (nil when there is none or the "Sprint" block is off). Read apart from the tasks, so a failure keeps the last one.
     private(set) var sprint: SprintInfo?
     private var sprintField: String?
+    /// The team backlog grouped by future sprint ("Backlog" block). `backlogTruncated` = more tasks than were read;
+    /// `backlogFailed` = the last reading failed (the last good groups stay).
+    private(set) var backlog: [BacklogGroup] = []
+    private(set) var backlogTruncated = false
+    private(set) var backlogFailed = false
     /// Whether each Jira key found in the PR titles is in the active sprint (see `watchPRKeys`); missing = not known yet.
     private(set) var prSprint: [String: Bool] = [:]
     private var prKeys: Set<String> = []
@@ -117,6 +122,26 @@ final class JiraStore {
         catch { ErrorLog.record("Jira", "PRs da sprint: \(error)") }   // keep the last answer
     }
 
+    /// Independent of the main reading, as the approvals. Needs the Sprint field to split by sprint; without it all is "Backlog".
+    private func refreshBacklog(_ config: JiraConfig) async {
+        guard Settings.jiraBacklogEnabled,
+              let jql = Settings.jiraBacklogJQL(guessedProject: Backlog.guessProject(from: tasks.map(\.key))) else {
+            backlog = []
+            backlogFailed = false
+            return
+        }
+        if sprintField == nil { sprintField = try? await client.sprintFieldID(config) }
+        do {
+            let result = try await client.fetchBacklog(config, jql: jql, sprintField: sprintField)
+            backlog = result.groups
+            backlogTruncated = result.truncated
+            backlogFailed = false
+        } catch {
+            backlogFailed = true
+            ErrorLog.record("Jira", "Backlog: \(error)")
+        }
+    }
+
     private func refreshSprint(_ config: JiraConfig) async {
         guard Settings.showSprint else { sprint = nil; return }
         do {
@@ -134,6 +159,7 @@ final class JiraStore {
             tasks = []
             approvals = []
             sprint = nil
+            backlog = []
             return 5
         }
         let interval = Settings.jiraRefreshSeconds
@@ -143,6 +169,7 @@ final class JiraStore {
             tasks = []
             approvals = []
             sprint = nil
+            backlog = []
             return 10
         }
         isRefreshing = true
@@ -160,6 +187,7 @@ final class JiraStore {
             tasks = fresh
             await refreshApprovals(config)
             await refreshSprint(config)
+            await refreshBacklog(config)
             await refreshPRSprint(config)
             status = .ok
             failures = 0

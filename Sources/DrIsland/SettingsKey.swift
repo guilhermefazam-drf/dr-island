@@ -86,4 +86,7 @@ enum SettingsKey {
     static let jiraApproverJQL = "jiraApproverJQL"
     static let jiraMaxTasks = "jiraMaxTasks"
     static let jiraRefreshSeconds = "jiraRefreshSeconds"
+    static let jiraBacklogEnabled = "jiraBacklogEnabled"  // "Backlog" block: the team backlog grouped by future sprint
+    static let jiraBacklogProject = "jiraBacklogProject"  // project key; empty = the one most of my tasks belong to
+    static let jiraBacklogJQL = "jiraBacklogJQL"          // empty = Backlog.defaultJQL(project:)
 }
