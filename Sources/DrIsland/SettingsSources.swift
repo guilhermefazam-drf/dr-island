@@ -222,6 +222,8 @@ struct JiraPage: View {
     @AppStorage(SettingsKey.jiraApproverEnabled) private var approverEnabled = true
     @AppStorage(SettingsKey.jiraApproverJQL) private var approverJQL = JiraConfig.defaultApproverJQL
     @AppStorage(SettingsKey.jiraMaxTasks) private var maxTasks = 20
+    @AppStorage(SettingsKey.showSprint) private var showSprint = true
+    @AppStorage(SettingsKey.showOutOfSprint) private var showOutOfSprint = true
     @AppStorage(SettingsKey.jiraRefreshSeconds) private var refresh = 180.0
     @State private var tokenInput = ""
     @State private var hasToken = SecretStore.exists(account: Settings.jiraTokenAccount)
@@ -251,6 +253,11 @@ struct JiraPage: View {
                 TestRow(title: "Testar ligação", running: testing, result: testResult) { Task { await test() } }
             }
             .disabled(!enabled)
+            Section("Sprint") {
+                ToggleRow("Mostrar a sprint", detail: "No topo do card Jira: nome, datas e uma barra com o tempo decorrido da sprint ativa. Só aparece com o Jira ligado e uma sprint ativa.", isOn: $showSprint)
+                ToggleRow("Mostrar «Fora da Sprint»", detail: "No fim dos cards Jira e Git: as tuas tasks e os PRs que não estão na sprint ativa (um PR conta como da sprint quando o título tem a chave de uma task dela, p. ex. TEP-123). Desligado, as tasks fora da sprint não aparecem e os PRs ficam todos juntos. Precisa de «Mostrar a sprint» ligado.", isOn: $showOutOfSprint).disabled(!showSprint)
+            }
+            .disabled(!enabled)
             Section("Tasks") {
                 TextField("JQL", text: $jql, axis: .vertical).lineLimit(2...4)
                 Stepper("Máximo de tasks: \(maxTasks)", value: $maxTasks, in: 1...20)
@@ -258,7 +265,7 @@ struct JiraPage: View {
             }
             .disabled(!enabled)
             Section("Aprovações") {
-                ToggleRow("Mostrar tasks em que sou approver", detail: "Um bloco à parte na ilha, com as tasks que esperam a tua aprovação.", isOn: $approverEnabled)
+                ToggleRow("Mostrar tasks em que sou approver", detail: "Uma secção no card Jira, com as tasks que esperam a tua aprovação.", isOn: $approverEnabled)
                 TextField("JQL", text: $approverJQL, axis: .vertical).lineLimit(2...4)
             }
             .disabled(!enabled)

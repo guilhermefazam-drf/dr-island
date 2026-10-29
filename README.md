@@ -1,6 +1,6 @@
 # Dr Island
 
-Central de controlo do dia de trabalho, no notch do MacBook: mostra o uso do **Claude**, os teus **Pull Requests** (GitHub), as tasks do **Jira**, música, temporizador de foco e atalhos de apps. Com o rato por cima do notch, a ilha expande.
+Central de controlo do dia de trabalho, no notch do MacBook: mostra o uso do **Claude**, os teus **Pull Requests** (GitHub), as tasks e a sprint do **Jira**, música, temporizador de foco e atalhos de apps. Com o rato por cima do notch, a ilha expande.
 
 > Para a lista completa de funcionalidades e regras, ver [docs/funcionalidades.md](docs/funcionalidades.md).
 
@@ -60,13 +60,26 @@ Desligado por defeito. Em **Definições → Jira**:
 2. Preenche **Site** (`empresa.atlassian.net`), **Email** (o da tua conta Atlassian) e cola o **token**. Fica guardado só no Keychain.
 3. Carrega em **Testar** e liga o Jira.
 
-As tasks vêm do JQL configurado (por omissão, as que estão atribuídas a ti e por concluir). O bloco "Aprovações" usa o campo personalizado `customfield_10127` da instância da Doutor Finanças; noutra instância, ajusta o JQL nas Definições.
+As tasks vêm do JQL configurado (por omissão, as que estão atribuídas a ti e por concluir). A secção "Aprovações" usa o campo personalizado `customfield_10127` da instância da Doutor Finanças; noutra instância, ajusta o JQL nas Definições.
+
+#### Sprint e «Fora da Sprint»
+
+Com o Jira ligado e uma sprint ativa, o título do card Jira passa a "Jira - SPRINT - nome", com uma barra do tempo decorrido (passa o rato para ver as datas, a % e o tempo que falta; o fim é o planeado). A app descobre sozinha o campo Sprint da tua instância.
+
+- As tasks que não estão na sprint ativa vão para a secção **Fora da Sprint**, no fim do card Jira.
+- No card **Git**, os PRs cujo título não tem a chave de uma task da sprint (por exemplo `TEP-123`) vão para **Fora da Sprint**, no fim. O cruzamento é só pelo título do PR.
+- Em **Definições → Jira → Sprint** (ou **Conteúdo**) podes ligar e desligar a sprint e a secção «Fora da Sprint». Com a secção desligada, as tasks fora da sprint não aparecem e os PRs ficam todos juntos.
+
+## A ilha
+
+Cada bloco da ilha está num card próprio e pode ser movido de coluna em **Definições → Layout**. Os principais são o **Git** (Os meus PRs, A rever, Fora da Sprint) e o **Jira** (As minhas tasks, Aprovações, Fora da Sprint).
 
 ## Problemas comuns
 
 - **Os PRs não aparecem:** corre `gh auth status` no terminal.
 - **Sem avisos do macOS:** a app tem de estar instalada como `.app` e com notificações permitidas.
 - **Não incomodar com o Focus do macOS:** precisa de Acesso Total ao Disco.
+- **A sprint não aparece:** confirma que o Jira está ligado, que há uma sprint ativa e que **Definições → Jira → Sprint** está ligado; se falhar, o motivo fica no registo de erros.
 - **Registo de erros:** menu da barra → **Registo de erros…**.
 
 ## Desenvolvimento

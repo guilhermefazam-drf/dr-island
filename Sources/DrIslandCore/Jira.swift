@@ -18,12 +18,15 @@ public struct JiraTask: Equatable, Identifiable, Sendable {
     public let assignee: String?
     /// Display names of the comments' authors, as returned with the task (nil when not returned).
     public let commentAuthors: [String]?
+    /// Whether the task is in the active sprint (nil when the Sprint field was not read).
+    public let inActiveSprint: Bool?
     /// The team marks sprint goals with the label `Sprint_Goal` (any case, `-`/`_`/space tolerated).
     public var isSprintGoal: Bool {
         labels.contains { $0.lowercased().filter { $0.isLetter } == "sprintgoal" }
     }
 
-    public init(key: String, summary: String, status: String, category: Category, priority: String?, url: URL, commentCount: Int? = nil, labels: [String] = [], approvers: [String]? = nil, assignee: String? = nil, commentAuthors: [String]? = nil) {
+    public init(key: String, summary: String, status: String, category: Category, priority: String?, url: URL, commentCount: Int? = nil, labels: [String] = [], approvers: [String]? = nil, assignee: String? = nil, commentAuthors: [String]? = nil, inActiveSprint: Bool? = nil) {
+        self.inActiveSprint = inActiveSprint
         self.commentAuthors = commentAuthors
         self.assignee = assignee
         self.commentCount = commentCount
@@ -81,7 +84,8 @@ public enum JiraOrder {
 }
 
 public enum JiraParser {
-    public static func parseTasks(_ data: Data, site: URL) throws -> [JiraTask] {
+    /// `sprintField`: the Sprint custom field's id; when given, each task says whether it is in an active sprint.
+    public static func parseTasks(_ data: Data, site: URL, sprintField: String? = nil) throws -> [JiraTask] {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let issues = root["issues"] as? [[String: Any]] else { throw JiraError.invalidResponse }
         return issues.compactMap { issue in
@@ -102,7 +106,10 @@ public enum JiraParser {
                     users.compactMap { ($0["displayName"] as? String) ?? ($0["accountId"] as? String) }.sorted()
                 },
                 assignee: (fields["assignee"] as? [String: Any])?["displayName"] as? String,
-                commentAuthors: ((fields["comment"] as? [String: Any])?["comments"] as? [[String: Any]])?.compactMap { ($0["author"] as? [String: Any])?["displayName"] as? String }
+                commentAuthors: ((fields["comment"] as? [String: Any])?["comments"] as? [[String: Any]])?.compactMap { ($0["author"] as? [String: Any])?["displayName"] as? String },
+                inActiveSprint: sprintField.map { field in
+                    ((fields[field] as? [[String: Any]]) ?? []).contains { ($0["state"] as? String)?.lowercased() == "active" }
+                }
             )
         }
     }
@@ -150,18 +157,18 @@ public struct JiraClient: Sendable {
         "Basic " + Data("\(email):\(token)".utf8).base64EncodedString()
     }
 
-    static func searchURL(site: URL, jql: String, maxResults: Int) -> URL? {
+    static func searchURL(site: URL, jql: String, maxResults: Int, extraFields: [String] = []) -> URL? {
         var components = URLComponents(url: site.appendingPathComponent("rest/api/3/search/jql"), resolvingAgainstBaseURL: false)
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
-            URLQueryItem(name: "fields", value: "summary,status,priority,comment,labels,assignee," + JiraConfig.approversField),
+            URLQueryItem(name: "fields", value: (["summary", "status", "priority", "comment", "labels", "assignee", JiraConfig.approversField] + extraFields).joined(separator: ",")),
             URLQueryItem(name: "maxResults", value: String(max(1, min(maxResults, 50)))),
         ]
         return components?.url
     }
 
-    public func fetchTasks(_ config: JiraConfig) async throws -> [JiraTask] {
-        try await search(config, jql: config.jql)
+    public func fetchTasks(_ config: JiraConfig, sprintField: String? = nil) async throws -> [JiraTask] {
+        try await search(config, jql: config.jql, sprintField: sprintField)
     }
 
     /// The tasks where the user is an approver (`config.approverJQL`).
@@ -169,11 +176,11 @@ public struct JiraClient: Sendable {
         try await search(config, jql: config.approverJQL)
     }
 
-    private func search(_ config: JiraConfig, jql: String) async throws -> [JiraTask] {
+    private func search(_ config: JiraConfig, jql: String, sprintField: String? = nil) async throws -> [JiraTask] {
         let (site, header) = try prepare(config)
-        guard let url = Self.searchURL(site: site, jql: jql, maxResults: config.maxResults) else { throw JiraError.invalidSite }
+        guard let url = Self.searchURL(site: site, jql: jql, maxResults: config.maxResults, extraFields: sprintField.map { [$0] } ?? []) else { throw JiraError.invalidSite }
         let data = try await get(url, authorization: header)
-        return try JiraParser.parseTasks(data, site: site)
+        return try JiraParser.parseTasks(data, site: site, sprintField: sprintField)
     }
 
     /// Returns the account's display name; used by the settings "Testar" button.
@@ -183,13 +190,13 @@ public struct JiraClient: Sendable {
         return try JiraParser.parseDisplayName(data)
     }
 
-    private func prepare(_ config: JiraConfig) throws -> (URL, String) {
+    func prepare(_ config: JiraConfig) throws -> (URL, String) {
         guard config.isComplete else { throw JiraError.notConfigured }
         guard let site = Self.normalizedSite(config.site) else { throw JiraError.invalidSite }
         return (site, Self.authorizationHeader(email: config.email, token: config.token))
     }
 
-    private func get(_ url: URL, authorization: String) async throws -> Data {
+    func get(_ url: URL, authorization: String) async throws -> Data {
         var request = URLRequest(url: url, timeoutInterval: 20)
         request.setValue(authorization, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")

@@ -17,7 +17,7 @@ private struct EntryRow: View {
         .frame(height: IslandLayout.alertsRow)
         .contentShape(Rectangle())
         if let url = entry.destination {
-            Button { NSWorkspace.shared.open(url) } label: { content }.buttonStyle(.plain).pointingHandCursor().help("Abrir")
+            Button { NSWorkspace.shared.open(url) } label: { content }.buttonStyle(.plain).pointingHandCursor().islandTip("Abrir")
         } else {
             content
         }
@@ -129,10 +129,10 @@ struct TimelineBlock: View {
                 Spacer()
                 Button(action: showBriefing) { Text("resumo").font(.caption2).foregroundStyle(linkBlue) }
                     .buttonStyle(.plain).pointingHandCursor()
-                    .help("O que mudou desde a última vez que viste a ilha")
+                    .islandTip("O que mudou desde a última vez que viste a ilha")
                 Button(action: openDetails) { Text("detalhes").font(.caption2).foregroundStyle(linkBlue) }
                     .buttonStyle(.plain).pointingHandCursor()
-                    .help("Todos os eventos do dia, nas definições")
+                    .islandTip("Todos os eventos do dia, nas definições")
             }
             .frame(height: IslandLayout.alertsHeader)
             HourlyLineChart(counts: counts, range: DayBriefing.hourRange(counts, endHour: hour), nowHour: hour, height: Self.chartHeight)
@@ -170,7 +170,7 @@ struct BriefingBlock: View {
                 Spacer()
                 Button(action: dismiss) { Text("ok").font(.caption2.weight(.semibold)).foregroundStyle(linkBlue) }
                     .buttonStyle(.plain).pointingHandCursor()
-                    .help("Marcar como visto")
+                    .islandTip("Marcar como visto")
             }
             .frame(height: IslandLayout.alertsHeader)
             Text(entries.isEmpty ? "Sem novidades" : DayBriefing.summary(entries) + (entries.count > Self.maxRows ? " · \(entries.count - Self.maxRows) mais" : ""))

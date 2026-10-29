@@ -19,47 +19,64 @@ extension EnvironmentValues {
     }
 }
 
-/// From this column width a block may spread out (controls to the edge, extra details).
-let islandWideColumn: CGFloat = 340
+// MARK: - Tooltips
 
-/// A tooltip drawn by the island itself. The native `.help` never shows here: the island is a non-activating panel of an
-/// app that is never frontmost, and AppKit only shows tooltips for the active app.
-private struct IslandTip: ViewModifier {
+/// The island's own tooltip. The native `.help` never shows here: the island is a non-activating panel of an app that is
+/// never frontmost, and AppKit only shows tooltips for the active app. So a hovered view reports its frame here and
+/// `IslandView` draws the bubble inside the visible island, where it is never cut at the edges.
+struct IslandTipData: Equatable {
     let text: String
-    @State private var shown = false
-    @State private var pending: DispatchWorkItem?
+    /// The hovered view's frame in the island's `islandRoot` coordinate space.
+    let anchor: CGRect
+}
+
+let islandRootSpace = "islandRoot"
+
+private struct TipSetterKey: EnvironmentKey { static let defaultValue: (IslandTipData?) -> Void = { _ in } }
+extension EnvironmentValues {
+    var islandTip: (IslandTipData?) -> Void {
+        get { self[TipSetterKey.self] }
+        set { self[TipSetterKey.self] = newValue }
+    }
+}
+
+private struct IslandTipModifier: ViewModifier {
+    let text: String
+    @Environment(\.islandTip) private var setTip
+    @State private var frame: CGRect = .zero
+    @State private var pending: Task<Void, Never>?
 
     func body(content: Content) -> some View {
         content
+            .background(GeometryReader { geo in
+                Color.clear
+                    .onAppear { frame = geo.frame(in: .named(islandRootSpace)) }
+                    .onChange(of: geo.frame(in: .named(islandRootSpace))) { _, new in frame = new }
+            })
             .onHover { inside in
                 pending?.cancel()
-                if inside {
-                    let work = DispatchWorkItem { withAnimation(.easeOut(duration: 0.12)) { shown = true } }
-                    pending = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
-                } else {
-                    withAnimation(.easeIn(duration: 0.08)) { shown = false }
+                guard !text.isEmpty else { return }
+                guard inside else { setTip(nil); return }
+                pending = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(350))
+                    guard !Task.isCancelled else { return }
+                    setTip(IslandTipData(text: text, anchor: frame))
                 }
             }
-            .overlay(alignment: .top) {
-                if shown {
-                    Text(text).font(.system(size: 10, weight: .medium)).foregroundStyle(.white).fixedSize()
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(Capsule().fill(Color.black.opacity(0.92)).overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 0.5)))
-                        .offset(y: -22)
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
-                }
-            }
-            .zIndex(shown ? 100 : 0)
+            .onDisappear { pending?.cancel(); setTip(nil) }
             .accessibilityLabel(text)
     }
 }
 
 extension View {
-    /// Hover label that works in the island (see `IslandTip`); also the accessibility label.
-    func islandTip(_ text: String) -> some View { modifier(IslandTip(text: text)) }
+    /// Hover label that works in the island (see `IslandTipData`); also the accessibility label.
+    func islandTip(_ text: String) -> some View { modifier(IslandTipModifier(text: text)) }
+}
 
+/// From this column width a block may spread out (controls to the edge, extra details).
+let islandWideColumn: CGFloat = 340
+
+extension View {
     /// A slightly lighter rounded panel behind the secondary blocks, so the island has structure.
     func blockCard() -> some View {
         padding(IslandLayout.cardPadding)
@@ -86,7 +103,7 @@ struct CircleButton: View {
         }
         .buttonStyle(.plain)
         .pointingHandCursor()
-        .help(help)
+        .islandTip(help)
     }
 }
 
@@ -291,7 +308,7 @@ struct MusicBlock: View {
         .blockCard()
         .disabled(true)
         .opacity(0.45)
-        .help("Nenhuma música a tocar")
+        .islandTip("Nenhuma música a tocar")
     }
 
     private func cover(_ playing: NowPlaying) -> some View {
@@ -310,7 +327,7 @@ struct MusicBlock: View {
         }
         .buttonStyle(.plain)
         .pointingHandCursor()
-        .help(sourceName(playing).map { "Abrir \($0)" } ?? "")
+        .islandTip(sourceName(playing).map { "Abrir \($0)" } ?? "")
     }
 
     private func progress(_ playing: NowPlaying) -> some View {
@@ -460,7 +477,7 @@ struct ClaudeBlock: View {
             tile("Hoje", "\(UsageCost.compactTokens(today.total.tokens)) tok · ≈ \(UsageCost.dollars(today.total.cost))")
             tile("7 dias", "≈ \(UsageCost.dollars(week.total.cost))")
         }
-        .help("Equivalente à API, a preços editáveis nas Definições → Custo. Estimado a partir dos logs locais do Claude Code.")
+        .islandTip("Equivalente à API, a preços editáveis nas Definições → Custo. Estimado a partir dos logs locais do Claude Code.")
     }
 
     private func tile(_ title: String, _ value: String) -> some View {
@@ -556,7 +573,7 @@ struct AlertsBlock: View {
         return Group {
             if let url = entry.destination {
                 Button { NSWorkspace.shared.open(url) } label: { content }.buttonStyle(.plain).pointingHandCursor()
-                    .help("Abrir")
+                    .islandTip("Abrir")
             } else {
                 content
             }
@@ -571,6 +588,59 @@ struct AlertsBlock: View {
         case ..<3600: return "\(seconds / 60) min"
         case ..<86_400: return "\(seconds / 3600) h"
         default: return Calendar.current.isDateInYesterday(date) ? "ontem" : "\(seconds / 86_400) d"
+        }
+    }
+}
+
+// MARK: - Sprint
+
+/// The sprint's elapsed time as a thin bar, small enough to sit in a card's title row. The details (dates, %, time
+/// left) are in the tooltip, which `tooltip` builds.
+struct SprintBar: View {
+    let sprint: SprintInfo
+    let amber: Color
+    let red: Color
+
+    static let width: CGFloat = 72
+
+    private static let dayFormat: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "pt_PT")
+        formatter.setLocalizedDateFormatFromTemplate("d MMM")
+        return formatter
+    }()
+
+    static func tooltip(_ sprint: SprintInfo, now: Date = Date()) -> String {
+        let percent = Int((sprint.progress(now: now) * 100).rounded())
+        return """
+        \(sprint.name)
+        \(dayFormat.string(from: sprint.start)) → \(dayFormat.string(from: sprint.end))
+        \(percent)% decorrido · faltam \(SprintInfo.remainingLabel(sprint.remaining(now: now)))
+        """
+    }
+
+    var body: some View {
+        // Minute resolution is enough: nothing here shows seconds.
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let progress = sprint.progress(now: context.date)
+            let tint = color(sprint.level(now: context.date))
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.14))
+                Capsule().fill(tint).frame(width: max(Self.width * progress, progress > 0 ? 5 : 0))
+            }
+            .frame(width: Self.width, height: 6)
+            // A 6 pt bar is hard to hover: the hit area (and so the tooltip) is a taller strip around it.
+            .frame(width: Self.width + 8, height: IslandLayout.cardTitle - 4)   // as tall as the title row
+            .contentShape(Rectangle())
+            .islandTip(Self.tooltip(sprint, now: context.date))
+        }
+    }
+
+    private func color(_ level: SprintInfo.Level) -> Color {
+        switch level {
+        case .normal: return Brand.blue
+        case .warning: return amber
+        case .critical: return red
         }
     }
 }

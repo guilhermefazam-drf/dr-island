@@ -67,4 +67,19 @@ import Testing
         #expect(IslandLayoutConfig.decode(#"{"columns":[["claude"]]}"#).extraColumnWidth == 0)
         #expect(IslandLayoutConfig.vertical.withExtraColumnWidth(999).extraColumnWidth == IslandLayoutConfig.maxExtraColumnWidth)
     }
+
+    @Test func oldApprovalsBlockMergesIntoJira() {
+        let old = IslandLayoutConfig.decode(#"{"columns":[["claude","jira","music"],["jiraApprovals","alerts"]]}"#)
+        #expect(old.columns[0].prefix(3) == [.claude, .jira, .music])
+        #expect(old.columns.flatMap { $0 }.filter { $0 == .jira }.count == 1)
+        #expect(old.columns.flatMap { $0 }.count == IslandBlock.allCases.count)
+        // Only the old approvals block saved: it becomes the Jira card in that place.
+        #expect(IslandLayoutConfig.decode(#"{"columns":[["claude"],["jiraApprovals"]]}"#).column(of: .jira) == 1)
+    }
+
+    @Test func savedOutOfSprintBlockMovesIntoTheJiraCard() {
+        let old = IslandLayoutConfig.decode(#"{"columns":[["claude","jira","outOfSprint","music"]]}"#)
+        #expect(old.columns[0].prefix(3) == [.claude, .jira, .music])
+        #expect(old.columns.flatMap { $0 }.count == IslandBlock.allCases.count)
+    }
 }
