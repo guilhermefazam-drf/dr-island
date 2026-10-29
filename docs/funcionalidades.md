@@ -61,6 +61,8 @@ Blocos disponíveis no layout: Claude, Pull requests, Jira, Jira·aprovações, 
 | Âmbar | ≥60% | slider 10–100, passo 5 |
 | Vermelho | ≥85% | nunca abaixo do âmbar |
 
+**Limite semanal diário**: a barra "Semana" está dividida nos 5 dias úteis da janela semanal (20% cada; fins de semana não somam). A marca branca é o que se pode gastar até ao fim de hoje (dias úteis já começados na janela × 20%, mínimo 20%); o que sobra de dias anteriores acumula. A cor usa os mesmos limiares âmbar/vermelho da sessão, aplicados a `uso semanal ÷ permitido até hoje` (`WeeklyPace`). Sem `resets_at`, usa a % semanal simples.
+
 **Refresh**
 
 | Parâmetro | Valor |
