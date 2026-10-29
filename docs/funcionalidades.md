@@ -28,7 +28,7 @@ Levantamento factual, a partir do código, de todas as features e regras da app 
 1. **Claude (uso)** — medidor de sessão (5h) e semana, previsão de esgotamento, estimativa local, histórico.
 2. **Custo e tokens** — hoje / 7 d / 14 d / total, por família de modelo.
 3. **Pull requests (GitHub)** — meus, a rever, alterações detetadas, silenciar.
-4. **Jira** — tasks próprias e bloco "Aprovações".
+4. **Jira** — tasks próprias, bloco "Aprovações" e card "Backlog" (backlog da equipa por sprint).
 5. **Música** — Spotify, Música e Now Playing do sistema.
 6. **Foco (Pomodoro)**.
 7. **Atalhos de desenvolvimento** — dock de apps.
@@ -36,7 +36,7 @@ Levantamento factual, a partir do código, de todas as features e regras da app 
 9. **Resumo do dia e linha do tempo**.
 10. **Layout e aparência**, barra de menu, atalho global.
 
-Blocos disponíveis no layout: Claude, Pull requests, Jira, Jira·aprovações, Foco, Histórico, Música, Avisos recentes, Resumo do dia, Linha do tempo.
+Blocos disponíveis no layout: Claude, Pull requests, Jira, Backlog, Foco, Histórico, Música, Avisos recentes, Resumo do dia, Linha do tempo.
 
 ## Regras de negócio por domínio
 
@@ -224,6 +224,14 @@ Blocos disponíveis no layout: Claude, Pull requests, Jira, Jira·aprovações, 
 - Independente da leitura principal: se falhar, mantém a última lista e marca erro sem esconder as tasks próprias.
 - Tasks já anunciadas na lista própria não são anunciadas duas vezes.
 
+**Card "Backlog"** (`jiraBacklogEnabled`, default ligado; bloco próprio no layout, `IslandBlock.backlog`)
+- Backlog da equipa, como a vista Backlog do Jira: uma lista por cada sprint futura (ordenadas pela data de início; sem data vão para o fim, por id) e, no fim, "Backlog" com as tasks sem sprint futura. Grupos vazios não aparecem. A sprint ativa não entra (tem o seu próprio bloco).
+- JQL default: `project = <PROJ> AND statusCategory != Done AND (sprint is EMPTY OR sprint in futureSprints()) ORDER BY rank`. Projeto em `jiraBacklogProject`; vazio = o prefixo de chave mais comum nas minhas tasks. `jiraBacklogJQL` preenchido substitui o default. Sem projeto: "Indica o projeto do backlog nas Definições".
+- O grupo vem do campo Sprint (auto-descoberto): sprint com `state == future` (a mais cedo se houver várias). Ordem do JQL (rank) mantida dentro de cada grupo.
+- Lê até 100 tasks (2 páginas de 50, `nextPageToken`); havendo mais, nota "Só as primeiras 100 tasks do backlog".
+- Cada grupo mostra 4 tasks com "+N mais" / "mostrar menos" (até 8 expandidas). Título do grupo: "<sprint> · N".
+- Lido no mesmo ciclo que o resto do Jira mas à parte: se falhar mantém os últimos grupos ("Jira: JQL do backlog inválido" se nunca leu). Não gera alertas.
+
 **Linha**
 - Bolinha azul (em curso) ou cinzenta, chave, resumo, ícone de prioridade, tag de estado, tag de alerta e, no fim, a marca de dono (ver [[#10. Marca de dono nas linhas]]). Clique abre `/browse/<KEY>`.
 - Os campos pedidos à API passam a incluir `assignee`; `JiraTask.assignee` = displayName do responsável. O app lê o nome da própria conta uma vez (`/myself`, guardado em `JiraStore.myName`) e a task é "minha" quando coincide.
@@ -392,6 +400,7 @@ Ver [[#7. Avisos (alertas)]] para canais e regras, e a tabela de tons em [[#2. P
 | Bloco Histórico | desligado |
 | Jira | desligado |
 | `jiraApproverEnabled` | ligado |
+| `jiraBacklogEnabled` | ligado |
 | `showMusic` | ligado |
 | `showFocus` | desligado |
 | Foco / curta / longa / rondas | 25 / 5 / 15 / 4 |
