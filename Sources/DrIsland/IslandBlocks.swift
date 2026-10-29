@@ -131,9 +131,20 @@ struct MarqueeText: View {
 
     @State private var textWidth: CGFloat = 0
     @State private var boxWidth: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var overflow: CGFloat { max(0, textWidth - boxWidth) }
 
     var body: some View {
+        // With Reduce Motion the text stays put and is truncated instead of sliding.
+        if reduceMotion {
+            Text(text).font(font).foregroundStyle(color).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            sliding
+        }
+    }
+
+    private var sliding: some View {
         // The invisible, truncated copy gives the box its height and a width that never exceeds the column;
         // the real text is laid out at its natural width inside it and slid along when it is longer.
         Text(text).font(font).lineLimit(1).opacity(0)
