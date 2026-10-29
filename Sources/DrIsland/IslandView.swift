@@ -85,11 +85,6 @@ enum IslandLayout {
     }
 }
 
-private struct TipSizeKey: PreferenceKey {
-    static let defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
-}
-
 private enum JiraRow {
     case task(JiraTask)
     case message(String)
@@ -173,9 +168,8 @@ struct IslandView: View {
     var screenHeight: CGFloat = 900
 
     @State private var showContent = false
-    /// The tooltip being shown (see `islandTip`) and the size its bubble measured, for placing it inside the island.
-    @State private var tip: IslandTipData?
-    @State private var tipSize: CGSize = .zero
+    /// The tooltip being shown (see `islandTip`).
+    @State private var tips = IslandTipCenter()
     /// Update animation on the ring: a highlight sweeping along it plus a glow pulse.
     @State private var sweep: CGFloat = 0
     @State private var sweepOpacity: Double = 0
@@ -260,11 +254,11 @@ struct IslandView: View {
             newsDot
             newSessionSparkles
             syncIndicator
-            tipLayer
+            IslandTipLayer(tips: tips, state: state, expandedSize: expandedSize)
         }
         .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
         .coordinateSpace(name: islandRootSpace)
-        .environment(\.islandTip) { tip = $0 }
+        .environment(tips)
         .animation(.easeOut(duration: 0.2), value: state.expanded)
         .animation(.easeInOut(duration: 0.2), value: syncing)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: prStore.unseen.isEmpty)
@@ -296,7 +290,7 @@ struct IslandView: View {
         .onChange(of: prKeys, initial: true) { _, keys in jiraStore.watchPRKeys(keys) }
         .onChange(of: layoutWidth, initial: true) { _, width in state.visibleWidth = width }
         .onChange(of: state.expanded) { _, expanded in
-            if !expanded { tip = nil }
+            if !expanded { tips.tip = nil }
             let motion = motion(opening: expanded)
             withAnimation(motion.width) { widthProgress = expanded ? 1 : 0 }
             withAnimation(motion.height) { heightProgress = expanded ? 1 : 0 }
@@ -596,47 +590,6 @@ struct IslandView: View {
                 .offset(x: metrics.width / 2 + CGFloat(thickness) + 9, y: metrics.height / 2 - 3.5)
                 .transition(.opacity)
         }
-    }
-
-    // MARK: Tooltip
-
-    /// The bubble sits under the hovered view (above it near the bottom) and is kept inside the visible island, so it is
-    /// never cut at the edges.
-    @ViewBuilder private var tipLayer: some View {
-        if let tip, state.expanded {
-            let size = tipSize
-            let left = (expandedSize.width - state.visibleWidth) / 2 + 6
-            let right = (expandedSize.width + state.visibleWidth) / 2 - 6 - size.width
-            let x = min(max(tip.anchor.midX - size.width / 2, left), max(right, left))
-            let below = tip.anchor.maxY + 6
-            let y = below + size.height > state.visibleHeight - 4 ? max(tip.anchor.minY - size.height - 6, 4) : below
-            Color.clear
-                .frame(width: expandedSize.width, height: expandedSize.height)
-                .overlay(alignment: .topLeading) {
-                    Text(tip.text)
-                        .font(.caption2).foregroundStyle(.white)
-                        .multilineTextAlignment(.leading)
-                        .frame(width: Self.tipTextWidth(tip.text), alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 8).padding(.vertical, 5)
-                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(white: 0.17)))
-                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1))
-                        .background(GeometryReader { geo in Color.clear.preference(key: TipSizeKey.self, value: geo.size) })
-                        .onPreferenceChange(TipSizeKey.self) { tipSize = $0 }
-                        .opacity(size == .zero ? 0 : 1)
-                        .offset(x: x, y: y)
-                }
-                .allowsHitTesting(false)
-                .transition(.opacity)
-        }
-    }
-
-    /// The bubble is as wide as its longest line (up to 240 pt, then it wraps), so a short tip is a small bubble.
-    private static func tipTextWidth(_ text: String) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: 10)
-        let longest = text.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
-        return min(ceil(longest) + 4, 224)
     }
 
     // MARK: Mini island (alert peek)

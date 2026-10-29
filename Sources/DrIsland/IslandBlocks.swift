@@ -32,38 +32,30 @@ struct IslandTipData: Equatable {
 
 let islandRootSpace = "islandRoot"
 
-private struct TipSetterKey: EnvironmentKey { static let defaultValue: (IslandTipData?) -> Void = { _ in } }
-extension EnvironmentValues {
-    var islandTip: (IslandTipData?) -> Void {
-        get { self[TipSetterKey.self] }
-        set { self[TipSetterKey.self] = newValue }
-    }
-}
-
 private struct IslandTipModifier: ViewModifier {
+    /// The view's frame, kept out of SwiftUI state: it changes on every frame while the island animates, and only the
+    /// hover reads it, so storing it must not redraw anything.
+    private final class Anchor { var frame: CGRect = .zero }
+
     let text: String
-    @Environment(\.islandTip) private var setTip
-    @State private var frame: CGRect = .zero
+    @Environment(IslandTipCenter.self) private var tips: IslandTipCenter?
+    @State private var anchor = Anchor()
     @State private var pending: Task<Void, Never>?
 
     func body(content: Content) -> some View {
         content
-            .background(GeometryReader { geo in
-                Color.clear
-                    .onAppear { frame = geo.frame(in: .named(islandRootSpace)) }
-                    .onChange(of: geo.frame(in: .named(islandRootSpace))) { _, new in frame = new }
-            })
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(islandRootSpace)) } action: { anchor.frame = $0 }
             .onHover { inside in
                 pending?.cancel()
                 guard !text.isEmpty else { return }
-                guard inside else { setTip(nil); return }
+                guard inside else { tips?.tip = nil; return }
                 pending = Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(350))
                     guard !Task.isCancelled else { return }
-                    setTip(IslandTipData(text: text, anchor: frame))
+                    tips?.tip = IslandTipData(text: text, anchor: anchor.frame)
                 }
             }
-            .onDisappear { pending?.cancel(); setTip(nil) }
+            .onDisappear { pending?.cancel(); tips?.tip = nil }
             .accessibilityLabel(text)
     }
 }
