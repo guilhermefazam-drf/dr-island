@@ -392,7 +392,8 @@ struct IslandView: View {
     // MARK: Mini island (alert peek)
 
     private var miniHeight: CGFloat {
-        metrics.height + 6 + CGFloat(max(peekItems.count, 1)) * IslandLayout.peekRowHeight + 10
+        let rows = peekItems.reduce(0) { $0 + ($1.kind == .splash ? IslandLayout.splashRowHeight : IslandLayout.peekRowHeight) }
+        return metrics.height + 6 + max(rows, IslandLayout.peekRowHeight) + 10
     }
 
     /// A small island under the notch that lists only the PRs that just changed.
@@ -451,7 +452,21 @@ struct IslandView: View {
         .frame(width: IslandLayout.peekWidth, height: miniHeight, alignment: .top)
     }
 
-    private func peekRow(_ change: PRChange) -> some View {
+    @ViewBuilder private func peekRow(_ change: PRChange) -> some View {
+        if change.kind == .splash { splashRow } else { alertRow(change) }
+    }
+
+    /// The Doutor Finanças logo, centred, for the launch splash.
+    @ViewBuilder private var splashRow: some View {
+        if let logo = Brand.logo {
+            Image(nsImage: logo).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                .frame(height: 28)
+                .frame(maxWidth: .infinity)
+                .frame(height: IslandLayout.splashRowHeight)
+        }
+    }
+
+    private func alertRow(_ change: PRChange) -> some View {
         HStack(spacing: 6) {
             Circle().fill(change.tone.color).frame(width: 7, height: 7).frame(width: 14)
             Text(change.kind.origin).font(.system(size: 9, weight: .bold)).foregroundStyle(.white.opacity(0.55))

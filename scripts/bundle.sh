@@ -26,6 +26,7 @@ VERSION="$(cat VERSION 2>/dev/null || echo 0.1.0)"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 [ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+[ -f Resources/DoutorFinancasLogo.svg ] && cp Resources/DoutorFinancasLogo.svg "$APP/Contents/Resources/DoutorFinancasLogo.svg"
 # System-wide Now Playing helper (loaded by /usr/bin/perl, see helper/nowplaying.c); the player works without it, minus browsers.
 clang -dynamiclib -framework CoreFoundation -o "$APP/Contents/Resources/libnowplaying.dylib" helper/nowplaying.c 2>/dev/null \
   && cp helper/nowplaying.pl "$APP/Contents/Resources/nowplaying.pl" || echo "warning: Now Playing helper not built" >&2

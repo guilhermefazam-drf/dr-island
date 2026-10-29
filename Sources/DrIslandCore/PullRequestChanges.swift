@@ -32,6 +32,8 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
         case offline, online
         /// The morning briefing, announced in the mini island. Mini island only, like `claudeSession`.
         case briefing
+        /// The Doutor Finanças logo shown once at launch. Mini island only, like `claudeSession`.
+        case splash
 
         /// The source of the alert, written before its message.
         public var origin: String {
@@ -40,6 +42,7 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
             case .claudeSession: return "CLAUDE"
             case .offline, .online: return "REDE"
             case .briefing: return "RESUMO"
+            case .splash: return "DR ISLAND"
             default: return "GIT"
             }
         }
@@ -69,7 +72,7 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
         case .approved, .ciPassed: return .success
         case .left: return .neutral
         case .merged, .claudeSession, .online: return .success
-        case .briefing: return .info
+        case .briefing, .splash: return .info
         case .newComment, .mentioned, .jiraNew, .jiraStatus, .jiraComment, .jiraApprovers: return .info
         }
     }
@@ -90,6 +93,7 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
         case .offline: return "offline"
         case .online: return "online"
         case .briefing: return "resumo"
+        case .splash: return "olá"
         case .mentioned: return "menção"
         case .merged: return "merged"
         case .jiraNew: return "nova"
@@ -119,6 +123,7 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
         case .offline: return "Sem ligação à internet"
         case .online: return "Ligação restabelecida"
         case .briefing: return title
+        case .splash: return "Doutor Finanças"
         case .jiraApprovers: return title.isEmpty ? "Aprovadores de \(ref) removidos" : "Aprovadores de \(ref): \(title)"
         }
     }

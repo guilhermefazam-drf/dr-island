@@ -51,12 +51,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         jiraStore.onAlert = { [weak self] changes in self?.prStore.register(changes) }
         hotKey.start()
+        // Right after launch the network path often flaps while the Mac is still connecting: show the logo instead of
+        // "Offline"/"Online" in the mini island. The red border still marks a connection that stays down.
+        let launchedAt = Date()
+        let isLaunching = { Date().timeIntervalSince(launchedAt) < 15 }
         NetworkMonitor.shared.onReconnect = { [weak self] in
             self?.refresh()
+            guard !isLaunching() else { return }
             self?.prStore.showTransient([PRChange(prID: "network", ref: "Rede", title: "Online", kind: .online)])
         }
         NetworkMonitor.shared.onDisconnect = { [weak self] in
+            guard !isLaunching() else { return }
             self?.prStore.showTransient([PRChange(prID: "network", ref: "Rede", title: "Offline", kind: .offline)])
+        }
+        if Brand.logo != nil {
+            // Give the panels a moment to be on screen before the mini island opens.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                MainActor.assumeIsolated { self?.prStore.showTransient([PRChange(prID: "splash", ref: "", title: "", kind: .splash)]) }
+            }
         }
         if let path = ProcessInfo.processInfo.environment["DR_ISLAND_SNAPSHOT"] {
             // Development aid: also draw the menu bar button (the island snapshot is written by IslandController).

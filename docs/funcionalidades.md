@@ -61,6 +61,8 @@ Blocos disponíveis no layout: Claude, Pull requests, Jira, Jira·aprovações, 
 | Âmbar | ≥60% | slider 10–100, passo 5 |
 | Vermelho | ≥85% | nunca abaixo do âmbar |
 
+**Limite semanal diário**: a barra "Semana" está dividida nos 5 dias úteis da janela semanal (20% cada; fins de semana não somam). A marca branca é o que se pode gastar até ao fim de hoje (dias úteis já começados na janela × 20%, mínimo 20%); o que sobra de dias anteriores acumula. A cor usa os mesmos limiares âmbar/vermelho da sessão, aplicados a `uso semanal ÷ permitido até hoje` (`WeeklyPace`). Sem `resets_at`, usa a % semanal simples.
+
 **Refresh**
 
 | Parâmetro | Valor |
@@ -312,6 +314,8 @@ Bloco "Foco" (`showFocus`, default desligado).
 - Acesso: menu da barra "Histórico de avisos…", Definições, bloco "Avisos recentes" ("ver tudo").
 
 **Offline/online**: a borda fica vermelha sem rede (`NetworkMonitor`); a mini ilha avisa "Sem ligação à internet" / "Ligação restabelecida"; ao voltar a rede (após 2s) atualiza tudo.
+
+**Splash no arranque**: ~1s depois de abrir, a mini ilha mostra o logo da Doutor Finanças (`Resources/DoutorFinancasLogo.svg`, copiado pelo `bundle.sh`; fora do `.app` não aparece), mesmo com o banner de avisos desligado. Nos primeiros 15s após o arranque, as mudanças de rede não abrem a mini ilha ("Offline"/"Online"), mas a borda vermelha e o refresh ao voltar a rede mantêm-se.
 
 ### 8. Resumo do dia e linha do tempo
 

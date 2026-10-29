@@ -64,7 +64,7 @@ struct ClaudeBlock: View {
                 if showWeekly, let weekly = store.weeklyFraction {
                     HStack(spacing: 6) {
                         Text("Semana").font(.caption2).foregroundStyle(.secondary)
-                        UsageBar(fraction: weekly, color: color(weekly), height: 5)
+                        weeklyBar(weekly)
                         Text("\(Int((weekly * 100).rounded()))%").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                         if columnWidth >= islandWideColumn { resetLabel(store.weeklyResetsAt, prefix: "·") }
                     }
@@ -96,13 +96,25 @@ struct ClaudeBlock: View {
             if showWeekly, let weekly = store.weeklyFraction {
                 HStack(spacing: 8) {
                     Text("Semana").font(.caption2).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
-                    UsageBar(fraction: weekly, color: color(weekly), height: 5)
+                    weeklyBar(weekly)
                     Text("\(Int((weekly * 100).rounded()))%").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                         .frame(width: 30, alignment: .trailing)
                     resetLabel(store.weeklyResetsAt, prefix: "·")
                 }
             }
         }
+    }
+
+    /// The week split into its 5 workdays; the colour follows the same limits as the session, measured against
+    /// what may be used by the end of today (the white marker), so it warns when today's share is running out.
+    private func weeklyBar(_ weekly: Double) -> some View {
+        let allowance = store.weeklyResetsAt.map { WeeklyPace.allowance(resetsAt: $0) }
+        let pace = WeeklyPace.fraction(weekly: weekly, resetsAt: store.weeklyResetsAt)
+        let step = 1 / Double(WeeklyPace.workdays)
+        return UsageBar(fraction: weekly, color: color(pace), height: 5,
+                        ticks: (1..<WeeklyPace.workdays).map { Double($0) * step }, marker: allowance)
+            .islandTip(allowance.map { "Limite diário: \(Int((step * 100).rounded()))% da semana por dia útil. Até hoje: \(Int(($0 * 100).rounded()))% · usado \(Int((pace * 100).rounded()))% disso." }
+                       ?? "Limite diário: \(Int((step * 100).rounded()))% da semana por dia útil.")
     }
 
     private var costTiles: some View {
