@@ -1,36 +1,38 @@
 import Foundation
+import Observation
 import DrIslandCore
 
 @MainActor
-final class UsageStore: ObservableObject {
+@Observable
+final class UsageStore {
     enum Status: Equatable {
         case loading, ok, noCredentials, unauthorized, offline, rateLimited
     }
 
-    @Published private(set) var sessionFraction: Double = 0
-    @Published private(set) var sessionResetsAt: Date?
-    @Published private(set) var weeklyFraction: Double?
-    @Published private(set) var weeklyResetsAt: Date?
-    @Published private(set) var status: Status = .loading
+    private(set) var sessionFraction: Double = 0
+    private(set) var sessionResetsAt: Date?
+    private(set) var weeklyFraction: Double?
+    private(set) var weeklyResetsAt: Date?
+    private(set) var status: Status = .loading
     /// True once we have any real reading (fresh or cached), so a failing refresh can keep showing it dimmed.
-    @Published private(set) var hasValue = false
+    private(set) var hasValue = false
     /// True while the numbers come from the local-log estimate instead of the API.
-    @Published private(set) var isEstimate = false
+    private(set) var isEstimate = false
     /// True while a request to the usage endpoint is in flight (shown in the island as "A atualizar…").
-    @Published private(set) var isRefreshing = false
+    private(set) var isRefreshing = false
     /// Bumped on every fresh reading from the API (even an unchanged one), so the island can play its update animation.
-    @Published private(set) var updateTick = 0
+    private(set) var updateTick = 0
     /// Bumped when a new session window starts (after a reset, or the first message after an idle spell), so the island can flag it.
-    @Published private(set) var newSessionTick = 0
+    private(set) var newSessionTick = 0
     /// Called after `newSessionTick` is bumped, for the mini island notice.
     var onNewSession: (() -> Void)?
 
     /// When the session window will hit 100% at the current pace (only if before it resets).
-    @Published private(set) var sessionExhaustsAt: Date?
+    private(set) var sessionExhaustsAt: Date?
 
     private var sessionSamples: [UsageSample] = []
     /// Daily peaks for the history chart; only real readings are recorded.
-    @Published private(set) var history: [DayUsage] = UsageHistory.decode(UserDefaults.standard.string(forKey: SettingsKey.usageHistory) ?? "[]")
+    private(set) var history: [DayUsage] = UsageHistory.decode(UserDefaults.standard.string(forKey: SettingsKey.usageHistory) ?? "[]")
 
     private struct Cache: Codable {
         var session: Double
@@ -52,7 +54,7 @@ final class UsageStore: ObservableObject {
     /// After a 429, even a manual refresh must wait: the endpoint stays limited for a while.
     private var blockedUntil: Date? { didSet { retryAt = blockedUntil } }
     /// When the API will be asked again after a 429 (nil when not limited).
-    @Published private(set) var retryAt: Date?
+    private(set) var retryAt: Date?
     /// True when `blockedUntil` came from the server's own wait: not even a manual refresh may cut it short.
     private var blockFromServer = false
     private var lastCalibration: Date?

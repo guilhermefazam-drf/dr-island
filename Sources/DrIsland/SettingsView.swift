@@ -344,6 +344,8 @@ private struct ContentPage: View {
     @AppStorage(SettingsKey.showMusic) private var showMusic = true
     @AppStorage(SettingsKey.showAlertsBlock) private var showAlerts = true
     @AppStorage(SettingsKey.showTimeline) private var showTimeline = true
+    @AppStorage(SettingsKey.showSprint) private var showSprint = true
+    @AppStorage(SettingsKey.showOutOfSprint) private var showOutOfSprint = true
     @AppStorage(SettingsKey.showOwner) private var showOwner = true
     @AppStorage(SettingsKey.briefingAuto) private var briefingAuto = true
 
@@ -363,6 +365,8 @@ private struct ContentPage: View {
             Section("Avisos") {
                 ToggleRow("Avisos recentes", detail: "Os últimos avisos de PRs e Jira com a hora, na ilha. Só aparece quando há avisos; o histórico completo está na página Histórico.", isOn: $showAlerts)
                 ToggleRow("Dono nas linhas", detail: "Uma marca antes de cada PR e task: «eu» nas tuas, as iniciais do autor ou do responsável nas dos outros.", isOn: $showOwner)
+                ToggleRow("Sprint", detail: "No topo do card Jira: nome, datas e uma barra com o tempo decorrido da sprint ativa. Só aparece com o Jira ligado e uma sprint ativa.", isOn: $showSprint)
+                ToggleRow("Fora da Sprint", detail: "No fim dos cards Jira e Git: as tasks e os PRs que não estão na sprint ativa. Precisa de «Sprint» ligado.", isOn: $showOutOfSprint).disabled(!showSprint)
                 ToggleRow("Linha do tempo", detail: "Um gráfico de linha com os eventos de hoje por hora, com os botões «resumo» e «detalhes» (página Dia). Só mostra o que a ilha já regista (PRs e Jira).", isOn: $showTimeline)
                 ToggleRow("Resumo do dia automático", detail: "De manhã, uma vez por dia, a ilha abre sozinha a dizer o que mudou desde a última vez que a viste. Também podes pedi-lo no botão «resumo» da linha do tempo.", isOn: $briefingAuto)
             }

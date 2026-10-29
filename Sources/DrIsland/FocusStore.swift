@@ -1,10 +1,12 @@
 import Foundation
+import Observation
 import DrIslandCore
 
 /// Runs the focus timer: persists it, ends phases on time (even if the island is closed) and raises the alert.
 @MainActor
-final class FocusStore: ObservableObject {
-    @Published private(set) var timer: FocusTimer
+@Observable
+final class FocusStore {
+    private(set) var timer: FocusTimer
     /// Called when a phase ends, to share the island's alert channels.
     private var waiter: Task<Void, Never>?
 

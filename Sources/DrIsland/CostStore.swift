@@ -1,17 +1,19 @@
 import Foundation
+import Observation
 import DrIslandCore
 
 /// Tokens and estimated API-equivalent cost from the local Claude Code transcripts, refreshed every few minutes.
 /// The scanner caches parsed files, so a refresh normally only re-reads the active session's transcript.
 @MainActor
-final class CostStore: ObservableObject {
+@Observable
+final class CostStore {
     struct Snapshot: Equatable {
         var today = CostSummary.empty
         var week = CostSummary.empty
         var fortnight = CostSummary.empty
     }
 
-    @Published private(set) var snapshot = Snapshot()
+    private(set) var snapshot = Snapshot()
     private var loop: Task<Void, Never>?
 
     func start() {

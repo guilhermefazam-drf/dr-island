@@ -2,22 +2,25 @@ import SwiftUI
 import DrIslandCore
 
 @MainActor
-final class IslandState: ObservableObject {
-    @Published var expanded = false
+@Observable
+final class IslandState {
+    var expanded = false
     /// Height of the visible expanded island (the panel itself is always max height); drives the hover hit area.
-    @Published var visibleHeight: CGFloat = 0
-    @Published var visibleWidth: CGFloat = 400
+    var visibleHeight: CGFloat = 0
+    var visibleWidth: CGFloat = 400
     /// "+N mais" clicked: show the full list for that section until the island closes.
-    @Published var showAllPRs = false
-    @Published var showAllReviews = false
-    @Published var showAllJira = false
-    @Published var showAllApprovals = false
+    var showAllPRs = false
+    var showAllReviews = false
+    var showAllJira = false
+    var showAllApprovals = false
+    var showAllOutOfSprint = false
+    var showAllPROutOfSprint = false
     /// The settings preview is driving the island, so closing it must not count as "the user saw the alerts".
-    var isPreview = false
+    @ObservationIgnored var isPreview = false
     /// What the mini island shows while it is up; empty = hidden.
-    @Published var peek: [PRChange] = []
+    var peek: [PRChange] = []
     /// An app is in full screen on this island's display: the border and the notification dots stay hidden (the mini island still shows).
-    @Published var fullscreen = false
+    var fullscreen = false
 }
 
 extension PRChange.Tone {
@@ -45,6 +48,11 @@ enum IslandLayout {
     static let expandedRowLimit = 8
     static let prRowHeight: CGFloat = 25
     static let prHeaderHeight: CGFloat = 26
+    /// A list inside a card: its title row (shorter, the card already pads the top) and the rule between two lists.
+    static let cardListHeader: CGFloat = 20
+    static let listRule: CGFloat = 13
+    /// The title row of a Git / Jira card (a 16 pt label and the gap under it).
+    static let cardTitle: CGFloat = 20
 
     static let sectionSpacing: CGFloat = 16
     static let cardPadding: CGFloat = 10
@@ -77,6 +85,11 @@ enum IslandLayout {
     }
 }
 
+private struct TipSizeKey: PreferenceKey {
+    static let defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
+}
+
 private enum JiraRow {
     case task(JiraTask)
     case message(String)
@@ -85,7 +98,7 @@ private enum JiraRow {
     case overflow(Int)   // expanded but still more than fits; not clickable
 }
 
-private enum PRList { case authored, review }
+private enum PRList { case authored, review, outOfSprint }
 
 private enum PRRow {
     case pr(PullRequest)
@@ -148,18 +161,21 @@ struct SyncIcon: View {
 struct IslandView: View {
     let metrics: NotchMetrics
     let expandedSize: CGSize
-    @ObservedObject var state: IslandState
-    @ObservedObject var store: UsageStore
-    @ObservedObject var prStore: PullRequestStore
-    @ObservedObject var jiraStore: JiraStore
-    @ObservedObject var musicStore: MusicStore
-    @ObservedObject var costStore: CostStore
-    @ObservedObject var focusStore: FocusStore
+    let state: IslandState
+    let store: UsageStore
+    let prStore: PullRequestStore
+    let jiraStore: JiraStore
+    let musicStore: MusicStore
+    let costStore: CostStore
+    let focusStore: FocusStore
     var openSettings: () -> Void
     /// Height of the screen this island is on: the columns never grow past half of it, they scroll instead.
     var screenHeight: CGFloat = 900
 
     @State private var showContent = false
+    /// The tooltip being shown (see `islandTip`) and the size its bubble measured, for placing it inside the island.
+    @State private var tip: IslandTipData?
+    @State private var tipSize: CGSize = .zero
     /// Update animation on the ring: a highlight sweeping along it plus a glow pulse.
     @State private var sweep: CGFloat = 0
     @State private var sweepOpacity: Double = 0
@@ -197,6 +213,8 @@ struct IslandView: View {
     private var gaugeIsRing: Bool { claudeGauge == "ring" }
     @AppStorage(SettingsKey.islandLayout) private var layoutJSON = IslandLayoutConfig.vertical.encoded()
     @AppStorage(SettingsKey.showHistory) private var showHistory = false
+    @AppStorage(SettingsKey.showSprint) private var showSprint = true
+    @AppStorage(SettingsKey.showOutOfSprint) private var showOutOfSprint = true
     @AppStorage(SettingsKey.prMutes) private var mutesJSON = "[]"
     @AppStorage(SettingsKey.shortcuts) private var shortcutsJSON = "[]"
     @AppStorage(SettingsKey.showForecast) private var showForecast = true
@@ -222,7 +240,7 @@ struct IslandView: View {
     @AppStorage(SettingsKey.redThreshold) private var red = 85.0
     @AppStorage(SettingsKey.showWeekly) private var showWeekly = true
 
-    @ObservedObject private var network = NetworkMonitor.shared
+    private let network = NetworkMonitor.shared
     /// No network path, or the usage endpoint can't be reached: every number shown is stale.
     private var isOffline: Bool { !network.isOnline || store.status == .offline }
 
@@ -242,8 +260,11 @@ struct IslandView: View {
             newsDot
             newSessionSparkles
             syncIndicator
+            tipLayer
         }
         .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
+        .coordinateSpace(name: islandRootSpace)
+        .environment(\.islandTip) { tip = $0 }
         .animation(.easeOut(duration: 0.2), value: state.expanded)
         .animation(.easeInOut(duration: 0.2), value: syncing)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: prStore.unseen.isEmpty)
@@ -272,8 +293,10 @@ struct IslandView: View {
             if newSessionAnimation { playNewSessionAnimation() }
         }
         .onChange(of: contentHeight, initial: true) { _, height in state.visibleHeight = height }
+        .onChange(of: prKeys, initial: true) { _, keys in jiraStore.watchPRKeys(keys) }
         .onChange(of: layoutWidth, initial: true) { _, width in state.visibleWidth = width }
         .onChange(of: state.expanded) { _, expanded in
+            if !expanded { tip = nil }
             let motion = motion(opening: expanded)
             withAnimation(motion.width) { widthProgress = expanded ? 1 : 0 }
             withAnimation(motion.height) { heightProgress = expanded ? 1 : 0 }
@@ -293,9 +316,36 @@ struct IslandView: View {
 
     // MARK: Pull requests
 
+    /// With an active sprint on show, a PR is "fora da sprint" when its title names no Jira task of that sprint (or
+    /// names none at all). While the sprint of its keys is still being looked up it stays where it is.
+    private var splitsPRsBySprint: Bool { showSprint && showOutOfSprint && jiraStore.sprint != nil }
+
+    private func isOutOfSprint(_ pr: PullRequest) -> Bool {
+        guard splitsPRsBySprint else { return false }
+        let keys = JiraKeys.extract(from: pr.title)
+        if keys.isEmpty { return true }
+        guard keys.allSatisfy({ jiraStore.prSprint[$0] != nil }) else { return false }
+        return !keys.contains { jiraStore.prSprint[$0] == true }
+    }
+
+    private var prKeys: Set<String> {
+        Set((prStore.snapshot.authored + (includeReviews ? prStore.snapshot.reviewRequested : [])).flatMap { JiraKeys.extract(from: $0.title) })
+    }
+
     private func prRows(for list: PRList) -> [PRRow] {
         if list == .review && !includeReviews { return [] }
-        let items = list == .authored ? prStore.snapshot.authored : prStore.snapshot.reviewRequested
+        if list == .outOfSprint {
+            let items = (prStore.snapshot.authored + (includeReviews ? prStore.snapshot.reviewRequested : [])).filter(isOutOfSprint)
+            let expanded = state.showAllPROutOfSprint
+            let limit = expanded ? IslandLayout.expandedRowLimit : IslandLayout.maxPullRequestRows
+            var rows = items.prefix(limit).map(PRRow.pr)
+            if items.count > limit { rows.append(expanded ? .overflow(items.count - limit) : .more(items.count - limit)) }
+            if expanded && items.count > IslandLayout.maxPullRequestRows { rows.append(.less) }
+            return rows
+        }
+        let all = list == .authored ? prStore.snapshot.authored : prStore.snapshot.reviewRequested
+        let items = all.filter { !isOutOfSprint($0) }
+        if items.isEmpty && !all.isEmpty { return [] }   // all of them are in the "Fora da Sprint" section
         if !items.isEmpty {
             let expanded = list == .authored ? state.showAllPRs : state.showAllReviews
             let limit = expanded ? IslandLayout.expandedRowLimit : IslandLayout.maxPullRequestRows
@@ -316,7 +366,11 @@ struct IslandView: View {
     }
 
     private func setShowAll(_ list: PRList, _ value: Bool) {
-        if list == .authored { state.showAllPRs = value } else { state.showAllReviews = value }
+        switch list {
+        case .authored: state.showAllPRs = value
+        case .review: state.showAllReviews = value
+        case .outOfSprint: state.showAllPROutOfSprint = value
+        }
     }
 
     private var approvalRows: [JiraRow] {
@@ -337,7 +391,19 @@ struct IslandView: View {
         return rows
     }
 
-    private var jiraRows: [JiraRow] { jiraRows(for: jiraStore.tasks, expanded: state.showAllJira) }
+    /// With an active sprint on show, the tasks that are not in it go to their own card.
+    private var splitsOutOfSprint: Bool { showSprint && jiraStore.sprint != nil }
+    private var outOfSprintTasks: [JiraTask] { splitsOutOfSprint ? jiraStore.tasks.filter { $0.inActiveSprint == false } : [] }
+
+    private var jiraRows: [JiraRow] {
+        jiraRows(for: splitsOutOfSprint ? jiraStore.tasks.filter { $0.inActiveSprint != false } : jiraStore.tasks, expanded: state.showAllJira)
+    }
+
+    /// Empty with the "Fora da Sprint" setting off (those tasks are then hidden, not moved back into the list).
+    private var outOfSprintRows: [JiraRow] {
+        let tasks = showOutOfSprint ? outOfSprintTasks : []
+        return tasks.isEmpty ? [] : jiraTaskRows(JiraOrder.sorted(tasks), expanded: state.showAllOutOfSprint)
+    }
 
     private func jiraRows(for tasks: [JiraTask], expanded: Bool) -> [JiraRow] {
         if !tasks.isEmpty { return jiraTaskRows(JiraOrder.sorted(tasks), expanded: expanded) }
@@ -375,7 +441,7 @@ struct IslandView: View {
                                 .frame(maxWidth: 16)
                         }
                         .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28)
-                        .help("\(entry.date.formatted(.dateTime.weekday(.wide).day().month())): \(peak.map { "\(Int(($0 * 100).rounded()))%" } ?? "sem dados")")
+                        .islandTip("\(entry.date.formatted(.dateTime.weekday(.wide).day().month())): \(peak.map { "\(Int(($0 * 100).rounded()))%" } ?? "sem dados")")
                     }
                 }
                 HStack(spacing: 3) {
@@ -419,7 +485,7 @@ struct IslandView: View {
                     // Like the Dock: the icon under the pointer grows and its neighbours follow, anchored to the bottom.
                     .scaleEffect(dockScale(at: index), anchor: .bottom)
                     .offset(y: -(dockScale(at: index) - 1) * 4)
-                    .help(shortcut.folder.map { "\(shortcut.name) · \(($0 as NSString).lastPathComponent)" } ?? shortcut.name)
+                    .islandTip(shortcut.folder.map { "\(shortcut.name) · \(($0 as NSString).lastPathComponent)" } ?? shortcut.name)
                 }
             }
             .coordinateSpace(name: "dock")
@@ -466,9 +532,8 @@ struct IslandView: View {
     private func isVisible(_ block: IslandBlock) -> Bool {
         switch block {
         case .claude: return true
-        case .pullRequests: return !prRows(for: .authored).isEmpty || !prRows(for: .review).isEmpty
-        case .jira: return !jiraRows.isEmpty
-        case .jiraApprovals: return !approvalRows.isEmpty
+        case .pullRequests: return !prRows(for: .authored).isEmpty || !prRows(for: .review).isEmpty || !prRows(for: .outOfSprint).isEmpty
+        case .jira: return !jiraRows.isEmpty || !outOfSprintRows.isEmpty || !approvalRows.isEmpty || (showSprint && jiraStore.sprint != nil)
         case .focus: return showFocus
         case .history: return showHistory
         case .music: return true   // shown disabled when nothing is playing
@@ -479,17 +544,19 @@ struct IslandView: View {
     }
 
     private func height(of block: IslandBlock) -> CGFloat {
-        func section(_ rows: Int) -> CGFloat { rows == 0 ? 0 : IslandLayout.prHeaderHeight + CGFloat(rows) * IslandLayout.prRowHeight }
+        func section(_ rows: Int) -> CGFloat { rows == 0 ? 0 : IslandLayout.cardListHeader + 2 + CGFloat(rows) * IslandLayout.prRowHeight }
         let (authored, review) = (prRows(for: .authored).count, prRows(for: .review).count)
-        let gap = authored > 0 && review > 0 ? IslandLayout.sectionSpacing : 0
         switch block {
         case .claude:
             let core = gaugeIsRing ? IslandLayout.claudeRingHeight
                 : IslandLayout.claudeHeight + (ClaudeBlock.showsForecast(store, enabled: showForecast) ? IslandLayout.forecastExtra : 0)
             return core + (showCost ? IslandLayout.costExtra : 0)
-        case .pullRequests: return section(authored) + gap + section(review)
-        case .jira: return section(jiraRows.count)
-        case .jiraApprovals: return section(approvalRows.count)
+        case .pullRequests:
+            let parts = [section(authored), section(review), section(prRows(for: .outOfSprint).count)].filter { $0 > 0 }
+            return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
+        case .jira:
+            let parts = [section(jiraRows.count), section(outOfSprintRows.count), section(approvalRows.count)].filter { $0 > 0 }
+            return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
         case .focus: return IslandLayout.card(IslandLayout.focusContent)
         case .history: return IslandLayout.card(IslandLayout.historyContent)
         case .music: return IslandLayout.card(musicStore.nowPlaying.map(MusicBlock.contentHeight) ?? IslandLayout.musicContent)
@@ -501,18 +568,9 @@ struct IslandView: View {
 
     private var visibleColumns: [[IslandBlock]] { layout.columns.map { $0.filter(isVisible) } }
 
-    /// A list section opens with a tall header (its label sits at the bottom of it). At the top of a column that would
-    /// start lower than the other columns, so the empty part of the header is trimmed there.
-    private static let headerTrim: CGFloat = 12
-    private func topTrim(_ block: IslandBlock, atTop: Bool) -> CGFloat {
-        atTop && (block == .pullRequests || block == .jira || block == .jiraApprovals) ? Self.headerTrim : 0
-    }
-
     private func naturalHeight(of column: [IslandBlock]) -> CGFloat {
         var total: CGFloat = 0
-        for (position, block) in column.enumerated() {
-            total += height(of: block) - topTrim(block, atTop: position == 0)
-        }
+        for block in column { total += height(of: block) }
         return total + CGFloat(max(column.count - 1, 0)) * IslandLayout.sectionSpacing
     }
 
@@ -538,6 +596,47 @@ struct IslandView: View {
                 .offset(x: metrics.width / 2 + CGFloat(thickness) + 9, y: metrics.height / 2 - 3.5)
                 .transition(.opacity)
         }
+    }
+
+    // MARK: Tooltip
+
+    /// The bubble sits under the hovered view (above it near the bottom) and is kept inside the visible island, so it is
+    /// never cut at the edges.
+    @ViewBuilder private var tipLayer: some View {
+        if let tip, state.expanded {
+            let size = tipSize
+            let left = (expandedSize.width - state.visibleWidth) / 2 + 6
+            let right = (expandedSize.width + state.visibleWidth) / 2 - 6 - size.width
+            let x = min(max(tip.anchor.midX - size.width / 2, left), max(right, left))
+            let below = tip.anchor.maxY + 6
+            let y = below + size.height > state.visibleHeight - 4 ? max(tip.anchor.minY - size.height - 6, 4) : below
+            Color.clear
+                .frame(width: expandedSize.width, height: expandedSize.height)
+                .overlay(alignment: .topLeading) {
+                    Text(tip.text)
+                        .font(.caption2).foregroundStyle(.white)
+                        .multilineTextAlignment(.leading)
+                        .frame(width: Self.tipTextWidth(tip.text), alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(white: 0.17)))
+                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1))
+                        .background(GeometryReader { geo in Color.clear.preference(key: TipSizeKey.self, value: geo.size) })
+                        .onPreferenceChange(TipSizeKey.self) { tipSize = $0 }
+                        .opacity(size == .zero ? 0 : 1)
+                        .offset(x: x, y: y)
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
+        }
+    }
+
+    /// The bubble is as wide as its longest line (up to 240 pt, then it wraps), so a short tip is a small bubble.
+    private static func tipTextWidth(_ text: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 10)
+        let longest = text.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+        return min(ceil(longest) + 4, 224)
     }
 
     // MARK: Mini island (alert peek)
@@ -659,13 +758,32 @@ struct IslandView: View {
         }
     }
 
+    /// The thin rule between two parts of a Git / Jira card.
+    private var listRule: some View {
+        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.vertical, (IslandLayout.listRule - 1) / 2)
+    }
+
+    /// A card's title row; with a sprint, its progress bar sits at the right end and the tooltip has the details.
+    private func cardTitle(_ title: String, icon: String, sprint: SprintInfo? = nil) -> some View {
+        HStack(spacing: 8) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
+            Spacer(minLength: 6)
+            if let sprint { SprintBar(sprint: sprint, amber: Brand.amber, red: Brand.red) }
+        }
+        .frame(height: IslandLayout.cardTitle - 4)
+        .padding(.bottom, 4)
+        .contentShape(Rectangle())
+        .islandTip(sprint.map { SprintBar.tooltip($0) } ?? "")
+    }
+
     @ViewBuilder private func pullRequestSection(_ list: PRList) -> some View {
         let rows = prRows(for: list)
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                Text(list == .authored ? "Os meus PRs" : "A rever")
+                Text(list == .authored ? "Os meus PRs" : list == .review ? "A rever" : "Fora da Sprint")
                     .font(.caption).foregroundStyle(.secondary)
-                    .frame(height: IslandLayout.prHeaderHeight, alignment: .bottom)
+                    .frame(height: IslandLayout.cardListHeader, alignment: .bottom)
                     .padding(.bottom, 2)
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     switch row {
@@ -689,7 +807,7 @@ struct IslandView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(title)
                     .font(.caption).foregroundStyle(.secondary)
-                    .frame(height: IslandLayout.prHeaderHeight, alignment: .bottom)
+                    .frame(height: IslandLayout.cardListHeader, alignment: .bottom)
                     .padding(.bottom, 2)
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     switch row {
@@ -734,7 +852,7 @@ struct IslandView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(task.isSprintGoal ? "Sprint goal · " + task.summary : task.summary)
+        .islandTip(task.isSprintGoal ? "Sprint goal · " + task.summary : task.summary)
     }
 
     private func prioritySymbol(_ priority: String?) -> (name: String, color: Color)? {
@@ -797,7 +915,7 @@ struct IslandView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(pr.title)
+        .islandTip(pr.title)
         .opacity(PRMutes.isMuted(prID: pr.id, in: PRMutes.decode(mutesJSON)) ? 0.45 : 1)
         .contextMenu { prMenu(pr) }
     }
@@ -1132,7 +1250,7 @@ struct IslandView: View {
                 .frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Reiniciar o Dr Island")
+        .islandTip("Reiniciar o Dr Island")
         .padding(.top, (metrics.height - 24) / 2)
         .scaleEffect(showContent ? 1 : 0.5)
         .opacity(showContent ? 1 : 0)
@@ -1145,7 +1263,7 @@ struct IslandView: View {
                 .frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Definições")
+        .islandTip("Definições")
         .padding(.top, (metrics.height - 24) / 2)
         .padding(.trailing, 20)
         .scaleEffect(showContent ? 1 : 0.5)
@@ -1157,12 +1275,28 @@ struct IslandView: View {
         switch block {
         case .claude: ClaudeBlock(store: store, costStore: costStore, showCost: showCost)
         case .pullRequests:
-            VStack(alignment: .leading, spacing: IslandLayout.sectionSpacing) {
+            VStack(alignment: .leading, spacing: 0) {
+                cardTitle("Git", icon: "arrow.triangle.pull")
                 pullRequestSection(.authored)
+                if !prRows(for: .authored).isEmpty && !prRows(for: .review).isEmpty { listRule }
                 pullRequestSection(.review)
+                if !(prRows(for: .authored).isEmpty && prRows(for: .review).isEmpty) && !prRows(for: .outOfSprint).isEmpty { listRule }
+                pullRequestSection(.outOfSprint)
             }
-        case .jira: jiraSection(title: "Jira", rows: jiraRows, showAll: \.showAllJira, alerts: true)
-        case .jiraApprovals: jiraSection(title: "Aprovações", rows: approvalRows, showAll: \.showAllApprovals, alerts: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .blockCard()
+        case .jira:
+            VStack(alignment: .leading, spacing: 0) {
+                cardTitle(jiraStore.sprint.flatMap { showSprint ? "Jira - SPRINT - \($0.name)" : nil } ?? "Jira", icon: "checklist",
+                          sprint: showSprint ? jiraStore.sprint : nil)
+                jiraSection(title: "As minhas tasks", rows: jiraRows, showAll: \.showAllJira, alerts: true)
+                if !jiraRows.isEmpty && !approvalRows.isEmpty { listRule }
+                jiraSection(title: "Aprovações", rows: approvalRows, showAll: \.showAllApprovals, alerts: true)
+                if !(jiraRows.isEmpty && approvalRows.isEmpty) && !outOfSprintRows.isEmpty { listRule }
+                jiraSection(title: "Fora da Sprint", rows: outOfSprintRows, showAll: \.showAllOutOfSprint, alerts: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .blockCard()
         case .focus: FocusBlock(store: focusStore)
         case .history: historyChart
         case .music: MusicBlock(store: musicStore)
@@ -1181,8 +1315,8 @@ struct IslandView: View {
                     }
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: IslandLayout.sectionSpacing) {
-                            ForEach(Array(column.enumerated()), id: \.element) { position, block in
-                                blockView(block).padding(.top, -topTrim(block, atTop: position == 0))
+                            ForEach(column, id: \.self) { block in
+                                blockView(block)
                             }
                         }
                         .frame(width: columnWidth, alignment: .topLeading)

@@ -52,6 +52,8 @@ enum SettingsKey {
     static let showAlertsBlock = "showAlertsBlock"    // recent alerts block in the island
     static let alertHistory = "alertHistory"          // JSON list of AlertEntry
     static let showOwner = "showOwner"                // "eu" / initials before each PR and task row
+    static let showOutOfSprint = "showOutOfSprint"    // Jira card: my tasks that are not in the active sprint
+    static let showSprint = "showSprint"              // "Sprint" block: active Jira sprint dates and elapsed time
     static let showTimeline = "showTimeline"          // "linha do tempo" block: what happened today
     static let briefingAuto = "briefingAuto"          // the day briefing opens by itself, once a day
     static let briefingActive = "briefingActive"      // the briefing block is showing (until dismissed)
@@ -145,6 +147,8 @@ enum Settings {
             SettingsKey.quietMuted: false,
             SettingsKey.showAlertsBlock: true,
             SettingsKey.alertHistory: "[]",
+            SettingsKey.showSprint: true,
+            SettingsKey.showOutOfSprint: true,
             SettingsKey.showTimeline: true,
             SettingsKey.showOwner: true,
             SettingsKey.briefingAuto: true,
@@ -211,6 +215,7 @@ enum Settings {
     }
     static let jiraTokenAccount = "jira-api-token"
     static var jiraEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.jiraEnabled) }
+    static var showSprint: Bool { UserDefaults.standard.bool(forKey: SettingsKey.showSprint) }
     static var jiraApproverEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.jiraApproverEnabled) }
     static var jiraRefreshSeconds: TimeInterval {
         min(max(UserDefaults.standard.double(forKey: SettingsKey.jiraRefreshSeconds), 60), 900)

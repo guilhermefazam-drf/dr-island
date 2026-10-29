@@ -1,25 +1,33 @@
 import Foundation
+import Observation
 import DrIslandCore
 
 @MainActor
-final class JiraStore: ObservableObject {
+@Observable
+final class JiraStore {
     enum Status: Equatable {
         case disabled, notConfigured, loading, ok, unauthorized, invalidSite, offline, rateLimited, error(Int)
     }
 
-    @Published private(set) var tasks: [JiraTask] = []
+    private(set) var tasks: [JiraTask] = []
     /// Tasks where the user is approver. `approvalsFailed` = the approver JQL was rejected or the call failed.
-    @Published private(set) var approvals: [JiraTask] = []
+    private(set) var approvals: [JiraTask] = []
     /// The user's own Jira display name, to tell their tasks from the others' in the approvals block.
-    @Published private(set) var myName: String?
-    @Published private(set) var approvalsFailed = false
-    @Published private(set) var status: Status = .loading
+    private(set) var myName: String?
+    private(set) var approvalsFailed = false
+    /// The active sprint (nil when there is none or the "Sprint" block is off). Read apart from the tasks, so a failure keeps the last one.
+    private(set) var sprint: SprintInfo?
+    private var sprintField: String?
+    /// Whether each Jira key found in the PR titles is in the active sprint (see `watchPRKeys`); missing = not known yet.
+    private(set) var prSprint: [String: Bool] = [:]
+    private var prKeys: Set<String> = []
+    private(set) var status: Status = .loading
 
     private let client = JiraClient()
     private var loop: Task<Void, Never>?
     private var failures = 0
     /// True while a real fetch runs (not while the source is disabled), for the sync icon.
-    @Published private(set) var isRefreshing = false
+    private(set) var isRefreshing = false
     private var inFlight = false
     private var cachedToken: String?
     /// Called with Jira changes (new task, status, comments) after a successful reading.
@@ -90,11 +98,42 @@ final class JiraStore: ObservableObject {
         }
     }
 
+    /// The Jira keys the PR lists mention. Looked up when they change, and again on every Jira reading.
+    func watchPRKeys(_ keys: Set<String>) {
+        guard keys != prKeys else { return }
+        prKeys = keys
+        Task { [weak self] in
+            guard let self else { return }
+            await self.refreshPRSprint(Settings.jiraConfig(token: await self.token()))
+        }
+    }
+
+    private func refreshPRSprint(_ config: JiraConfig) async {
+        guard Settings.showSprint, sprint != nil, let field = sprintField, config.isComplete, !prKeys.isEmpty else {
+            if !prSprint.isEmpty { prSprint = [:] }
+            return
+        }
+        do { prSprint = try await client.fetchSprintMembership(config, keys: Array(prKeys), field: field) }
+        catch { ErrorLog.record("Jira", "PRs da sprint: \(error)") }   // keep the last answer
+    }
+
+    private func refreshSprint(_ config: JiraConfig) async {
+        guard Settings.showSprint else { sprint = nil; return }
+        do {
+            let result = try await client.fetchActiveSprint(config, field: sprintField)
+            sprintField = result.field
+            sprint = result.sprint
+        } catch {
+            ErrorLog.record("Jira", "Sprint: \(error)")   // keep the last sprint
+        }
+    }
+
     private func refresh() async -> TimeInterval {
         guard Settings.jiraEnabled else {
             status = .disabled
             tasks = []
             approvals = []
+            sprint = nil
             return 5
         }
         let interval = Settings.jiraRefreshSeconds
@@ -103,13 +142,16 @@ final class JiraStore: ObservableObject {
             status = .notConfigured
             tasks = []
             approvals = []
+            sprint = nil
             return 10
         }
         isRefreshing = true
         defer { isRefreshing = false }
         do {
             if myName == nil { myName = try? await client.myself(config) }
-            let fresh = try await client.fetchTasks(config)
+            // With the sprint shown, each task also says whether it is in the active sprint ("Fora da Sprint").
+            if Settings.showSprint, sprintField == nil { sprintField = try? await client.sprintFieldID(config) }
+            let fresh = try await client.fetchTasks(config, sprintField: Settings.showSprint ? sprintField : nil)
             // Only a successful reading is compared, as with PRs.
             let changes = JiraDiff.changes(from: baseline, to: fresh, me: myName)
             baseline = JiraDiff.fingerprints(of: fresh, me: myName)
@@ -117,6 +159,8 @@ final class JiraStore: ObservableObject {
             if !changes.isEmpty { onAlert?(changes) }
             tasks = fresh
             await refreshApprovals(config)
+            await refreshSprint(config)
+            await refreshPRSprint(config)
             status = .ok
             failures = 0
             return interval

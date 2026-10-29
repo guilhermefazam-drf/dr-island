@@ -317,6 +317,8 @@ final class IslandInstance {
                     self.state.showAllReviews = false
                     self.state.showAllJira = false
                     self.state.showAllApprovals = false
+                    self.state.showAllOutOfSprint = false
+                    self.state.showAllPROutOfSprint = false
                 }
             }
         }
