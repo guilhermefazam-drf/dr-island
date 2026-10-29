@@ -43,7 +43,6 @@ struct IslandView: View {
     @State private var peekItems: [PRChange] = []   // kept while the mini island folds back, so it does not go blank
     @State private var confettiTick = 0
     @AppStorage(SettingsKey.alertConfetti) private var alertConfetti = true
-    @AppStorage(SettingsKey.showOwner) private var showOwner = true
     /// The pulse follows the mini island when that alert is on, otherwise the notch ring.
     @State private var alertOnMini = false
     @AppStorage(SettingsKey.showCost) private var showCostLine = false
@@ -61,7 +60,6 @@ struct IslandView: View {
     @AppStorage(SettingsKey.showHistory) private var showHistory = false
     @AppStorage(SettingsKey.showSprint) private var showSprint = true
     @AppStorage(SettingsKey.showOutOfSprint) private var showOutOfSprint = true
-    @AppStorage(SettingsKey.prMutes) private var mutesJSON = "[]"
     @AppStorage(SettingsKey.shortcuts) private var shortcutsJSON = "[]"
     @AppStorage(SettingsKey.showForecast) private var showForecast = true
     @AppStorage(SettingsKey.alertBanner) private var alertBanner = false
@@ -227,6 +225,9 @@ struct IslandView: View {
         case .error(let message): return list == .authored ? [.message(message)] : []
         }
     }
+
+    /// The unseen changes that tag their PR or task row (none with row alerts off).
+    private var rowChanges: [PRChange] { alertRow ? prStore.unseen : [] }
 
     private func setShowAll(_ list: PRList, _ value: Bool) {
         switch list {
@@ -457,7 +458,7 @@ struct IslandView: View {
             Text(change.ref).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
             Text(change.title).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 4)
-            tag(change.label, change.tone.color)
+            RowTag(change.label, change.tone.color)
         }
         .frame(height: IslandLayout.peekRowHeight)
     }
@@ -513,275 +514,6 @@ struct IslandView: View {
     }
 
     /// The thin rule between two parts of a Git / Jira card.
-    private var listRule: some View {
-        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.vertical, (IslandLayout.listRule - 1) / 2)
-    }
-
-    /// A card's title row; with a sprint, its progress bar sits at the right end and the tooltip has the details.
-    private func cardTitle(_ title: String, icon: String, sprint: SprintInfo? = nil) -> some View {
-        HStack(spacing: 8) {
-            Label(title, systemImage: icon)
-                .font(.caption.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
-            Spacer(minLength: 6)
-            if let sprint { SprintBar(sprint: sprint, amber: Brand.amber, red: Brand.red) }
-        }
-        .frame(height: IslandLayout.cardTitle - 4)
-        .padding(.bottom, 4)
-        .contentShape(Rectangle())
-        .islandTip(sprint.map { SprintBar.tooltip($0) } ?? "")
-    }
-
-    @ViewBuilder private func pullRequestSection(_ list: PRList) -> some View {
-        let rows = prRows(for: list)
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(list == .authored ? "Os meus PRs" : list == .review ? "A rever" : "Fora da Sprint")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .frame(height: IslandLayout.cardListHeader, alignment: .bottom)
-                    .padding(.bottom, 2)
-                ForEach(rows) { row in
-                    switch row {
-                    case .pr(let pr): prRow(pr)
-                    case .message(let text):
-                        Text(text).font(.caption).foregroundStyle(.secondary).frame(height: IslandLayout.prRowHeight, alignment: .leading)
-                    case .more(let count):
-                        expander("+\(count) mais") { setShowAll(list, true) }
-                    case .less:
-                        expander("mostrar menos") { setShowAll(list, false) }
-                    case .overflow(let count):
-                        Text("+\(count) não listados").font(.caption2).foregroundStyle(.secondary).frame(height: IslandLayout.prRowHeight, alignment: .leading)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder private func jiraSection(title: String, rows: [JiraRow], showAll: ReferenceWritableKeyPath<IslandState, Bool>, alerts: Bool) -> some View {
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(title)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .frame(height: IslandLayout.cardListHeader, alignment: .bottom)
-                    .padding(.bottom, 2)
-                ForEach(rows) { row in
-                    switch row {
-                    case .task(let task): jiraRow(task, alerts: alerts)
-                    case .message(let text):
-                        Text(text).font(.caption).foregroundStyle(.secondary).frame(height: IslandLayout.prRowHeight, alignment: .leading)
-                    case .more(let count):
-                        expander("+\(count) mais") { state[keyPath: showAll] = true }
-                    case .less:
-                        expander("mostrar menos") { state[keyPath: showAll] = false }
-                    case .overflow(let count):
-                        Text("+\(count) não listados").font(.caption2).foregroundStyle(.secondary).frame(height: IslandLayout.prRowHeight, alignment: .leading)
-                    }
-                }
-            }
-        }
-    }
-
-    private func jiraRow(_ task: JiraTask, alerts: Bool) -> some View {
-        let change = alerts && alertRow ? prStore.unseen.last(where: { $0.prID == "jira-" + task.key }) : nil
-        return Button { NSWorkspace.shared.open(task.url) } label: {
-            HStack(spacing: 8) {
-                Circle().fill(task.category == .inProgress ? Color.blue : Color.gray).frame(width: 7, height: 7).frame(width: 14)
-                Text(task.key).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                Text(task.summary).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
-                Spacer(minLength: 4)
-                if let symbol = prioritySymbol(task.priority) {
-                    Image(systemName: symbol.name).font(.caption2).foregroundStyle(symbol.color).islandTip("Prioridade: " + (task.priority ?? ""))
-                }
-                if let change { tag(change.kind == .jiraStatus ? "novo estado" : change.label, change.tone.color) }
-                if task.isSprintGoal { tag("★ sprint goal", .yellow) }
-                tag(task.status, task.category == .inProgress ? .blue : .gray)
-                ownerTag(name: task.assignee, isMine: task.assignee != nil && task.assignee == jiraStore.myName)
-            }
-            .frame(height: IslandLayout.prRowHeight)
-            .background {
-                if let change {
-                    RoundedRectangle(cornerRadius: 5).fill(change.tone.color.opacity(0.16)).padding(.horizontal, -6)
-                }
-                else if task.isSprintGoal { RoundedRectangle(cornerRadius: 5).fill(Color.yellow.opacity(0.13)).padding(.horizontal, -6) }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .islandTip(task.isSprintGoal ? "Sprint goal · " + task.summary : task.summary)
-    }
-
-    private func prioritySymbol(_ priority: String?) -> (name: String, color: Color)? {
-        switch priority?.lowercased() {
-        case "highest", "blocker", "critical": return ("chevron.up.2", .red)
-        case "high", "major": return ("chevron.up", .orange)
-        case "low", "minor": return ("chevron.down", .teal)
-        case "lowest", "trivial": return ("chevron.down.2", .teal)
-        default: return nil
-        }
-    }
-
-    /// A clickable "+N mais" / "mostrar menos" row.
-    private func expander(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title).font(.caption2.weight(.medium)).foregroundStyle(Color(red: 0.45, green: 0.68, blue: 1.0))
-                .frame(maxWidth: .infinity, minHeight: IslandLayout.prRowHeight, maxHeight: IslandLayout.prRowHeight, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func prRow(_ pr: PullRequest) -> some View {
-        let change = alertRow ? prStore.unseen.last(where: { $0.prID == pr.id }) : nil
-        return Button { NSWorkspace.shared.open(pr.url) } label: {
-            HStack(spacing: 8) {
-                Image(systemName: ciSymbol(pr.ci)).foregroundStyle(ciColor(pr.ci)).frame(width: 14)
-                    .islandTip(ciText(pr.ci))
-                if pr.hasConflicts { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).islandTip("Conflitos com a branch base") }
-                reviewIcon(pr)
-                Text("\(pr.repository.split(separator: "/").last.map(String.init) ?? pr.repository)#\(pr.number)")
-                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                Text(pr.title).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
-                Spacer(minLength: 4)
-                if let change {
-                    tag(change.label, change.tone.color)
-                } else if let reason = attentionReason(pr) {
-                    tag(reason.text, reason.tone.color)
-                }
-                if pr.role == .authored, let comments = pr.unresolvedThreadCount, comments > 0 {
-                    HStack(spacing: 2) {
-                        Image(systemName: "bubble.left.fill").font(.system(size: 8))
-                        Text("\(comments)").font(.system(size: 9, weight: .semibold).monospacedDigit())
-                    }
-                    .foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 5).padding(.vertical, 1).background(Capsule().fill(Color.white.opacity(0.14)))
-                    .islandTip("\(comments) thread\(comments == 1 ? "" : "s") por resolver")
-                }
-                if pr.isDraft { tag("draft", .gray) }
-                ownerTag(name: pr.author, isMine: pr.isMine)
-            }
-            .frame(height: IslandLayout.prRowHeight)
-            .background {
-                if let change {
-                    RoundedRectangle(cornerRadius: 5).fill(change.tone.color.opacity(0.16)).padding(.horizontal, -6)
-                } else if pr.role == .reviewRequested, let reason = attentionReason(pr), reason.tone != .info {
-                    RoundedRectangle(cornerRadius: 5).fill(reason.tone.color.opacity(0.12)).padding(.horizontal, -6)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .islandTip(pr.title)
-        .opacity(PRMutes.isMuted(prID: pr.id, in: PRMutes.decode(mutesJSON)) ? 0.45 : 1)
-        .contextMenu { prMenu(pr) }
-    }
-
-    @ViewBuilder private func prMenu(_ pr: PullRequest) -> some View {
-        Button("Abrir no navegador") { NSWorkspace.shared.open(pr.url) }
-        Button("Copiar link") {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(pr.url.absoluteString, forType: .string)
-        }
-        if pr.ci == .failing {
-            Button("Abrir o CI com falha") { NSWorkspace.shared.open(pr.url.appendingPathComponent("checks")) }
-        }
-        Divider()
-        let mutes = PRMutes.decode(mutesJSON)
-        if PRMutes.isMuted(prID: pr.id, in: mutes) {
-            Button("Reativar avisos") {
-                let repoKey = "repo:" + pr.repository
-                setMutes(PRMutes.removing(key: repoKey, from: PRMutes.removing(key: "pr:" + pr.id, from: mutes)))
-            }
-        } else {
-            Menu("Silenciar este PR") {
-                Button("1 hora") { mute(.pr(pr, until: Date().addingTimeInterval(3600))) }
-                Button("1 dia") { mute(.pr(pr, until: Date().addingTimeInterval(86400))) }
-                Button("Até eu reativar") { mute(.pr(pr, until: nil)) }
-            }
-            Menu("Silenciar o repositório") {
-                Button("1 dia") { mute(.repository(pr, until: Date().addingTimeInterval(86400))) }
-                Button("Até eu reativar") { mute(.repository(pr, until: nil)) }
-            }
-        }
-    }
-
-    private func mute(_ mute: PRMute) { setMutes(PRMutes.adding(mute, to: PRMutes.decode(mutesJSON))) }
-    private func setMutes(_ list: [PRMute]) { mutesJSON = PRMutes.encode(list) }
-
-    /// Why a PR needs attention right now, so the row says it in words and not only with an icon. In the review block
-    /// this is only a label: it never feeds the attention dot or the alerts.
-    private func attentionReason(_ pr: PullRequest) -> (text: String, tone: PRChange.Tone)? {
-        if pr.role == .reviewRequested {
-            // The verdict the user gave stays on the row until the PR is merged or closed.
-            if pr.review == .changesRequested { return ("rejeitado", .critical) }
-            if pr.review == .approved { return pr.teamReview == .approved ? ("aprovado", .success) : ("aprovaste", .info) }
-        }
-        if pr.ci == .failing { return ("CI falhou", .critical) }
-        if pr.hasConflicts { return ("conflitos", .warning) }
-        if pr.review == .changesRequested { return ("alterações pedidas", .warning) }
-        return nil
-    }
-
-    /// "eu" on the user's own PRs and tasks, the owner's initials on the rest, so a mixed list reads at a glance.
-    @ViewBuilder private func ownerTag(name: String?, isMine: Bool) -> some View {
-        if showOwner, let label = Owner.label(name: name, isMine: isMine) {
-            Text(label)
-                .font(.system(size: 9, weight: .bold)).foregroundStyle(.white.opacity(isMine ? 0.95 : 0.7))
-                .frame(minWidth: 16)
-                .padding(.horizontal, 3).padding(.vertical, 1)
-                .background(Capsule().fill(isMine ? Brand.blue.opacity(0.75) : Color.white.opacity(0.14)))
-                .islandTip(isMine ? "Teu" : (name ?? ""))
-        }
-    }
-
-    private func tag(_ text: String, _ color: Color) -> some View {
-        Text(text).font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
-            .padding(.horizontal, 5).padding(.vertical, 1).background(Capsule().fill(color.opacity(0.4)))
-    }
-
-    private func ciSymbol(_ ci: CIState) -> String {
-        switch ci {
-        case .passing: return "checkmark.circle.fill"
-        case .failing: return "xmark.circle.fill"
-        case .pending: return "clock.fill"
-        case .none: return "circle.dashed"
-        }
-    }
-
-    private func ciText(_ ci: CIState) -> String {
-        switch ci {
-        case .passing: return "CI a passar"
-        case .failing: return "CI falhou"
-        case .pending: return "CI a correr"
-        case .none: return "Sem CI"
-        }
-    }
-
-    private func ciColor(_ ci: CIState) -> Color {
-        switch ci {
-        case .passing: return .green
-        case .failing: return .red
-        case .pending: return .yellow
-        case .none: return .gray
-        }
-    }
-
-    @ViewBuilder private func reviewIcon(_ pr: PullRequest) -> some View {
-        // My own approval on a review request is not the PR's: it is only "approved" once the approval bar is met.
-        if pr.role == .reviewRequested, pr.review == .approved, pr.teamReview != .approved {
-            Image(systemName: "checkmark.circle").foregroundStyle(.gray).islandTip("Aprovaste; faltam aprovações")
-        } else {
-            reviewIcon(pr.review)
-        }
-    }
-
-    @ViewBuilder private func reviewIcon(_ review: ReviewState) -> some View {
-        switch review {
-        case .approved: Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).islandTip("Aprovado")
-        case .changesRequested: Image(systemName: "exclamationmark.bubble.fill").foregroundStyle(.orange).islandTip("Alterações pedidas")
-        case .reviewRequired: Image(systemName: "eye").foregroundStyle(.gray).islandTip("Aguarda review")
-        case .none: EmptyView()
-        }
-    }
-
     private func color(forFraction fraction: Double) -> Color {
         Brand.color(forFraction: fraction, amber: amber, red: red)
     }
@@ -1052,24 +784,24 @@ struct IslandView: View {
         case .claude: ClaudeBlock(store: store, costStore: costStore, showCost: showCost)
         case .pullRequests:
             VStack(alignment: .leading, spacing: 0) {
-                cardTitle("Git", icon: "arrow.triangle.pull")
-                pullRequestSection(.authored)
-                if !prRows(for: .authored).isEmpty && !prRows(for: .review).isEmpty { listRule }
-                pullRequestSection(.review)
-                if !(prRows(for: .authored).isEmpty && prRows(for: .review).isEmpty) && !prRows(for: .outOfSprint).isEmpty { listRule }
-                pullRequestSection(.outOfSprint)
+                CardTitle(title: "Git", icon: "arrow.triangle.pull")
+                PullRequestSection(list: .authored, rows: prRows(for: .authored), changes: rowChanges) { setShowAll(.authored, $0) }
+                if !prRows(for: .authored).isEmpty && !prRows(for: .review).isEmpty { ListRule() }
+                PullRequestSection(list: .review, rows: prRows(for: .review), changes: rowChanges) { setShowAll(.review, $0) }
+                if !(prRows(for: .authored).isEmpty && prRows(for: .review).isEmpty) && !prRows(for: .outOfSprint).isEmpty { ListRule() }
+                PullRequestSection(list: .outOfSprint, rows: prRows(for: .outOfSprint), changes: rowChanges) { setShowAll(.outOfSprint, $0) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()
         case .jira:
             VStack(alignment: .leading, spacing: 0) {
-                cardTitle(jiraStore.sprint.flatMap { showSprint ? "Jira - SPRINT - \($0.name)" : nil } ?? "Jira", icon: "checklist",
+                CardTitle(title: jiraStore.sprint.flatMap { showSprint ? "Jira - SPRINT - \($0.name)" : nil } ?? "Jira", icon: "checklist",
                           sprint: showSprint ? jiraStore.sprint : nil)
-                jiraSection(title: "As minhas tasks", rows: jiraRows, showAll: \.showAllJira, alerts: true)
-                if !jiraRows.isEmpty && !approvalRows.isEmpty { listRule }
-                jiraSection(title: "Aprovações", rows: approvalRows, showAll: \.showAllApprovals, alerts: true)
-                if !(jiraRows.isEmpty && approvalRows.isEmpty) && !outOfSprintRows.isEmpty { listRule }
-                jiraSection(title: "Fora da Sprint", rows: outOfSprintRows, showAll: \.showAllOutOfSprint, alerts: true)
+                JiraSection(title: "As minhas tasks", rows: jiraRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllJira = $0 }
+                if !jiraRows.isEmpty && !approvalRows.isEmpty { ListRule() }
+                JiraSection(title: "Aprovações", rows: approvalRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllApprovals = $0 }
+                if !(jiraRows.isEmpty && approvalRows.isEmpty) && !outOfSprintRows.isEmpty { ListRule() }
+                JiraSection(title: "Fora da Sprint", rows: outOfSprintRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllOutOfSprint = $0 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()
