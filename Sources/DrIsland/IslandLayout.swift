@@ -10,6 +10,8 @@ enum IslandLayout {
     static let maxPeekRows = 4
     static let peekWidth: CGFloat = 320
     static let peekRowHeight: CGFloat = 22
+    /// The launch splash row: the Doutor Finanças logo, taller than an alert row.
+    static let splashRowHeight: CGFloat = 40
     /// Rows shown per section after "+N mais" (anything beyond is summarised).
     static let expandedRowLimit = 8
     static let prRowHeight: CGFloat = 25

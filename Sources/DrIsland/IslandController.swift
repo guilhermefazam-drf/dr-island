@@ -52,8 +52,10 @@ final class IslandController {
         }
         NotificationCenter.default.addObserver(forName: .prChangesDetected, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard Settings.alertBanner else { return }
-                self?.instances.values.forEach { $0.peek(self?.prStore.lastChanges ?? []) }
+                let changes = self?.prStore.lastChanges ?? []
+                // The launch splash is not an alert, so it shows even with the alert banner turned off.
+                guard Settings.alertBanner || changes.allSatisfy({ $0.kind == .splash }) else { return }
+                self?.instances.values.forEach { $0.peek(changes) }
             }
         }
         // The morning briefing: checked a little after launch and after a wake (the stores need a moment to catch up), then every 5 min.

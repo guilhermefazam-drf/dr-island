@@ -315,6 +315,8 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 **Offline/online**: a borda fica vermelha sem rede (`NetworkMonitor`); a mini ilha avisa "Sem ligação à internet" / "Ligação restabelecida"; ao voltar a rede (após 2s) atualiza tudo.
 
+**Splash no arranque**: ~1s depois de abrir, a mini ilha mostra o logo da Doutor Finanças (`Resources/DoutorFinancasLogo.svg`, copiado pelo `bundle.sh`; fora do `.app` não aparece), mesmo com o banner de avisos desligado. Nos primeiros 15s após o arranque, as mudanças de rede não abrem a mini ilha ("Offline"/"Online"), mas a borda vermelha e o refresh ao voltar a rede mantêm-se.
+
 ### 8. Resumo do dia e linha do tempo
 
 **Linha do tempo** (bloco, `showTimeline` ligado)

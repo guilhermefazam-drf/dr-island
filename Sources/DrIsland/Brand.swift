@@ -10,6 +10,11 @@ enum Brand {
     static let red = Color(red: 0xFF / 255, green: 0x5F / 255, blue: 0x57 / 255)
 }
 
+extension Brand {
+    /// The Doutor Finanças logo copied into the bundle by `bundle.sh`; nil when running outside the `.app`.
+    static let logo: NSImage? = Bundle.main.url(forResource: "DoutorFinancasLogo", withExtension: "svg").flatMap(NSImage.init(contentsOf:))
+}
+
 let linkBlue = Color(red: 0.45, green: 0.68, blue: 1.0)
 
 extension Brand {
