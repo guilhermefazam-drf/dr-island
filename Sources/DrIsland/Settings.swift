@@ -221,8 +221,8 @@ extension Notification.Name {
     static let newSessionTest = Notification.Name("newSessionTest")
     /// Asks the open settings window to go to a page (object: the page's raw value).
     static let showSettingsPage = Notification.Name("showSettingsPage")
-    /// Posted after the Jira API token is saved or removed so the store re-reads the Keychain.
     /// Asks the app delegate to open the «Gestão» window.
     static let openManagement = Notification.Name("openManagement")
+    /// Posted after the Jira API token is saved or removed so the store re-reads the Keychain.
     static let jiraTokenChanged = Notification.Name("jiraTokenChanged")
 }

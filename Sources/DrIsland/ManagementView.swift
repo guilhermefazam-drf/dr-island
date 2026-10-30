@@ -15,10 +15,10 @@ struct ManagementView: View {
             header
             if let snapshot, let burndown, !boardMismatch {
                 Text(snapshot.sprint.name).font(.title3.weight(.semibold))
-                summary(burndown, closed: snapshot.sprint.state == "closed")
+                summary(burndown, closed: snapshot.sprint.state == "closed", sprintEnd: snapshot.sprint.end)
                 if burndown.showsMissingPointsWarning { missingPoints(burndown) }
                 if burndown.points.isEmpty || burndown.plannedScope == 0 && burndown.points.allSatisfy({ $0.scope == 0 }) {
-                    placeholder("Sem tasks nesta sprint")
+                    placeholder(burndown.memberCount == 0 ? "Sem tasks nesta sprint" : "Sem pontos nesta sprint")
                 } else {
                     BurndownChart(result: burndown, unit: store.unit)
                 }
@@ -85,13 +85,17 @@ struct ManagementView: View {
 
     // MARK: - Summary
 
-    private func summary(_ r: BurndownResult, closed: Bool) -> some View {
-        HStack(spacing: 16) {
+    private func summary(_ r: BurndownResult, closed: Bool, sprintEnd: Date?) -> some View {
+        // Core's `isOverdue` is instant-based; «fora de prazo» only once the end day itself is over.
+        let calendar = Calendar.current
+        let pastEndDay = sprintEnd.map { calendar.startOfDay(for: Date()) > calendar.startOfDay(for: $0) } ?? r.isOverdue
+        let overdue = r.isOverdue && pastEndDay
+        return HStack(spacing: 16) {
             Text("\(Int((r.doneShare * 100).rounded()))% concluído")
             Text("\(r.flaggedOpen) bloqueadas")
-            Text(closed ? "fechada" : r.isOverdue ? "fora de prazo" : r.daysLeft == 0 ? "acaba hoje"
+            Text(closed ? "fechada" : overdue ? "fora de prazo" : r.daysLeft == 0 ? "acaba hoje"
                  : r.daysLeft == 1 ? "acaba em 1 dia" : "acaba em \(r.daysLeft) dias")
-                .foregroundStyle(!closed && r.isOverdue ? Brand.red : .primary)
+                .foregroundStyle(!closed && overdue ? Brand.red : .primary)
         }
         .font(.callout)
     }

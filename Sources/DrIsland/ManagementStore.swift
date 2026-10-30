@@ -70,14 +70,17 @@ final class ManagementStore {
                 self.boards = boards
                 self.points = try await self.client.fetchPointsField(config)
                 guard mine == self.generation else { return }
-                guard let first = boards.first else {
+                // Keep the manager's selection across reopenings when it is still available.
+                guard let board = boards.first(where: { $0.id == self.selectedBoard }) ?? boards.first else {
                     self.sprints = []
                     self.selectedBoard = nil
+                    self.selectedSprint = nil
                     self.status = .error("Não foram encontrados quadros Jira.")
                     return
                 }
-                await self.loadBoard(first.id, config: config, generation: mine)
+                await self.loadBoard(board.id, config: config, generation: mine)
             } catch {
+                guard mine == self.generation else { return }
                 self.fail(error)
             }
         }
@@ -99,13 +102,19 @@ final class ManagementStore {
 
     private func loadBoard(_ id: Int, config: JiraConfig, generation mine: Int) async {
         guard mine == generation else { return }
+        let preferred = selectedBoard == id ? selectedSprint : nil
+        if selectedBoard != id {
+            // Another board: its sprints are not the previous board's.
+            sprints = []
+            selectedSprint = nil
+        }
         selectedBoard = id
         status = .loading
         do {
             let list = try await client.fetchBoardSprints(config, boardID: id)
             guard mine == generation else { return }
             sprints = list
-            guard let pick = list.first(where: { $0.state == "active" }) ?? list.first else {
+            guard let pick = list.first(where: { $0.id == preferred }) ?? list.first(where: { $0.state == "active" }) ?? list.first else {
                 selectedSprint = nil
                 snapshot = nil
                 status = .ok
@@ -114,7 +123,9 @@ final class ManagementStore {
             await loadSprint(pick, config: config, generation: mine)
         } catch {
             guard mine == generation else { return }
-            fail(error)
+            sprints = []
+            selectedSprint = nil
+            fail(error, readingBoard: true)
         }
     }
 
@@ -144,15 +155,20 @@ final class ManagementStore {
         }
     }
 
-    /// Keeps the last snapshot on screen.
-    private func fail(_ error: Error) {
+    /// Keeps the last snapshot on screen. `readingBoard`: a 401/403 on a board call means no permission on that board
+    /// (the credentials were already proven by the boards list).
+    private func fail(_ error: Error, readingBoard: Bool = false) {
         ErrorLog.record("Jira", "Gestão: \(error)")
         switch error as? JiraError {
+        case .unauthorized where readingBoard:
+            status = .error("Sem permissão para ler este board. Escolha outro ou deixe a lista vazia em Definições → Jira (modo automático).")
         case .unauthorized: status = .error("Jira recusou as credenciais. Verifique o email e o token.")
         case .invalidSite: status = .error("O endereço do Jira é inválido.")
         case .rateLimited: status = .error("O Jira limitou os pedidos. Tente daqui a pouco.")
         case .http(let code): status = .error("O Jira respondeu com o erro \(code).")
         case .notConfigured: status = .error("Jira não está configurado. Ver Definições → Jira.")
+        case .invalidResponse: status = .error("Resposta inesperada do Jira.")
+        case .readOnly: status = .error("Pedido recusado: a app só lê do Jira.")
         default: status = .error("Sem ligação ao Jira.")
         }
     }
