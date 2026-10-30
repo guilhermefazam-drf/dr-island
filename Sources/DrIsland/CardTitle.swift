@@ -6,12 +6,17 @@ struct CardTitle: View {
     let title: String
     let icon: String
     var sprint: SprintInfo?
+    var onManagement: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 8) {
             Label(title, systemImage: icon)
                 .font(.caption.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 6)
+            if let onManagement {
+                Button(action: onManagement) { Image(systemName: "chart.xyaxis.line").font(.caption) }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).islandTip("Gestão")
+            }
             if let sprint { SprintBar(sprint: sprint, amber: Brand.amber, red: Brand.red) }
         }
         .frame(height: IslandLayout.cardTitle - 4)

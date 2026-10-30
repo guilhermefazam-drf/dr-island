@@ -837,7 +837,8 @@ struct IslandView: View {
             let single = sections.count == 1
             VStack(alignment: .leading, spacing: 0) {
                 CardTitle(title: single ? "SPRINT - \(sections[0].sprint.name)" : sections.isEmpty ? "Sprint atual" : "Sprints atuais",
-                          icon: "flag.checkered", sprint: single ? sections[0].sprint : nil)
+                          icon: "flag.checkered", sprint: single ? sections[0].sprint : nil,
+                          onManagement: { NotificationCenter.default.post(name: .openManagement, object: nil) })
                 if sections.isEmpty {
                     JiraSection(title: "As minhas até ao fim", rows: sprintEmptyRows, changes: rowChanges, myName: jiraStore.myName) { _ in }
                 }

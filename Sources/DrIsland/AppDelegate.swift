@@ -14,6 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var island: IslandController?
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
+    private var managementWindow: NSWindow?
+    private let managementStore = ManagementStore()
     private var nap: NSObjectProtocol?
     private let hotKey = HotKeyManager()
     private var cancellables = Set<AnyCancellable>()
@@ -48,6 +50,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 MainActor.assumeIsolated { self.prStore.showTransient([PRChange(prID: "claude-session", ref: "Claude", title: "Nova sessão", kind: .claudeSession)]) }
             }
+        }
+        NotificationCenter.default.addObserver(forName: .openManagement, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.openManagement() }
         }
         jiraStore.onAlert = { [weak self] changes in self?.prStore.register(changes) }
         hotKey.start()
@@ -130,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         menu.addItem(withTitle: "Acerca do Dr Island", action: #selector(showAbout), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Histórico de avisos…", action: #selector(openHistory), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Gestão…", action: #selector(openManagement), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Definições…", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(withTitle: "Registo de erros…", action: #selector(openLog), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Reiniciar Dr Island", action: #selector(restart), keyEquivalent: "").target = self
@@ -228,6 +234,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func refresh() { store.refreshNow(); prStore.refreshNow(); jiraStore.refreshNow() }
+
+    @objc func openManagement() {
+        if managementWindow == nil {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: ManagementView(store: managementStore)))
+            window.title = "Gestão"
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.setContentSize(NSSize(width: 900, height: 620))
+            window.minSize = NSSize(width: 720, height: 480)
+            window.isReleasedWhenClosed = false
+            window.center()
+            managementWindow = window
+            managementStore.start()
+        } else if managementStore.status != .loading, managementStore.status != .ok {
+            managementStore.start()   // retry after an error
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        managementWindow?.makeKeyAndOrderFront(nil)
+    }
 
     @objc func openSettings() {
         if settingsWindow == nil {

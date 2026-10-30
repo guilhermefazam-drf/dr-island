@@ -18,6 +18,9 @@ final class ManagementStore {
     private(set) var snapshot: SprintSnapshot?
     private(set) var status: Status = .idle
 
+    /// False when the site has no story-points field: only «tasks» makes sense then.
+    var hasPointsField: Bool { points != nil }
+
     /// Derived from `snapshot` and `unit`; the Observation framework tracks both through this computed property.
     var burndown: BurndownResult? {
         snapshot.map { Burndown.compute($0, unit: unit, now: Date(), calendar: .current) }
