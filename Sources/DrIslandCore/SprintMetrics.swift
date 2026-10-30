@@ -63,3 +63,16 @@ public struct SprintSnapshot: Codable, Equatable, Sendable {
 }
 
 public enum MetricUnit: String, Sendable { case points, tasks }
+
+/// Where finished sprint snapshots are kept. Deliberately dumb: the policy of what to cache lives in the caller.
+public protocol SprintMetricsCache: Sendable {
+    func load(sprintID: Int) -> SprintSnapshot?
+    func save(_ snapshot: SprintSnapshot)
+}
+
+/// Never stores anything.
+public struct NoSprintMetricsCache: SprintMetricsCache {
+    public init() {}
+    public func load(sprintID: Int) -> SprintSnapshot? { nil }
+    public func save(_ snapshot: SprintSnapshot) {}
+}
