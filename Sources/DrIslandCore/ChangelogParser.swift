@@ -2,7 +2,7 @@ import Foundation
 
 /// Parses `search/jql?expand=changelog` responses into `SprintIssue`s.
 public enum ChangelogParser {
-    public static func issues(from data: Data, sprintField: String, pointsField: String?) throws
+    public static func issues(from data: Data, sprintField: String, pointsField: String?, pointsFieldName: String?) throws
         -> (issues: [SprintIssue], truncated: [String], nextPageToken: String?) {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw CocoaError(.coderReadCorrupt)
@@ -24,7 +24,7 @@ public enum ChangelogParser {
                 isFlagged: !((fields[JiraConfig.flaggedField] as? [Any]) ?? []).isEmpty,
                 created: created,
                 resolved: (fields["resolutiondate"] as? String).flatMap(SprintParser.parseDate),
-                events: events(fromHistories: histories, pointsFieldName: pointsField == nil ? nil : "Story Points")))
+                events: events(fromHistories: histories, pointsFieldName: pointsFieldName)))
         }
         return (issues, truncated, root["nextPageToken"] as? String)
     }

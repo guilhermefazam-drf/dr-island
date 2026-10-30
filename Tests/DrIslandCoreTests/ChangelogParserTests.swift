@@ -28,8 +28,8 @@ import Foundation
     {"id":"3","created":"2026-10-17T09:30:00.000+0000","items":[{"field":"Story Points","fromString":"2","toString":"5"}]}
     """
 
-    private func parse(_ data: Data) throws -> (issues: [SprintIssue], truncated: [String], nextPageToken: String?) {
-        try ChangelogParser.issues(from: data, sprintField: "customfield_10020", pointsField: "customfield_10016")
+    private func parse(_ data: Data, pointsFieldName: String? = "Story Points") throws -> (issues: [SprintIssue], truncated: [String], nextPageToken: String?) {
+        try ChangelogParser.issues(from: data, sprintField: "customfield_10020", pointsField: "customfield_10016", pointsFieldName: pointsFieldName)
     }
 
     @Test func parsesStatusSprintAndPointsEvents() throws {
@@ -80,5 +80,16 @@ import Foundation
         let event = try parse(json(histories: histories)).issues[0].events[0]
         #expect(event.from == nil)
         #expect(event.to == "7648")
+    }
+
+    @Test func readsPointsEventsForADifferentFieldName() throws {
+        let histories = """
+        {"id":"1","created":"2026-10-17T09:30:00.000+0000","items":[{"field":"Story point estimate","fromString":"2","toString":"5"}]}
+        """
+        let data = json(histories: histories)
+        let events = try parse(data, pointsFieldName: "Story point estimate").issues[0].events
+        #expect(events.map(\.kind) == [.points])
+        #expect(events[0].from == "2" && events[0].to == "5")
+        #expect(try parse(data, pointsFieldName: "Story Points").issues[0].events.isEmpty)
     }
 }
