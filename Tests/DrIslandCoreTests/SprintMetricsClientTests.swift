@@ -13,9 +13,9 @@ import Foundation
         #expect(text.contains("startAt=0"))
     }
 
-    @Test func issuesJQLIncludesIssuesRemovedFromTheSprint() {
+    @Test func issuesJQLFiltersBySprintId() {
         #expect(SprintMetricsRequests.sprintIssuesJQL(sprintField: "customfield_10000", sprintID: 7648)
-                == "cf[10000] = 7648 OR cf[10000] was 7648 ORDER BY created ASC")
+                == "cf[10000] = 7648 ORDER BY created ASC")
     }
 
     @Test func issuesURLExpandsChangelogAndAsksForTheFields() throws {
@@ -89,12 +89,12 @@ import Foundation
 
     @Test func parsesStatusCategories() throws {
         let json = """
-        [{"name": "Em Progresso", "statusCategory": {"key": "indeterminate"}},
-         {"name": "Done", "statusCategory": {"key": "done"}},
-         {"name": "Por Fazer", "statusCategory": {"key": "new"}}]
+        [{"id": "3", "name": "Em Progresso", "statusCategory": {"key": "indeterminate"}},
+         {"id": "10001", "name": "Done", "statusCategory": {"key": "done"}},
+         {"id": "1", "name": "Por Fazer", "statusCategory": {"key": "new"}}]
         """
         let map = try #require(SprintMetricsParser.statusCategories(Data(json.utf8)))
-        #expect(map == ["Em Progresso": "indeterminate", "Done": "done", "Por Fazer": "new"])
+        #expect(map == ["3": "indeterminate", "10001": "done", "1": "new"])
     }
 
     @Test func parsesAChangelogPage() throws {

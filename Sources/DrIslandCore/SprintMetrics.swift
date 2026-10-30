@@ -22,7 +22,7 @@ public struct SprintIssueEvent: Codable, Equatable, Sendable {
 
     public var date: Date
     public var kind: Kind
-    /// Status name; comma-separated sprint ids; or the story-point value as text.
+    /// Status id; comma-separated sprint ids; or the story-point value as text.
     public var from: String?
     public var to: String?
 
@@ -36,15 +36,17 @@ public struct SprintIssue: Codable, Equatable, Sendable {
     public var type: String?
     public var points: Double?
     public var status: String
+    /// Current status id (`fields.status.id`); categories are looked up by it.
+    public var statusID: String?
     public var isFlagged: Bool
     public var created: Date
     public var resolved: Date?
     /// Chronological order.
     public var events: [SprintIssueEvent]
 
-    public init(key: String, type: String?, points: Double?, status: String, isFlagged: Bool,
+    public init(key: String, type: String?, points: Double?, status: String, statusID: String? = nil, isFlagged: Bool,
                 created: Date, resolved: Date?, events: [SprintIssueEvent]) {
-        self.key = key; self.type = type; self.points = points; self.status = status
+        self.key = key; self.type = type; self.points = points; self.status = status; self.statusID = statusID
         self.isFlagged = isFlagged; self.created = created; self.resolved = resolved; self.events = events
     }
 }
@@ -52,7 +54,7 @@ public struct SprintIssue: Codable, Equatable, Sendable {
 public struct SprintSnapshot: Codable, Equatable, Sendable {
     public var sprint: SprintRecord
     public var issues: [SprintIssue]
-    /// Status name → `"new"`, `"indeterminate"` or `"done"`.
+    /// Status id → `"new"`, `"indeterminate"` or `"done"`.
     public var statusCategories: [String: String]
     public var fetchedAt: Date
 

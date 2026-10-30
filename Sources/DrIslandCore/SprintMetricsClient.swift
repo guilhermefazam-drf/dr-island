@@ -14,10 +14,10 @@ enum SprintMetricsRequests {
         return components?.url
     }
 
-    /// Issues that are or were in the sprint (an issue removed from it still counts for the burndown).
+    /// Issues currently in the sprint. The Sprint field does not support `was`, so issues removed from the sprint
+    /// before it ended are not fetched (a known limitation).
     static func sprintIssuesJQL(sprintField: String, sprintID: Int) -> String {
-        let field = SprintJQL.field(sprintField)
-        return "\(field) = \(sprintID) OR \(field) was \(sprintID) ORDER BY created ASC"
+        "\(SprintJQL.field(sprintField)) = \(sprintID) ORDER BY created ASC"
     }
 
     static func sprintIssuesURL(site: URL, sprintID: Int, sprintField: String, pointsField: String?, pageToken: String?) -> URL? {
@@ -81,14 +81,14 @@ enum SprintMetricsParser {
         return nil
     }
 
-    /// Status name → status category key (`new`, `indeterminate`, `done`).
+    /// Status id → status category key (`new`, `indeterminate`, `done`).
     static func statusCategories(_ data: Data) -> [String: String]? {
         guard let statuses = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return nil }
         var result: [String: String] = [:]
         for status in statuses {
-            guard let name = status["name"] as? String,
+            guard let id = status["id"] as? String,
                   let key = (status["statusCategory"] as? [String: Any])?["key"] as? String else { continue }
-            result[name] = key
+            result[id] = key
         }
         return result
     }
@@ -138,6 +138,7 @@ extension JiraClient {
         return SprintMetricsParser.pointsField(data)
     }
 
+    /// Status id → category key.
     public func fetchStatusCategories(_ config: JiraConfig) async throws -> [String: String] {
         let (site, header) = try prepare(config)
         let data = try await get(site.appendingPathComponent("rest/api/3/status"), authorization: header)
@@ -145,7 +146,7 @@ extension JiraClient {
         return map
     }
 
-    /// Every issue that is or was in the sprint, with its changelog. Issues whose changelog came back truncated get
+    /// Every issue currently in the sprint, with its changelog. Issues whose changelog came back truncated get
     /// the rest from the changelog endpoint. All requests are GETs.
     public func fetchSprintSnapshot(_ config: JiraConfig, sprint: SprintRecord, sprintField: String,
                                     points: (id: String, name: String)?) async throws -> SprintSnapshot {
@@ -159,7 +160,7 @@ extension JiraClient {
             let data = try await get(url, authorization: header)
             let page: (issues: [SprintIssue], truncated: [String], nextPageToken: String?)
             do {
-                page = try ChangelogParser.issues(from: data, sprintField: sprintField, pointsField: points?.id, pointsFieldName: points?.name)
+                page = try ChangelogParser.issues(from: data, sprintField: sprintField, pointsField: points?.id)
             } catch { throw JiraError.invalidResponse }
             issues += page.issues
             truncated += page.truncated
@@ -179,7 +180,7 @@ extension JiraClient {
                 start += page.histories.count
             }
             let histories = mergeChangelogPages(initial: [], pages: pages)
-            issues[index].events = ChangelogParser.events(fromHistories: histories, pointsFieldName: points?.name)
+            issues[index].events = ChangelogParser.events(fromHistories: histories, sprintField: sprintField, pointsField: points?.id)
         }
 
         let categories = try await fetchStatusCategories(config)

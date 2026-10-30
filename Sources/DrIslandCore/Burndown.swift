@@ -53,7 +53,7 @@ public enum Burndown {
             unit == .tasks ? 1 : (points(of: issue, at: instant) ?? 0)
         }
         func isDone(_ issue: SprintIssue, at instant: Date) -> Bool {
-            snapshot.statusCategories[statusName(of: issue, at: instant)] == "done"
+            snapshot.statusCategories[statusID(of: issue, at: instant)] == "done"
         }
         func measure(at instant: Date) -> (remaining: Double, scope: Double) {
             var remaining = 0.0, scope = 0.0
@@ -124,6 +124,8 @@ public enum Burndown {
     }
 
     private static func isMember(_ issue: SprintIssue, sprintID: Int, at instant: Date) -> Bool {
+        // Jira logs no event for values set at creation, so nothing is a member before the issue existed.
+        guard instant >= issue.created else { return false }
         let id = String(sprintID)
         let events = issue.events.filter { $0.kind == .sprint }.sorted { $0.date < $1.date }
         guard let first = events.first else { return true }
@@ -132,9 +134,9 @@ public enum Burndown {
         return member
     }
 
-    private static func statusName(of issue: SprintIssue, at instant: Date) -> String {
+    private static func statusID(of issue: SprintIssue, at instant: Date) -> String {
         let events = issue.events.filter { $0.kind == .status }.sorted { $0.date < $1.date }
-        guard let first = events.first else { return issue.status }
+        guard let first = events.first else { return issue.statusID ?? "" }
         var status = first.from ?? ""
         for event in events where event.date <= instant { status = event.to ?? "" }
         return status

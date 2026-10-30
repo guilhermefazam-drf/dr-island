@@ -15,12 +15,13 @@ import Foundation
         date(String(format: "2026-10-%02dT%02d:00:00Z", d, hour))
     }
 
-    static let categories = ["A fazer": "new", "Em curso": "indeterminate", "Feito": "done"]
+    /// Status id → category. The helpers use the id as the status "name" too.
+    static let categories = ["1": "new", "2": "indeterminate", "3": "done"]
 
-    static func issue(_ key: String, points: Double? = 3, status: String = "A fazer", flagged: Bool = false,
-                      events: [SprintIssueEvent] = []) -> SprintIssue {
-        SprintIssue(key: key, type: "Task", points: points, status: status, isFlagged: flagged,
-                    created: day(1), resolved: nil, events: events)
+    static func issue(_ key: String, points: Double? = 3, status: String = "1", flagged: Bool = false,
+                      created: Date = day(1), events: [SprintIssueEvent] = []) -> SprintIssue {
+        SprintIssue(key: key, type: "Task", points: points, status: status, statusID: status, isFlagged: flagged,
+                    created: created, resolved: nil, events: events)
     }
 
     static func snapshot(_ issues: [SprintIssue], state: String = "closed",
@@ -44,8 +45,8 @@ import Foundation
     }
 
     @Test func remainingDropsWhenATaskGetsDone() {
-        let done = Self.issue("A-1", status: "Feito", events: [
-            SprintIssueEvent(date: Self.day(15), kind: .status, from: "A fazer", to: "Feito")])
+        let done = Self.issue("A-1", status: "3", events: [
+            SprintIssueEvent(date: Self.day(15), kind: .status, from: "1", to: "3")])
         let r = Self.compute(Self.snapshot([done, Self.issue("A-2")]))
         #expect(Self.point(r, 14).remaining == 6)
         #expect(Self.point(r, 15).remaining == 3)
@@ -78,11 +79,30 @@ import Foundation
     }
 
     @Test func taskCreatedDirectlyInSprint() {
-        let created = Self.issue("A-1", events: [Self.sprintEvent(14, from: nil, to: "7350")])
+        let created = Self.issue("A-1", created: Self.day(14, 9), events: [Self.sprintEvent(14, from: nil, to: "7350")])
         let r = Self.compute(Self.snapshot([created]))
         #expect(r.plannedScope == 0)
         #expect(Self.point(r, 13).scope == 0)
         #expect(Self.point(r, 14).scope == 3)
+    }
+
+    @Test func taskCreatedMidSprintWithoutEventsIsNotAMemberBeforeItExisted() {
+        // Jira logs no sprint event for a value set at creation.
+        let created = Self.issue("A-1", created: Self.day(16, 9))
+        let r = Self.compute(Self.snapshot([created, Self.issue("A-2")]))
+        #expect(r.plannedScope == 3)
+        #expect(Self.point(r, 15).scope == 3)
+        #expect(Self.point(r, 16).scope == 6)
+    }
+
+    @Test func statusCategoryIsLookedUpById() {
+        // Same name, different ids: only the id decides.
+        let issue = SprintIssue(key: "A-1", type: "Task", points: 3, status: "Done", statusID: "3", isFlagged: false,
+                                created: Self.day(1), resolved: nil, events: [])
+        let other = SprintIssue(key: "A-2", type: "Task", points: 3, status: "Done", statusID: "99", isFlagged: false,
+                                created: Self.day(1), resolved: nil, events: [])
+        let r = Self.compute(Self.snapshot([issue, other]))
+        #expect(Self.point(r, 14).remaining == 3)
     }
 
     @Test func taskCarriedOverFromAnotherSprint() {
@@ -101,8 +121,8 @@ import Foundation
     }
 
     @Test func unitTasksCountsOnePerIssue() {
-        let done = Self.issue("A-1", points: 8, status: "Feito", events: [
-            SprintIssueEvent(date: Self.day(15), kind: .status, from: "A fazer", to: "Feito")])
+        let done = Self.issue("A-1", points: 8, status: "3", events: [
+            SprintIssueEvent(date: Self.day(15), kind: .status, from: "1", to: "3")])
         let r = Self.compute(Self.snapshot([done, Self.issue("A-2", points: nil)]), unit: .tasks)
         #expect(Self.point(r, 14).scope == 2)
         #expect(Self.point(r, 14).remaining == 2)
@@ -151,7 +171,7 @@ import Foundation
 
     @Test func flaggedOpenCountsOnlyOpenMembers() {
         let open = Self.issue("A-1", flagged: true)
-        let done = Self.issue("A-2", status: "Feito", flagged: true)
+        let done = Self.issue("A-2", status: "3", flagged: true)
         let r = Self.compute(Self.snapshot([open, done, Self.issue("A-3")]))
         #expect(r.flaggedOpen == 1)
     }
