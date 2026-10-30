@@ -20,12 +20,22 @@ public struct JiraTask: Equatable, Identifiable, Sendable {
     public let commentAuthors: [String]?
     /// Whether the task is in the active sprint (nil when the Sprint field was not read).
     public let inActiveSprint: Bool?
+    /// Ids of the sprints the task is in (empty when the Sprint field was not read).
+    public let sprintIDs: [Int]
+    /// Name of the issue type as Jira returns it ("Bug", "Story"…); nil when not returned.
+    public let issueType: String?
+    public var kind: JiraIssueKind { JiraIssueKind(typeName: issueType) }
+    /// Whether the issue carries Jira's flag (the "Impediment" in the Flagged field).
+    public let isFlagged: Bool
     /// The team marks sprint goals with the label `Sprint_Goal` (any case, `-`/`_`/space tolerated).
     public var isSprintGoal: Bool {
         labels.contains { $0.lowercased().filter { $0.isLetter } == "sprintgoal" }
     }
 
-    public init(key: String, summary: String, status: String, category: Category, priority: String?, url: URL, commentCount: Int? = nil, labels: [String] = [], approvers: [String]? = nil, assignee: String? = nil, commentAuthors: [String]? = nil, inActiveSprint: Bool? = nil) {
+    public init(key: String, summary: String, status: String, category: Category, priority: String?, url: URL, commentCount: Int? = nil, labels: [String] = [], approvers: [String]? = nil, assignee: String? = nil, commentAuthors: [String]? = nil, inActiveSprint: Bool? = nil, issueType: String? = nil, isFlagged: Bool = false, sprintIDs: [Int] = []) {
+        self.sprintIDs = sprintIDs
+        self.isFlagged = isFlagged
+        self.issueType = issueType
         self.inActiveSprint = inActiveSprint
         self.commentAuthors = commentAuthors
         self.assignee = assignee
@@ -34,6 +44,24 @@ public struct JiraTask: Equatable, Identifiable, Sendable {
         self.labels = labels
         self.key = key; self.summary = summary; self.status = status
         self.category = category; self.priority = priority; self.url = url
+    }
+}
+
+/// The kind of work behind a Jira issue type, so the list can tell bugs from features at a glance.
+public enum JiraIssueKind: Equatable, Sendable {
+    case bug, feature, task, epic, subtask, other
+
+    /// Tolerant of case, accents and the Portuguese/English names the team's projects use.
+    public init(typeName: String?) {
+        let name = (typeName ?? "").folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased()
+        let words = name.split { !$0.isLetter }.map(String.init)
+        func has(_ any: String...) -> Bool { any.contains { name.contains($0) } }
+        if has("bug", "erro", "defeito", "defect", "incident", "problema", "problem") { self = .bug }
+        else if has("sub-task", "subtask", "subtarefa", "sub tarefa") || words == ["sub", "task"] { self = .subtask }
+        else if has("epic") { self = .epic }
+        else if has("story", "feature", "historia", "melhoria", "improvement", "funcionalidade") { self = .feature }
+        else if has("task", "tarefa") { self = .task }
+        else { self = .other }
     }
 }
 
@@ -52,6 +80,8 @@ public struct JiraConfig: Equatable, Sendable {
     public static let legacyApproverJQL = "approver = currentUser() AND statusCategory != Done ORDER BY updated DESC"
     /// The custom "Approvers" field of this Jira (the same one `defaultApproverJQL` filters on).
     public static let approversField = "customfield_10127"
+    /// Jira's standard "Flagged" (impediment) field; a non-empty array means the issue is flagged.
+    public static let flaggedField = "customfield_10006"
     public static let defaultApproverJQL = "cf[10127] = currentUser() AND statusCategory != Done ORDER BY updated DESC"
 
     public init(site: String, email: String, token: String, jql: String = JiraConfig.defaultJQL,
@@ -70,6 +100,8 @@ public enum JiraError: Error, Equatable {
     case http(Int)
     case network
     case invalidResponse
+    /// A request that is not a plain read was about to go to Jira; the app only ever reads.
+    case readOnly
 }
 
 public enum JiraOrder {
@@ -80,6 +112,13 @@ public enum JiraOrder {
             let (ra, rb) = (rank(a.element), rank(b.element))
             return ra != rb ? ra < rb : a.offset < b.offset
         }.map(\.element)
+    }
+
+    /// The sprint card: what is still the user's first, then what they handed on (to test, review…), each in `sorted` order.
+    public static func sprintSorted(_ tasks: [JiraTask], me: String?) -> [JiraTask] {
+        let mine = tasks.filter { me != nil && $0.assignee == me }
+        let handedOn = tasks.filter { !(me != nil && $0.assignee == me) }
+        return sorted(mine) + sorted(handedOn)
     }
 }
 
@@ -109,7 +148,10 @@ public enum JiraParser {
                 commentAuthors: ((fields["comment"] as? [String: Any])?["comments"] as? [[String: Any]])?.compactMap { ($0["author"] as? [String: Any])?["displayName"] as? String },
                 inActiveSprint: sprintField.map { field in
                     ((fields[field] as? [[String: Any]]) ?? []).contains { ($0["state"] as? String)?.lowercased() == "active" }
-                }
+                },
+                issueType: (fields["issuetype"] as? [String: Any])?["name"] as? String,
+                isFlagged: !((fields[JiraConfig.flaggedField] as? [Any]) ?? []).isEmpty,
+                sprintIDs: sprintField.map { field in ((fields[field] as? [[String: Any]]) ?? []).compactMap { $0["id"] as? Int } } ?? []
             )
         }
     }
@@ -161,7 +203,7 @@ public struct JiraClient: Sendable {
         var components = URLComponents(url: site.appendingPathComponent("rest/api/3/search/jql"), resolvingAgainstBaseURL: false)
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
-            URLQueryItem(name: "fields", value: (["summary", "status", "priority", "comment", "labels", "assignee", JiraConfig.approversField] + extraFields).joined(separator: ",")),
+            URLQueryItem(name: "fields", value: (["summary", "status", "priority", "issuetype", "comment", "labels", "assignee", JiraConfig.approversField, JiraConfig.flaggedField] + extraFields).joined(separator: ",")),
             URLQueryItem(name: "maxResults", value: String(max(1, min(maxResults, 50)))),
         ]
         return components?.url
@@ -171,9 +213,22 @@ public struct JiraClient: Sendable {
         try await search(config, jql: config.jql, sprintField: sprintField)
     }
 
+    /// The active sprint's tasks that are or were the user's: `assignee was` keeps a task in view after it moves to
+    /// someone else (test, review), so its state can be followed to the end of the sprint.
+    /// Only the given sprints (the teams' current ones, which may be past their end but not closed yet).
+    public static func sprintTasksJQL(field: String?, sprintIDs: [Int]) -> String {
+        "\(SprintJQL.field(field)) in (\(sprintIDs.map(String.init).joined(separator: ","))) AND assignee was currentUser() ORDER BY rank"
+    }
+
+    public func fetchSprintTasks(_ config: JiraConfig, field: String?, sprintIDs: [Int]) async throws -> [JiraTask] {
+        guard !sprintIDs.isEmpty else { return [] }
+        return try await search(config, jql: Self.sprintTasksJQL(field: field, sprintIDs: sprintIDs), sprintField: field)
+    }
+
     /// The tasks where the user is an approver (`config.approverJQL`).
-    public func fetchApprovals(_ config: JiraConfig) async throws -> [JiraTask] {
-        try await search(config, jql: config.approverJQL)
+    /// With `sprintField`, each task says whether it is in the active sprint.
+    public func fetchApprovals(_ config: JiraConfig, sprintField: String? = nil) async throws -> [JiraTask] {
+        try await search(config, jql: config.approverJQL, sprintField: sprintField)
     }
 
     private func search(_ config: JiraConfig, jql: String, sprintField: String? = nil) async throws -> [JiraTask] {
@@ -196,10 +251,17 @@ public struct JiraClient: Sendable {
         return (site, Self.authorizationHeader(email: config.email, token: config.token))
     }
 
+    /// Jira is read-only for this app: every request goes through `get`, which refuses anything but GET/HEAD.
+    static func requireReadOnly(_ request: URLRequest) throws {
+        let method = (request.httpMethod ?? "GET").uppercased()
+        guard method == "GET" || method == "HEAD", request.httpBody == nil else { throw JiraError.readOnly }
+    }
+
     func get(_ url: URL, authorization: String) async throws -> Data {
         var request = URLRequest(url: url, timeoutInterval: 20)
         request.setValue(authorization, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        try Self.requireReadOnly(request)
         let data: Data
         let response: URLResponse
         do { (data, response) = try await session.data(for: request) } catch { throw JiraError.network }

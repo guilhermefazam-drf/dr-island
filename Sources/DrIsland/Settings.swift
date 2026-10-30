@@ -53,6 +53,7 @@ enum Settings {
             SettingsKey.prMutes: "[]",
             SettingsKey.showForecast: true,
             SettingsKey.shortcuts: "[]",
+            SettingsKey.workStart: WeeklyPace.defaultWorkStartMinute,
             SettingsKey.quietEnabled: false,
             SettingsKey.quietStart: 22 * 60,
             SettingsKey.quietEnd: 8 * 60,
@@ -61,7 +62,7 @@ enum Settings {
             SettingsKey.showAlertsBlock: true,
             SettingsKey.alertHistory: "[]",
             SettingsKey.showSprint: true,
-            SettingsKey.showOutOfSprint: true,
+            SettingsKey.jiraSprintBoards: "",
             SettingsKey.showTimeline: true,
             SettingsKey.showOwner: true,
             SettingsKey.briefingAuto: true,
@@ -131,6 +132,10 @@ enum Settings {
     }
     static let jiraTokenAccount = "jira-api-token"
     static var jiraEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.jiraEnabled) }
+    /// The boards whose active sprints are shown; empty = the boards of the sprints the user has had tasks in.
+    static var jiraSprintBoards: Set<Int> {
+        BoardParser.parseIDs(UserDefaults.standard.string(forKey: SettingsKey.jiraSprintBoards) ?? "")
+    }
     static var showSprint: Bool { UserDefaults.standard.bool(forKey: SettingsKey.showSprint) }
     static var jiraApproverEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.jiraApproverEnabled) }
     static var jiraRefreshSeconds: TimeInterval {
@@ -138,12 +143,12 @@ enum Settings {
     }
     static var jiraBacklogEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.jiraBacklogEnabled) }
     /// The backlog JQL: the one typed, else the default for the project set (or `guessedProject`); nil without a project.
-    static func jiraBacklogJQL(guessedProject: String?) -> String? {
+    static func jiraBacklogJQL(guessedProject: String?, sprintField: String? = nil) -> String? {
         let d = UserDefaults.standard
         let jql = (d.string(forKey: SettingsKey.jiraBacklogJQL) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !jql.isEmpty { return jql }
         let project = (d.string(forKey: SettingsKey.jiraBacklogProject) ?? "").trimmingCharacters(in: .whitespaces).uppercased()
-        return (project.isEmpty ? guessedProject : project).map(Backlog.defaultJQL(project:))
+        return (project.isEmpty ? guessedProject : project).map { Backlog.defaultJQL(project: $0, sprintField: sprintField) }
     }
     /// `token` is passed in so callers decide when to touch the Keychain.
     static func jiraConfig(token: String) -> JiraConfig {

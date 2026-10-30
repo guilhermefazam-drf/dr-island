@@ -38,6 +38,10 @@ final class IslandInstance {
         self.costStore = costStore
         self.focusStore = focusStore
         self.openSettings = openSettings
+        // The border waits for the launch splash; if it never plays here (a screen plugged in later, the island opened first), do not keep it away.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            MainActor.assumeIsolated { self?.state.splashPending = false }
+        }
     }
 
     /// Panel size: always the maximum, so content height changes never resize the window.
@@ -261,10 +265,9 @@ final class IslandInstance {
                     self.state.showAllPRs = false
                     self.state.showAllReviews = false
                     self.state.showAllJira = false
+                    self.state.expandedSprintLists = []
                     self.state.showAllApprovals = false
                     self.state.expandedBacklog = []
-                    self.state.showAllOutOfSprint = false
-                    self.state.showAllPROutOfSprint = false
                 }
             }
         }

@@ -10,7 +10,10 @@ struct JiraPage: View {
     @AppStorage(SettingsKey.jiraApproverJQL) private var approverJQL = JiraConfig.defaultApproverJQL
     @AppStorage(SettingsKey.jiraMaxTasks) private var maxTasks = 20
     @AppStorage(SettingsKey.showSprint) private var showSprint = true
-    @AppStorage(SettingsKey.showOutOfSprint) private var showOutOfSprint = true
+    @AppStorage(SettingsKey.jiraSprintBoards) private var sprintBoards = ""
+    @State private var boards: [JiraBoard] = []
+    @State private var boardsMessage: String?
+    @State private var loadingBoards = false
     @AppStorage(SettingsKey.jiraRefreshSeconds) private var refresh = 180.0
     @AppStorage(SettingsKey.jiraBacklogEnabled) private var backlogEnabled = true
     @AppStorage(SettingsKey.jiraBacklogProject) private var backlogProject = ""
@@ -44,8 +47,21 @@ struct JiraPage: View {
             }
             .disabled(!enabled)
             Section("Sprint") {
-                ToggleRow("Mostrar a sprint", detail: "No topo do card Jira: nome, datas e uma barra com o tempo decorrido da sprint ativa. Só aparece com o Jira ligado e uma sprint ativa.", isOn: $showSprint)
-                ToggleRow("Mostrar «Fora da Sprint»", detail: "No fim dos cards Jira e Git: as tuas tasks e os PRs que não estão na sprint ativa (um PR conta como da sprint quando o título tem a chave de uma task dela, p. ex. TEP-123). Desligado, as tasks fora da sprint não aparecem e os PRs ficam todos juntos. Precisa de «Mostrar a sprint» ligado.", isOn: $showOutOfSprint).disabled(!showSprint)
+                ToggleRow("Mostrar a sprint", detail: "Um card com as sprints ativas: nome, barra de tempo e as tuas tasks até ao fim. Com várias streams, uma secção por sprint.", isOn: $showSprint)
+                ForEach(boards) { board in
+                    Toggle(board.name, isOn: Binding(
+                        get: { BoardParser.parseIDs(sprintBoards).contains(board.id) },
+                        set: { on in
+                            var ids = BoardParser.parseIDs(sprintBoards)
+                            if on { ids.insert(board.id) } else { ids.remove(board.id) }
+                            sprintBoards = BoardParser.format(ids)
+                        }))
+                }
+                HStack(spacing: 10) {
+                    Button(boards.isEmpty ? "Escolher streams (boards)" : "Atualizar a lista de streams") { Task { await loadBoards() } }.disabled(loadingBoards)
+                    if loadingBoards { ProgressView().controlSize(.small) }
+                }
+                Text(boardsMessage ?? defaultBoardsHint).font(.caption).foregroundStyle(.secondary)
             }
             .disabled(!enabled)
             Section("Tasks") {
@@ -88,6 +104,23 @@ struct JiraPage: View {
         hasToken = false
         tokenMessage = "Token removido."
         NotificationCenter.default.post(name: .jiraTokenChanged, object: nil)
+    }
+
+    private var defaultBoardsHint: String {
+        sprintBoards.isEmpty ? "Sem nenhuma escolhida, mostra as sprints ativas das streams onde tens (ou tiveste) tasks."
+            : "A mostrar as sprints ativas de \(BoardParser.parseIDs(sprintBoards).count) stream(s)."
+    }
+
+    private func loadBoards() async {
+        loadingBoards = true
+        defer { loadingBoards = false }
+        let token = await Task.detached { SecretStore.read(account: Settings.jiraTokenAccount) ?? "" }.value
+        do {
+            boards = try await JiraClient().fetchBoards(Settings.jiraConfig(token: token))
+            boardsMessage = boards.isEmpty ? "Nenhum board scrum encontrado." : nil
+        } catch {
+            boardsMessage = "Não foi possível ler os boards: \(error)"
+        }
     }
 
     private func test() async {

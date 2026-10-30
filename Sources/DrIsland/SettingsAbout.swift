@@ -20,7 +20,11 @@ struct AboutPage: View {
             Section("O que mostra") {
                 about("gauge.with.dots.needle.50percent", "Claude", "Uso da sessão (5 h) e da semana, previsão de quando acaba, custo estimado e histórico diário. A borda do notch enche à medida que gastas o limite.")
                 about("arrow.triangle.pull", "Pull requests", "Os teus PRs (CI, review, conflitos) e os que estão à espera do teu review, no GitHub.")
-                about("checklist", "Jira", "As tasks que te estão atribuídas, com o estado, e as que esperam a tua aprovação.")
+                about("flag.checkered", "Sprint atual", "A sprint ativa de cada stream (board) que escolheres, com o tempo que falta, e as tasks que são ou foram tuas até ao fim da sprint, mesmo depois de passarem a teste ou a outra pessoa. As concluídas saem da lista.")
+                about("tray.full", "Backlog", "O backlog da equipa como na vista Backlog do Jira: uma lista por sprint futura e, no fim, as tasks sem sprint.")
+                about("checklist", "Jira", "As tasks que te estão atribuídas, com o tipo (bug, story…), o estado e a flag de impedimento, e as que esperam a tua aprovação.")
+                about("timer", "Foco", "Um temporizador Pomodoro (foco e pausas) no próprio notch.")
+                about("sunrise", "Resumo do dia e linha do tempo", "O que mudou desde a última vez que viste a ilha, e os eventos de hoje por hora.")
                 about("music.note", "Música", "O que está a tocar (Spotify, Música, Brave, Safari…) com anterior, play/pausa e seguinte.")
                 about("square.grid.2x2", "Atalhos", "As apps de desenvolvimento que escolheres (VS Code, IntelliJ, Claude…), a um clique, opcionalmente abertas num projeto.")
                 about("bell.badge", "Avisos", "Quando um PR, uma task ou o limite do Claude muda, escolhes como saber: pulso na borda, ponto, mini ilha, notificação ou som.")
@@ -29,13 +33,14 @@ struct AboutPage: View {
                 bullet("Claude: lê o token do Claude Code no Keychain e consulta o endpoint de uso da Anthropic (não documentado, pode mudar). Se a API limitar os pedidos, estima a partir dos logs locais do Claude Code.")
                 bullet("Custo: calculado nos logs locais em ~/.claude/projects, com os preços que definires (equivalente à API).")
                 bullet("GitHub: através do `gh`, já autenticado no teu Mac. A app não guarda nenhum token do GitHub.")
-                bullet("Jira: API da Atlassian com um API token teu, guardado no Keychain.")
+                bullet("Jira: API da Atlassian com um API token teu, guardado no Keychain. **Só leitura**: a app nunca cria, edita, transita nem comenta nada no Jira, só consulta, e recusa qualquer pedido que não seja uma leitura.")
+                bullet("Sprints: uma sprint fica «ativa» no Jira até alguém a fechar, mesmo depois do fim planeado, e é essa que se mostra. Cada stream é identificada pelo board; quem está em várias streams escolhe-as nas Definições → Jira e vê uma sprint por stream.")
                 bullet("Música: AppleScript para o Spotify e a Música; o resto vem do «Em reprodução» do sistema, lido por um pequeno helper.")
                 bullet("Avisos: a app guarda uma cópia local do último estado dos PRs e das tasks e compara com a leitura seguinte.")
             }
             Section("Privacidade") {
                 bullet("Tudo corre no teu Mac. Não há servidor da app nem telemetria.")
-                bullet("As únicas ligações são à Anthropic (uso), ao GitHub (via `gh`), ao teu site do Jira e às capas de álbum do Spotify.")
+                bullet("As únicas ligações são à Anthropic (uso), ao GitHub (via `gh`), ao teu site do Jira (só para ler) e às capas de álbum do Spotify.")
                 bullet("Os tokens nunca são registados. O token do Jira fica no Keychain; as restantes definições, nas preferências da app.")
             }
             Section("Feito com") {

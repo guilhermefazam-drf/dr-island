@@ -127,6 +127,15 @@ final class PullRequestStore {
         unseen = unseen.filter { $0.prID != sample.prID } + [sample]
         sampleIDs.insert(sample.id)   // saveUnseen leaves it out: a sample on a real PR must never be read back as a real alert
         announce([sample])
+        // A sample only demonstrates the alert: left in `unseen` it would keep tagging a real PR ("novo review") until the island is opened and closed.
+        let id = sample.id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.sampleIDs.contains(id) else { return }   // a real alert with the same id already replaced it
+                self.sampleIDs.remove(id)
+                self.unseen.removeAll { $0.id == id }
+            }
+        }
     }
     private var sampleIndex = 0
     private var sampleIDs: Set<String> = []

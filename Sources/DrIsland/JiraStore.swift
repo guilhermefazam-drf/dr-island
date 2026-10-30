@@ -16,16 +16,15 @@ final class JiraStore {
     private(set) var myName: String?
     private(set) var approvalsFailed = false
     /// The active sprint (nil when there is none or the "Sprint" block is off). Read apart from the tasks, so a failure keeps the last one.
-    private(set) var sprint: SprintInfo?
+    private(set) var sprints: [SprintInfo] = []
+    /// The active sprint's tasks that are or were the user's, so a task keeps showing after it changes owner.
+    private(set) var sprintTasks: [JiraTask] = []
     private var sprintField: String?
     /// The team backlog grouped by future sprint ("Backlog" block). `backlogTruncated` = more tasks than were read;
     /// `backlogFailed` = the last reading failed (the last good groups stay).
     private(set) var backlog: [BacklogGroup] = []
     private(set) var backlogTruncated = false
     private(set) var backlogFailed = false
-    /// Whether each Jira key found in the PR titles is in the active sprint (see `watchPRKeys`); missing = not known yet.
-    private(set) var prSprint: [String: Bool] = [:]
-    private var prKeys: Set<String> = []
     private(set) var status: Status = .loading
 
     private let client = JiraClient()
@@ -88,7 +87,8 @@ final class JiraStore {
             return
         }
         do {
-            let fresh = try await client.fetchApprovals(config)
+            if Settings.showSprint, sprintField == nil { sprintField = try? await client.sprintFieldID(config) }
+            let fresh = try await client.fetchApprovals(config, sprintField: Settings.showSprint ? sprintField : nil)
             // Same diff as the user's own tasks; a task already announced there is not announced twice.
             let own = Set(tasks.map(\.key))
             let changes = JiraDiff.changes(from: approvalsBaseline, to: fresh, me: myName).filter { !own.contains($0.ref) }
@@ -103,34 +103,15 @@ final class JiraStore {
         }
     }
 
-    /// The Jira keys the PR lists mention. Looked up when they change, and again on every Jira reading.
-    func watchPRKeys(_ keys: Set<String>) {
-        guard keys != prKeys else { return }
-        prKeys = keys
-        Task { [weak self] in
-            guard let self else { return }
-            await self.refreshPRSprint(Settings.jiraConfig(token: await self.token()))
-        }
-    }
-
-    private func refreshPRSprint(_ config: JiraConfig) async {
-        guard Settings.showSprint, sprint != nil, let field = sprintField, config.isComplete, !prKeys.isEmpty else {
-            if !prSprint.isEmpty { prSprint = [:] }
-            return
-        }
-        do { prSprint = try await client.fetchSprintMembership(config, keys: Array(prKeys), field: field) }
-        catch { ErrorLog.record("Jira", "PRs da sprint: \(error)") }   // keep the last answer
-    }
-
     /// Independent of the main reading, as the approvals. Needs the Sprint field to split by sprint; without it all is "Backlog".
     private func refreshBacklog(_ config: JiraConfig) async {
+        if Settings.jiraBacklogEnabled, sprintField == nil { sprintField = try? await client.sprintFieldID(config) }
         guard Settings.jiraBacklogEnabled,
-              let jql = Settings.jiraBacklogJQL(guessedProject: Backlog.guessProject(from: tasks.map(\.key))) else {
+              let jql = Settings.jiraBacklogJQL(guessedProject: Backlog.guessProject(from: tasks.map(\.key)), sprintField: sprintField) else {
             backlog = []
             backlogFailed = false
             return
         }
-        if sprintField == nil { sprintField = try? await client.sprintFieldID(config) }
         do {
             let result = try await client.fetchBacklog(config, jql: jql, sprintField: sprintField)
             backlog = result.groups
@@ -142,14 +123,20 @@ final class JiraStore {
         }
     }
 
+    private func refreshSprintTasks(_ config: JiraConfig) async {
+        guard Settings.showSprint else { sprintTasks = []; return }
+        do { sprintTasks = try await client.fetchSprintTasks(config, field: sprintField, sprintIDs: sprints.compactMap(\.id)) }
+        catch { ErrorLog.record("Jira", "Tasks da sprint: \(error)") }   // keep the last list
+    }
+
     private func refreshSprint(_ config: JiraConfig) async {
-        guard Settings.showSprint else { sprint = nil; return }
+        guard Settings.showSprint else { sprints = []; return }
         do {
-            let result = try await client.fetchActiveSprint(config, field: sprintField)
+            let result = try await client.fetchActiveSprints(config, field: sprintField, boards: Settings.jiraSprintBoards)
             sprintField = result.field
-            sprint = result.sprint
+            sprints = result.sprints
         } catch {
-            ErrorLog.record("Jira", "Sprint: \(error)")   // keep the last sprint
+            ErrorLog.record("Jira", "Sprint: \(error)")   // keep the last sprints
         }
     }
 
@@ -158,7 +145,8 @@ final class JiraStore {
             status = .disabled
             tasks = []
             approvals = []
-            sprint = nil
+            sprints = []
+            sprintTasks = []
             backlog = []
             return 5
         }
@@ -168,7 +156,8 @@ final class JiraStore {
             status = .notConfigured
             tasks = []
             approvals = []
-            sprint = nil
+            sprints = []
+            sprintTasks = []
             backlog = []
             return 10
         }
@@ -176,9 +165,7 @@ final class JiraStore {
         defer { isRefreshing = false }
         do {
             if myName == nil { myName = try? await client.myself(config) }
-            // With the sprint shown, each task also says whether it is in the active sprint ("Fora da Sprint").
-            if Settings.showSprint, sprintField == nil { sprintField = try? await client.sprintFieldID(config) }
-            let fresh = try await client.fetchTasks(config, sprintField: Settings.showSprint ? sprintField : nil)
+            let fresh = try await client.fetchTasks(config)
             // Only a successful reading is compared, as with PRs.
             let changes = JiraDiff.changes(from: baseline, to: fresh, me: myName)
             baseline = JiraDiff.fingerprints(of: fresh, me: myName)
@@ -187,8 +174,8 @@ final class JiraStore {
             tasks = fresh
             await refreshApprovals(config)
             await refreshSprint(config)
+            await refreshSprintTasks(config)
             await refreshBacklog(config)
-            await refreshPRSprint(config)
             status = .ok
             failures = 0
             return interval

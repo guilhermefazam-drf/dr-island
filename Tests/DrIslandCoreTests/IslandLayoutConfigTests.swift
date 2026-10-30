@@ -35,7 +35,7 @@ import Testing
 
     @Test func shiftingInsideAColumn() {
         let up = IslandLayoutConfig.vertical.shifting(.jira, by: -1)
-        #expect(up.columns[0].prefix(4) == [.briefing, .claude, .jira, .pullRequests])
+        #expect(up.columns[0].prefix(6) == [.briefing, .claude, .pullRequests, .sprint, .jira, .backlog])
         #expect(IslandLayoutConfig.vertical.shifting(.briefing, by: -1) == .vertical)   // already first
     }
 

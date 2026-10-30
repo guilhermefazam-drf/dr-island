@@ -20,6 +20,26 @@ import Foundation
         #expect(tasks[0].url.absoluteString == "https://acme.atlassian.net/browse/ACME-1")
     }
 
+    @Test func readsTheIssueType() throws {
+        let json = #"{"issues":[{"key":"A-1","fields":{"summary":"x","status":{"name":"To Do"},"issuetype":{"name":"Bug"}}},{"key":"A-2","fields":{"summary":"y","status":{"name":"To Do"}}}]}"#
+        let tasks = try JiraParser.parseTasks(Data(json.utf8), site: site)
+        #expect(tasks[0].issueType == "Bug" && tasks[0].kind == .bug)
+        #expect(tasks[1].issueType == nil && tasks[1].kind == .other)
+    }
+
+    @Test(arguments: [("Bug", JiraIssueKind.bug), ("ERRO", .bug), ("Problema", .bug), ("Story", .feature), ("Funcionalidade", .feature), ("História", .feature),
+                      ("Melhoria", .feature), ("Task", .task), ("Tarefa", .task), ("Sub-task", .subtask), ("Subtarefa", .subtask),
+                      ("Epic", .epic), ("Pedido", .other)])
+    func classifiesIssueTypes(name: String, kind: JiraIssueKind) {
+        #expect(JiraIssueKind(typeName: name) == kind)
+    }
+
+    @Test func readsFlaggedField() throws {
+        let json = #"{"issues":[{"key":"A-1","fields":{"summary":"x","customfield_10006":[{"value":"Impediment"}]}},{"key":"A-2","fields":{"summary":"y","customfield_10021":null}}]}"#
+        let tasks = try JiraParser.parseTasks(Data(json.utf8), site: site)
+        #expect(tasks.map(\.isFlagged) == [true, false])
+    }
+
     @Test func invalidPayloadThrows() {
         #expect(throws: Error.self) { try JiraParser.parseTasks(Data(#"{"errorMessages":["x"]}"#.utf8), site: site) }
     }
@@ -61,5 +81,51 @@ import Foundation
     @Test func configCompleteness() {
         #expect(!JiraConfig(site: "acme.atlassian.net", email: "a@b.c", token: "").isComplete)
         #expect(JiraConfig(site: "acme.atlassian.net", email: "a@b.c", token: "t").isComplete)
+    }
+}
+
+@Suite struct SprintTasksTests {
+    private func task(_ key: String, owner: String, inProgress: Bool = false) -> JiraTask {
+        JiraTask(key: key, summary: key, status: "x", category: inProgress ? .inProgress : .todo, priority: nil,
+                 url: URL(string: "https://x.atlassian.net/browse/\(key)")!, assignee: owner)
+    }
+
+    @Test func myTasksComeBeforeTheOnesHandedOn() {
+        let tasks = [task("A-1", owner: "Rui", inProgress: true), task("A-2", owner: "Ana"), task("A-3", owner: "Ana", inProgress: true)]
+        #expect(JiraOrder.sprintSorted(tasks, me: "Ana").map(\.key) == ["A-3", "A-2", "A-1"])
+    }
+
+    @Test func queryKeepsTasksAfterTheyChangeOwner() {
+        #expect(JiraClient.sprintTasksJQL(field: nil, sprintIDs: [1]).contains("assignee was currentUser()"))
+    }
+
+    @Test func sprintFieldIsNamedByIdWhenTheSiteHasTwoSprintFields() {
+        #expect(SprintJQL.field("customfield_10000") == "cf[10000]")
+        #expect(SprintJQL.field(nil) == "sprint")
+        #expect(JiraClient.sprintTasksJQL(field: "customfield_10000", sprintIDs: [7648]).hasPrefix("cf[10000] in (7648)"))
+        #expect(Backlog.defaultJQL(project: "TEP", sprintField: "customfield_10000").contains("cf[10000] in futureSprints()"))
+    }
+}
+
+@Suite struct JiraReadOnlyTests {
+    private func request(_ method: String, body: Bool = false) -> URLRequest {
+        var request = URLRequest(url: URL(string: "https://x.atlassian.net/rest/api/3/issue/A-1")!)
+        request.httpMethod = method
+        if body { request.httpBody = Data("{}".utf8) }
+        return request
+    }
+
+    @Test func readsPass() throws {
+        try JiraClient.requireReadOnly(request("GET"))
+        try JiraClient.requireReadOnly(request("HEAD"))
+    }
+
+    @Test(arguments: ["POST", "PUT", "PATCH", "DELETE"])
+    func writesAreRefused(method: String) {
+        #expect(throws: JiraError.readOnly) { try JiraClient.requireReadOnly(request(method)) }
+    }
+
+    @Test func aBodyIsRefusedEvenOnGet() {
+        #expect(throws: JiraError.readOnly) { try JiraClient.requireReadOnly(request("GET", body: true)) }
     }
 }

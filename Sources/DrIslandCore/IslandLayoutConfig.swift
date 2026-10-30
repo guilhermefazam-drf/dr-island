@@ -3,12 +3,13 @@ import Foundation
 /// The pieces of the expanded island that can be placed in a column. (The shortcuts dock is not one: it always sits
 /// centred under the columns.)
 public enum IslandBlock: String, CaseIterable, Codable, Sendable {
-    case claude, pullRequests, jira, backlog, focus, history, music, alerts, briefing, timeline
+    case claude, pullRequests, sprint, backlog, jira, focus, history, music, alerts, briefing, timeline
 
     public var title: String {
         switch self {
         case .claude: return "Claude"
         case .pullRequests: return "Git"
+        case .sprint: return "Sprint atual"
         case .jira: return "Jira"
         case .backlog: return "Backlog"
         case .focus: return "Foco"
@@ -24,6 +25,7 @@ public enum IslandBlock: String, CaseIterable, Codable, Sendable {
         switch self {
         case .claude: return "gauge.with.dots.needle.50percent"
         case .pullRequests: return "arrow.triangle.pull"
+        case .sprint: return "flag.checkered"
         case .jira: return "checklist"
         case .backlog: return "tray.full"
         case .focus: return "timer"
@@ -56,9 +58,9 @@ public struct IslandLayoutConfig: Codable, Equatable, Sendable {
         IslandLayoutConfig(columns: columns, extraColumnWidth: extra)
     }
 
-    public static let vertical = IslandLayoutConfig(columns: [[.briefing, .claude, .pullRequests, .jira, .backlog, .focus, .history, .music, .timeline, .alerts]])
-    public static let twoColumns = IslandLayoutConfig(columns: [[.briefing, .claude, .focus, .music, .history, .alerts], [.pullRequests, .jira, .backlog, .timeline]])
-    public static let threeColumns = IslandLayoutConfig(columns: [[.briefing, .claude, .focus, .history], [.pullRequests, .jira, .backlog], [.music, .timeline, .alerts]])
+    public static let vertical = IslandLayoutConfig(columns: [[.briefing, .claude, .pullRequests, .sprint, .backlog, .jira, .focus, .history, .music, .timeline, .alerts]])
+    public static let twoColumns = IslandLayoutConfig(columns: [[.briefing, .claude, .focus, .music, .history, .alerts], [.pullRequests, .sprint, .backlog, .jira, .timeline]])
+    public static let threeColumns = IslandLayoutConfig(columns: [[.briefing, .claude, .focus, .history], [.pullRequests, .sprint, .backlog, .jira], [.music, .timeline, .alerts]])
 
     public var columnCount: Int { columns.count }
 
@@ -126,10 +128,10 @@ public struct IslandLayoutConfig: Codable, Equatable, Sendable {
         (try? JSONEncoder().encode(self)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
     }
 
-    /// "jiraApprovals", "sprint" and "outOfSprint" were blocks of their own; they now live inside the Jira card (the
-    /// first one found keeps the place).
+    /// "jiraApprovals" and "outOfSprint" were blocks of their own; they now live inside the Jira card (the first one
+    /// found keeps the place).
     private static func block(named name: String) -> IslandBlock? {
-        ["jiraApprovals", "sprint", "outOfSprint"].contains(name) ? .jira : IslandBlock(rawValue: name)
+        ["jiraApprovals", "outOfSprint"].contains(name) ? .jira : IslandBlock(rawValue: name)
     }
 
     // Decoding goes through the normalising initialiser, so a hand-edited or older value is repaired.

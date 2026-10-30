@@ -25,8 +25,9 @@ public struct BacklogGroup: Equatable, Identifiable, Sendable {
 }
 
 public enum Backlog {
-    public static func defaultJQL(project: String) -> String {
-        "project = \(project) AND statusCategory != Done AND (sprint is EMPTY OR sprint in futureSprints()) ORDER BY rank"
+    public static func defaultJQL(project: String, sprintField: String? = nil) -> String {
+        let sprint = SprintJQL.field(sprintField)
+        return "project = \(project) AND statusCategory != Done AND (\(sprint) is EMPTY OR \(sprint) in futureSprints()) ORDER BY rank"
     }
 
     /// The project key most of the user's tasks belong to (`TEP-12` → `TEP`), to scope the backlog when none is set.

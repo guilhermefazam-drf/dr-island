@@ -62,13 +62,12 @@ Desligado por defeito. Em **Definições → Jira**:
 
 As tasks vêm do JQL configurado (por omissão, as que estão atribuídas a ti e por concluir). A secção "Aprovações" usa o campo personalizado `customfield_10127` da instância da Doutor Finanças; noutra instância, ajusta o JQL nas Definições.
 
-#### Sprint e «Fora da Sprint»
+#### Sprint
 
 Com o Jira ligado e uma sprint ativa, o título do card Jira passa a "Jira - SPRINT - nome", com uma barra do tempo decorrido (passa o rato para ver as datas, a % e o tempo que falta; o fim é o planeado). A app descobre sozinha o campo Sprint da tua instância.
 
-- As tasks que não estão na sprint ativa vão para a secção **Fora da Sprint**, no fim do card Jira.
-- No card **Git**, os PRs cujo título não tem a chave de uma task da sprint (por exemplo `TEP-123`) vão para **Fora da Sprint**, no fim. O cruzamento é só pelo título do PR.
-- Em **Definições → Jira → Sprint** (ou **Conteúdo**) podes ligar e desligar a sprint e a secção «Fora da Sprint». Com a secção desligada, as tasks fora da sprint não aparecem e os PRs ficam todos juntos.
+- O card Jira da sprint ativa tem um fundo azul com contorno fino, para se distinguir dos outros.
+- Em **Definições → Jira → Sprint** (ou **Conteúdo**) podes ligar e desligar a sprint. As tasks e os PRs aparecem sempre todos nas listas normais; o que está por planear está no card **Backlog**.
 
 ### Permissões do macOS
 
@@ -88,8 +87,8 @@ Uma borda à volta do notch enche à medida que gastas a sessão do Claude (fica
 Cada bloco está num card próprio e pode ser movido entre 1 a 3 colunas em **Definições → Layout**:
 
 - **Claude** — uso da sessão e da semana, e histórico.
-- **Git** — Os meus PRs, A rever, Fora da Sprint; menu de contexto para abrir, copiar o link ou silenciar um PR.
-- **Jira** — As minhas tasks, Aprovações, Fora da Sprint.
+- **Git** — Os meus PRs, A rever; menu de contexto para abrir, copiar o link ou silenciar um PR.
+- **Jira** — As minhas tasks, Aprovações.
 - **Música** — Spotify, Música e o que toca no browser.
 - **Foco** — temporizador Pomodoro (também na barra de menu).
 - **Avisos recentes**, **Resumo do dia** e **Linha do tempo** dos eventos de hoje.

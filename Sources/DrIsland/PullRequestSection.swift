@@ -1,7 +1,7 @@
 import SwiftUI
 import DrIslandCore
 
-/// One list of the Git card ("Os meus PRs", "A rever", "Fora da Sprint"); nothing when it has no rows.
+/// One list of the Git card ("Os meus PRs", "A rever"); nothing when it has no rows.
 struct PullRequestSection: View {
     let list: PRList
     let rows: [PRRow]
@@ -31,7 +31,6 @@ struct PullRequestSection: View {
         switch list {
         case .authored: "Os meus PRs"
         case .review: "A rever"
-        case .outOfSprint: "Fora da Sprint"
         }
     }
 }

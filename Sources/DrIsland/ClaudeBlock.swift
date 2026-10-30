@@ -11,6 +11,7 @@ struct ClaudeBlock: View {
     @AppStorage(SettingsKey.showForecast) private var showForecast = true
     @AppStorage(SettingsKey.amberThreshold) private var amber = 60.0
     @AppStorage(SettingsKey.redThreshold) private var red = 85.0
+    @AppStorage(SettingsKey.workStart) private var workStart = WeeklyPace.defaultWorkStartMinute
     @AppStorage(SettingsKey.claudeGauge) private var gauge = "bar"
 
     /// Whether the "esgota às" chip is shown (it adds a row, so the island's height depends on it).
@@ -108,14 +109,16 @@ struct ClaudeBlock: View {
     /// The week split into its 5 workdays; the colour follows the same limits as the session, measured against
     /// what may be used by the end of today (the white marker), so it warns when today's share is running out.
     private func weeklyBar(_ weekly: Double) -> some View {
-        let allowance = store.weeklyResetsAt.map { WeeklyPace.allowance(resetsAt: $0) }
-        let pace = WeeklyPace.fraction(weekly: weekly, resetsAt: store.weeklyResetsAt)
+        let allowance = store.weeklyResetsAt.map { WeeklyPace.allowance(resetsAt: $0, workStartMinute: workStart) }
+        let pace = WeeklyPace.fraction(weekly: weekly, resetsAt: store.weeklyResetsAt, workStartMinute: workStart)
         let step = 1 / Double(WeeklyPace.workdays)
         return UsageBar(fraction: weekly, color: color(pace), height: 5,
                         ticks: (1..<WeeklyPace.workdays).map { Double($0) * step }, marker: allowance)
-            .islandTip(allowance.map { "Limite diário: \(Int((step * 100).rounded()))% da semana por dia útil. Até hoje: \(Int(($0 * 100).rounded()))% · usado \(Int((pace * 100).rounded()))% disso." }
+            .islandTip(allowance.map { "Limite diário: \(Int((step * 100).rounded()))% da semana por dia útil. Permitido agora (09:00–18:00):\(Int(($0 * 100).rounded()))% · usado \(Int((pace * 100).rounded()))% disso." }
                        ?? "Limite diário: \(Int((step * 100).rounded()))% da semana por dia útil.")
     }
+
+    private static func clock(_ minutes: Int) -> String { String(format: "%02d:%02d", minutes / 60, minutes % 60) }
 
     private var costTiles: some View {
         let today = costStore.snapshot.today, week = costStore.snapshot.week

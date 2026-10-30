@@ -59,7 +59,6 @@ struct IslandView: View {
     @AppStorage(SettingsKey.islandLayout) private var layoutJSON = IslandLayoutConfig.vertical.encoded()
     @AppStorage(SettingsKey.showHistory) private var showHistory = false
     @AppStorage(SettingsKey.showSprint) private var showSprint = true
-    @AppStorage(SettingsKey.showOutOfSprint) private var showOutOfSprint = true
     @AppStorage(SettingsKey.jiraBacklogEnabled) private var showBacklog = true
     @AppStorage(SettingsKey.shortcuts) private var shortcutsJSON = "[]"
     @AppStorage(SettingsKey.showForecast) private var showForecast = true
@@ -118,9 +117,10 @@ struct IslandView: View {
             syncing = true
             Task { try? await Task.sleep(for: .seconds(1)); syncing = false }
         }
-        .onChange(of: state.peek) { _, items in
+        .onChange(of: state.peek) { old, items in
             if items.isEmpty {
                 newSessionOnMini = false
+                if peekItems.contains(where: { $0.kind == .splash }) { state.splashPending = false }
                 if reduceMotion {
                     withAnimation(.easeIn(duration: 0.2)) { peekContent = 0; peekOpacity = 0 } completion: {
                         if state.peek.isEmpty { peekProgress = 0 }
@@ -138,8 +138,9 @@ struct IslandView: View {
                     return
                 }
                 peekOpacity = 1
-                // A PR approved (or merged) gets a little party over the mini island.
-                if alertConfetti, items.contains(where: { $0.kind == .approved || $0.kind == .merged }) { confettiTick += 1 }
+                // A PR approved (or merged) gets a little party over the mini island, once: only an alert that was not
+                // already showing starts it, so others joining the list do not set it off again.
+                if alertConfetti, items.contains(where: { item in (item.kind == .approved || item.kind == .merged) && !old.contains { $0.id == item.id } }) { confettiTick += 1 }
                 withAnimation(.spring(response: 0.42 / speed, dampingFraction: min(openDamping + 0.05, 0.9))) { peekProgress = 1 }
                 withAnimation(.easeOut(duration: 0.25).delay(0.1 / speed)) { peekContent = 1 }
             }
@@ -151,7 +152,6 @@ struct IslandView: View {
             if newSessionAnimation { playNewSessionAnimation() }
         }
         .onChange(of: contentHeight, initial: true) { _, height in state.visibleHeight = height }
-        .onChange(of: prKeys, initial: true) { _, keys in jiraStore.watchPRKeys(keys) }
         .onChange(of: layoutWidth, initial: true) { _, width in state.visibleWidth = width }
         .onChange(of: state.expanded) { _, expanded in
             if !expanded { tips.tip = nil }
@@ -175,39 +175,10 @@ struct IslandView: View {
 
     // MARK: Pull requests
 
-    /// With an active sprint on show, a PR is "fora da sprint" when its title names no Jira task of that sprint (or
-    /// names none at all). While the sprint of its keys is still being looked up it stays where it is.
-    private var splitsPRsBySprint: Bool { showSprint && showOutOfSprint && jiraStore.sprint != nil }
-
-    private func isOutOfSprint(_ pr: PullRequest) -> Bool {
-        guard splitsPRsBySprint else { return false }
-        let keys = JiraKeys.extract(from: pr.title)
-        if keys.isEmpty { return true }
-        guard keys.allSatisfy({ jiraStore.prSprint[$0] != nil }) else { return false }
-        return !keys.contains { jiraStore.prSprint[$0] == true }
-    }
-
-    private var prKeys: Set<String> {
-        Set((prStore.snapshot.authored + (includeReviews ? prStore.snapshot.reviewRequested : [])).flatMap { JiraKeys.extract(from: $0.title) })
-    }
-
     private func prRows(for list: PRList) -> [PRRow] {
         if list == .review && !includeReviews { return [] }
-        if list == .outOfSprint {
-            // Each PR once, so its row id is unique in the section.
-            var seen = Set<String>()
-            let items = (prStore.snapshot.authored + (includeReviews ? prStore.snapshot.reviewRequested : []))
-                .filter { isOutOfSprint($0) && seen.insert($0.id).inserted }
-            let expanded = state.showAllPROutOfSprint
-            let limit = expanded ? IslandLayout.expandedRowLimit : IslandLayout.maxPullRequestRows
-            var rows = items.prefix(limit).map(PRRow.pr)
-            if items.count > limit { rows.append(expanded ? .overflow(items.count - limit) : .more(items.count - limit)) }
-            if expanded && items.count > IslandLayout.maxPullRequestRows { rows.append(.less) }
-            return rows
-        }
         let all = list == .authored ? prStore.snapshot.authored : prStore.snapshot.reviewRequested
-        let items = all.filter { !isOutOfSprint($0) }
-        if items.isEmpty && !all.isEmpty { return [] }   // all of them are in the "Fora da Sprint" section
+        let items = all
         if !items.isEmpty {
             let expanded = list == .authored ? state.showAllPRs : state.showAllReviews
             let limit = expanded ? IslandLayout.expandedRowLimit : IslandLayout.maxPullRequestRows
@@ -234,14 +205,21 @@ struct IslandView: View {
         switch list {
         case .authored: state.showAllPRs = value
         case .review: state.showAllReviews = value
-        case .outOfSprint: state.showAllPROutOfSprint = value
         }
+    }
+
+    /// Approvals of tasks in a shown sprint go in the sprint card; the others stay in the Jira card.
+    private var sprintApprovals: [JiraTask] {
+        guard showSprint else { return [] }
+        let shown = Set(jiraStore.sprints.compactMap(\.id))
+        return jiraStore.approvals.filter { !shown.isDisjoint(with: $0.sprintIDs) }
     }
 
     private var approvalRows: [JiraRow] {
         guard Settings.jiraApproverEnabled else { return [] }
-        let tasks = jiraStore.approvals
+        let tasks = jiraStore.approvals.filter { !sprintApprovals.contains($0) }
         if !tasks.isEmpty { return jiraTaskRows(tasks, expanded: state.showAllApprovals) }
+        if !jiraStore.approvals.isEmpty { return [] }
         switch jiraStore.status {
         case .ok: return [.message(jiraStore.approvalsFailed ? "Jira: JQL das aprovações inválido" : "Sem aprovações pendentes")]
         default: return jiraRows(for: [], expanded: false)
@@ -254,6 +232,35 @@ struct IslandView: View {
         if tasks.count > limit { rows.append(expanded ? .overflow(tasks.count - limit) : .more(tasks.count - limit)) }
         if expanded && tasks.count > IslandLayout.maxJiraRows { rows.append(.less) }
         return rows
+    }
+
+    /// What the sprint card lists for one active sprint (a director may have several, one per stream).
+    private struct SprintSection: Identifiable {
+        let sprint: SprintInfo
+        let rows: [JiraRow]
+        let approvalRows: [JiraRow]
+        var id: Int { sprint.id ?? sprint.name.hashValue }
+    }
+
+    private var sprintSections: [SprintSection] {
+        jiraStore.sprints.map { sprint in
+            let key = sprint.id.map(String.init) ?? sprint.name
+            let mine = jiraStore.sprintTasks.filter { $0.category != .done && $0.sprintIDs.contains(sprint.id ?? -1) }   // finished ones leave the card
+            let rows = mine.isEmpty ? [JiraRow.message("Sem tasks tuas nesta sprint")]
+                : jiraTaskRows(JiraOrder.sprintSorted(mine, me: jiraStore.myName), expanded: state.expandedSprintLists.contains("t" + key))
+            let approvals = jiraStore.approvals.filter { $0.sprintIDs.contains(sprint.id ?? -1) }
+            return SprintSection(sprint: sprint, rows: rows,
+                                 approvalRows: Settings.jiraApproverEnabled ? jiraTaskRows(approvals, expanded: state.expandedSprintLists.contains("a" + key)) : [])
+        }
+    }
+
+    /// With no sprint to list: why ("A carregar…", "Sem sprint ativa", an error).
+    private var sprintEmptyRows: [JiraRow] {
+        jiraStore.status == .ok ? [.message("Sem sprint ativa")] : jiraRows(for: [], expanded: false)
+    }
+
+    private func setSprintList(_ id: String, _ value: Bool) {
+        if value { state.expandedSprintLists.insert(id) } else { state.expandedSprintLists.remove(id) }
     }
 
     private var backlogGroups: [BacklogBlock.Group] {
@@ -275,19 +282,7 @@ struct IslandView: View {
         if value { state.expandedBacklog.insert(id) } else { state.expandedBacklog.remove(id) }
     }
 
-    /// With an active sprint on show, the tasks that are not in it go to their own card.
-    private var splitsOutOfSprint: Bool { showSprint && jiraStore.sprint != nil }
-    private var outOfSprintTasks: [JiraTask] { splitsOutOfSprint ? jiraStore.tasks.filter { $0.inActiveSprint == false } : [] }
-
-    private var jiraRows: [JiraRow] {
-        jiraRows(for: splitsOutOfSprint ? jiraStore.tasks.filter { $0.inActiveSprint != false } : jiraStore.tasks, expanded: state.showAllJira)
-    }
-
-    /// Empty with the "Fora da Sprint" setting off (those tasks are then hidden, not moved back into the list).
-    private var outOfSprintRows: [JiraRow] {
-        let tasks = showOutOfSprint ? outOfSprintTasks : []
-        return tasks.isEmpty ? [] : jiraTaskRows(JiraOrder.sorted(tasks), expanded: state.showAllOutOfSprint)
-    }
+    private var jiraRows: [JiraRow] { jiraRows(for: jiraStore.tasks, expanded: state.showAllJira) }
 
     private func jiraRows(for tasks: [JiraTask], expanded: Bool) -> [JiraRow] {
         if !tasks.isEmpty { return jiraTaskRows(JiraOrder.sorted(tasks), expanded: expanded) }
@@ -343,8 +338,9 @@ struct IslandView: View {
     private func isVisible(_ block: IslandBlock) -> Bool {
         switch block {
         case .claude: return true
-        case .pullRequests: return !prRows(for: .authored).isEmpty || !prRows(for: .review).isEmpty || !prRows(for: .outOfSprint).isEmpty
-        case .jira: return !jiraRows.isEmpty || !outOfSprintRows.isEmpty || !approvalRows.isEmpty || (showSprint && jiraStore.sprint != nil)
+        case .pullRequests: return !prRows(for: .authored).isEmpty || !prRows(for: .review).isEmpty
+        case .sprint: return showSprint && jiraStore.status != .disabled
+        case .jira: return !jiraRows.isEmpty || !approvalRows.isEmpty
         case .backlog: return showBacklog && jiraStore.status != .disabled
         case .focus: return showFocus
         case .history: return showHistory
@@ -364,10 +360,15 @@ struct IslandView: View {
                 : IslandLayout.claudeHeight + (ClaudeBlock.showsForecast(store, enabled: showForecast) ? IslandLayout.forecastExtra : 0)
             return core + (showCost ? IslandLayout.costExtra : 0)
         case .pullRequests:
-            let parts = [section(authored), section(review), section(prRows(for: .outOfSprint).count)].filter { $0 > 0 }
+            let parts = [section(authored), section(review)].filter { $0 > 0 }
+            return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
+        case .sprint:
+            let sections = sprintSections
+            let parts = sections.isEmpty ? [section(sprintEmptyRows.count)]
+                : sections.flatMap { [section($0.rows.count), section($0.approvalRows.count)] }.filter { $0 > 0 }
             return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
         case .jira:
-            let parts = [section(jiraRows.count), section(outOfSprintRows.count), section(approvalRows.count)].filter { $0 > 0 }
+            let parts = [section(jiraRows.count), section(approvalRows.count)].filter { $0 > 0 }
             return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
         case .backlog: return IslandLayout.card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated))
         case .focus: return IslandLayout.card(IslandLayout.focusContent)
@@ -402,7 +403,7 @@ struct IslandView: View {
     }
 
     @ViewBuilder private var attentionDot: some View {
-        if !state.expanded, !state.fullscreen, prStore.attention != .none {
+        if !state.expanded, !state.fullscreen, !state.splashPending, prStore.attention != .none {
             Circle()
                 .fill(prStore.attention == .critical ? Color.red : Color.orange)
                 .frame(width: 7, height: 7)
@@ -481,7 +482,7 @@ struct IslandView: View {
     /// The Doutor Finanças logo, centred, for the launch splash.
     @ViewBuilder private var splashRow: some View {
         if let logo = Brand.logo {
-            Image(nsImage: logo).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+            SplashLogo(image: logo)
                 .frame(height: 28)
                 .frame(maxWidth: .infinity)
                 .frame(height: IslandLayout.splashRowHeight)
@@ -502,7 +503,7 @@ struct IslandView: View {
 
     /// Blue dot that stays until the island is opened and closed; sits next to the attention dot.
     @ViewBuilder private var newsDot: some View {
-        if alertDot, !state.expanded, !state.fullscreen, !prStore.unseen.isEmpty {
+        if alertDot, !state.expanded, !state.fullscreen, !state.splashPending, !prStore.unseen.isEmpty {
             Circle()
                 .fill(PRChange.Tone.info.color)
                 .frame(width: 7, height: 7)
@@ -543,7 +544,7 @@ struct IslandView: View {
 
     /// Mirror of the attention dot: that one sits right of the notch, this one left of it.
     @ViewBuilder private var syncIndicator: some View {
-        if !state.expanded, syncing || anyRefreshing {
+        if !state.expanded, !state.splashPending, syncing || anyRefreshing {
             SyncIcon()
                 .offset(x: -(metrics.width / 2 + CGFloat(thickness) + 11), y: metrics.height / 2 - 5)
                 .transition(.opacity)
@@ -565,6 +566,9 @@ struct IslandView: View {
     }
 
     // MARK: Collapsed ring
+
+    /// The ring stays away while the island or the mini island is up, and from launch until the splash has finished.
+    private var ringHidden: Bool { state.expanded || !state.peek.isEmpty || state.splashPending }
 
     @ViewBuilder private var ring: some View {
         if showBorder, !state.fullscreen {
@@ -596,10 +600,10 @@ struct IslandView: View {
                     .shadow(color: .white.opacity(0.8 * sweepOpacity), radius: 4)
             }
             .frame(width: metrics.width + 2 * t, height: metrics.height + t)
-            .opacity(state.expanded || !state.peek.isEmpty ? 0 : 1)
+            .opacity(ringHidden ? 0 : 1)
             // Hidden at once when the island opens (the open spring would otherwise leave it fading while the shape grows);
             // it comes back softly, after the island has closed.
-            .animation(state.expanded || !state.peek.isEmpty ? nil : .easeIn(duration: 0.25).delay(0.35), value: state.expanded || !state.peek.isEmpty)
+            .animation(ringHidden ? nil : .easeIn(duration: 0.25).delay(0.35), value: ringHidden)
             .animation(.easeInOut(duration: 0.8), value: store.sessionFraction)
             .animation(.easeInOut(duration: 0.4), value: isOffline)
         }
@@ -825,20 +829,36 @@ struct IslandView: View {
                 PullRequestSection(list: .authored, rows: prRows(for: .authored), changes: rowChanges) { setShowAll(.authored, $0) }
                 if !prRows(for: .authored).isEmpty && !prRows(for: .review).isEmpty { ListRule() }
                 PullRequestSection(list: .review, rows: prRows(for: .review), changes: rowChanges) { setShowAll(.review, $0) }
-                if !(prRows(for: .authored).isEmpty && prRows(for: .review).isEmpty) && !prRows(for: .outOfSprint).isEmpty { ListRule() }
-                PullRequestSection(list: .outOfSprint, rows: prRows(for: .outOfSprint), changes: rowChanges) { setShowAll(.outOfSprint, $0) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()
+        case .sprint:
+            let sections = sprintSections
+            let single = sections.count == 1
+            VStack(alignment: .leading, spacing: 0) {
+                CardTitle(title: single ? "SPRINT - \(sections[0].sprint.name)" : sections.isEmpty ? "Sprint atual" : "Sprints atuais",
+                          icon: "flag.checkered", sprint: single ? sections[0].sprint : nil)
+                if sections.isEmpty {
+                    JiraSection(title: "As minhas até ao fim", rows: sprintEmptyRows, changes: rowChanges, myName: jiraStore.myName) { _ in }
+                }
+                ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                    let key = section.sprint.id.map(String.init) ?? section.sprint.name
+                    let label = single ? "" : section.sprint.name + " · "
+                    if index > 0 { ListRule() }
+                    JiraSection(title: single ? "As minhas até ao fim" : label + SprintInfo.remainingLabel(section.sprint.remaining(now: Date())),
+                                rows: section.rows, changes: rowChanges, myName: jiraStore.myName) { setSprintList("t" + key, $0) }
+                    if !section.approvalRows.isEmpty { ListRule() }
+                    JiraSection(title: label + "Aprovações", rows: section.approvalRows, changes: rowChanges, myName: jiraStore.myName) { setSprintList("a" + key, $0) }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .blockCard(active: !sections.isEmpty)
         case .jira:
             VStack(alignment: .leading, spacing: 0) {
-                CardTitle(title: jiraStore.sprint.flatMap { showSprint ? "Jira - SPRINT - \($0.name)" : nil } ?? "Jira", icon: "checklist",
-                          sprint: showSprint ? jiraStore.sprint : nil)
+                CardTitle(title: "Jira", icon: "checklist")
                 JiraSection(title: "As minhas tasks", rows: jiraRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllJira = $0 }
                 if !jiraRows.isEmpty && !approvalRows.isEmpty { ListRule() }
                 JiraSection(title: "Aprovações", rows: approvalRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllApprovals = $0 }
-                if !(jiraRows.isEmpty && approvalRows.isEmpty) && !outOfSprintRows.isEmpty { ListRule() }
-                JiraSection(title: "Fora da Sprint", rows: outOfSprintRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllOutOfSprint = $0 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()
@@ -880,7 +900,22 @@ struct IslandView: View {
         .padding(.top, metrics.height + 6)
         .padding(.bottom, 10)
         .frame(maxHeight: .infinity, alignment: .top)
+        .overlay(alignment: .topLeading) { watermark }
         .preferredColorScheme(.dark)
+    }
+
+    /// The Doutor Finanças logo, small, white and translucent in the top-left corner of the island (level with the notch), like a watermark.
+    @ViewBuilder private var watermark: some View {
+        if let logo = Brand.logo {
+            Image(nsImage: logo).renderingMode(.template).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                .foregroundStyle(.white)
+                .frame(height: 16)
+                .opacity(0.6)
+                .frame(height: metrics.height)
+                .padding(.leading, Self.sidePadding)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     private var statusMessage: String? {

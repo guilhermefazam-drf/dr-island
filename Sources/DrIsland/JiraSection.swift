@@ -1,7 +1,7 @@
 import SwiftUI
 import DrIslandCore
 
-/// One list of the Jira card ("As minhas tasks", "Aprovações", "Fora da Sprint"); nothing when it has no rows.
+/// One list of the Jira card ("As minhas tasks", "Aprovações"); nothing when it has no rows.
 struct JiraSection: View {
     let title: String
     let rows: [JiraRow]

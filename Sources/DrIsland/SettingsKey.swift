@@ -42,6 +42,7 @@ enum SettingsKey {
     static let alertJira = "alertJira"                // Jira task changes
     static let prMutes = "prMutes"                    // JSON list of PRMute
     static let alertOnClose = "alertOnClose"          // also report PRs that left the list (merged/closed)
+    static let workStart = "workStart"                // minutes since midnight: start of the workday (8h + 1h lunch) that paces the weekly gauge
     static let showForecast = "showForecast"          // "esgota às HH:mm" under the session bar
     static let shortcuts = "shortcuts"                // JSON list of DevShortcut
     static let quietEnabled = "quietEnabled"          // silence sound/notifications inside the quiet hours
@@ -52,7 +53,7 @@ enum SettingsKey {
     static let showAlertsBlock = "showAlertsBlock"    // recent alerts block in the island
     static let alertHistory = "alertHistory"          // JSON list of AlertEntry
     static let showOwner = "showOwner"                // "eu" / initials before each PR and task row
-    static let showOutOfSprint = "showOutOfSprint"    // Jira card: my tasks that are not in the active sprint
+    static let jiraSprintBoards = "jiraSprintBoards"  // ids of the boards (streams) whose active sprints show, "483,846"; empty = those of my tasks
     static let showSprint = "showSprint"              // "Sprint" block: active Jira sprint dates and elapsed time
     static let showTimeline = "showTimeline"          // "linha do tempo" block: what happened today
     static let briefingAuto = "briefingAuto"          // the day briefing opens by itself, once a day

@@ -7,6 +7,7 @@ struct ClaudePage: View {
     @AppStorage(SettingsKey.redThreshold) private var red = 85.0
     @AppStorage(SettingsKey.claudeLocalFallback) private var localFallback = true
     @AppStorage(SettingsKey.claudeManualLimit) private var manualLimit = 0.0
+    @AppStorage(SettingsKey.workStart) private var workStart = WeeklyPace.defaultWorkStartMinute
     @State private var testing = false
     @State private var testResult: String?
     @AppStorage(SettingsKey.claudeUpdateAnimation) private var updateAnimation = true
@@ -38,6 +39,13 @@ struct ClaudePage: View {
                 SliderRow(title: "Vermelho a partir de", value: "\(Int(max(red, amber)))%", number: $red, range: 10...100, step: 5)
             }
             Section {
+                DatePicker("Começo do dia", selection: minutes($workStart), displayedComponents: .hourAndMinute)
+            } header: {
+                Text("Horário de trabalho")
+            } footer: {
+                Text("A barra «Semana» reparte-se pelos 5 dias úteis; o limite de hoje vai sendo libertado ao longo de 8 horas de trabalho a partir desta hora, descontando 1 hora de almoço a meio (das 09:00: 09–13 e 14–18). Antes do início conta só o que já passou; depois do fim, o dia inteiro.")
+            }
+            Section {
                 ToggleRow("Estimar com os logs locais do Claude Code", detail: "Usado enquanto a API limita os pedidos ou está sem ligação. Vem marcado com ≈.", isOn: $localFallback)
                 if localFallback {
                     LabeledContent("Limite da sessão (tokens)") {
@@ -57,6 +65,11 @@ struct ClaudePage: View {
             } header: { Text("Quando a API limita") }
         }
         .formStyle(.grouped)
+    }
+
+    private func minutes(_ binding: Binding<Int>) -> Binding<Date> {
+        Binding(get: { Calendar.current.date(bySettingHour: binding.wrappedValue / 60, minute: binding.wrappedValue % 60, second: 0, of: Date()) ?? Date() },
+                set: { let c = Calendar.current.dateComponents([.hour, .minute], from: $0); binding.wrappedValue = (c.hour ?? 0) * 60 + (c.minute ?? 0) })
     }
 
     /// Sets the 100% reference from the real percentage the user reads in Claude Code's /usage.
