@@ -20,12 +20,17 @@ public struct BurndownResult: Equatable, Sendable {
     public var isOverdue: Bool
     public var missingPointsShare: Double
     public var showsMissingPointsWarning: Bool
+    /// Members of the sprint at the last instant, and how many of them have nil or 0 points.
+    public var memberCount: Int = 0
+    public var missingPointsCount: Int = 0
 
     public init(points: [BurndownPoint], plannedScope: Double, doneShare: Double, flaggedOpen: Int,
-                daysLeft: Int, isOverdue: Bool, missingPointsShare: Double, showsMissingPointsWarning: Bool) {
+                daysLeft: Int, isOverdue: Bool, missingPointsShare: Double, showsMissingPointsWarning: Bool,
+                memberCount: Int = 0, missingPointsCount: Int = 0) {
         self.points = points; self.plannedScope = plannedScope; self.doneShare = doneShare
         self.flaggedOpen = flaggedOpen; self.daysLeft = daysLeft; self.isOverdue = isOverdue
         self.missingPointsShare = missingPointsShare; self.showsMissingPointsWarning = showsMissingPointsWarning
+        self.memberCount = memberCount; self.missingPointsCount = missingPointsCount
     }
 }
 
@@ -103,7 +108,8 @@ public enum Burndown {
         return BurndownResult(
             points: series, plannedScope: plannedScope, doneShare: doneShare, flaggedOpen: flaggedOpen,
             daysLeft: daysLeft, isOverdue: isOverdue, missingPointsShare: missingShare,
-            showsMissingPointsWarning: unit == .points && missingShare > missingPointsWarning)
+            showsMissingPointsWarning: unit == .points && missingShare > missingPointsWarning,
+            memberCount: members.count, missingPointsCount: missing)
     }
 
     // MARK: - State at an instant

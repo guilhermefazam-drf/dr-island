@@ -109,6 +109,15 @@ import Foundation
         #expect(Self.point(r, 15).remaining == 1)
     }
 
+    @Test func missingPointsCountsOnlyCurrentMembers() {
+        var issues = (1...7).map { Self.issue("A-\($0)") }
+        issues += (8...10).map { Self.issue("A-\($0)", points: nil) }
+        issues += (11...15).map { Self.issue("A-\($0)", points: nil, events: [Self.sprintEvent(14, from: String(Self.sprintID), to: nil)]) }
+        let r = Self.compute(Self.snapshot(issues))
+        #expect(r.memberCount == 10)
+        #expect(r.missingPointsCount == 3)
+    }
+
     @Test func missingPointsWarning() {
         func five(missing: Int) -> SprintSnapshot {
             Self.snapshot((0..<5).map { Self.issue("A-\($0)", points: $0 < missing ? nil : 3) })

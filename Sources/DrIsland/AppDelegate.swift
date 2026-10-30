@@ -246,8 +246,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             window.center()
             managementWindow = window
             managementStore.start()
-        } else if managementStore.status != .loading, managementStore.status != .ok {
-            managementStore.start()   // retry after an error
+        } else if managementStore.status != .loading {
+            managementStore.start()   // refresh on every reopen; the current chart stays visible meanwhile
         }
         NSApp.activate(ignoringOtherApps: true)
         managementWindow?.makeKeyAndOrderFront(nil)

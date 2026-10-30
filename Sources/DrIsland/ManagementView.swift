@@ -15,8 +15,8 @@ struct ManagementView: View {
             header
             if let snapshot, let burndown, !boardMismatch {
                 Text(snapshot.sprint.name).font(.title3.weight(.semibold))
-                summary(burndown)
-                if burndown.showsMissingPointsWarning { missingPoints(burndown, total: snapshot.issues.count) }
+                summary(burndown, closed: snapshot.sprint.state == "closed")
+                if burndown.showsMissingPointsWarning { missingPoints(burndown) }
                 if burndown.points.isEmpty || burndown.plannedScope == 0 && burndown.points.allSatisfy({ $0.scope == 0 }) {
                     placeholder("Sem tasks nesta sprint")
                 } else {
@@ -85,20 +85,20 @@ struct ManagementView: View {
 
     // MARK: - Summary
 
-    private func summary(_ r: BurndownResult) -> some View {
+    private func summary(_ r: BurndownResult, closed: Bool) -> some View {
         HStack(spacing: 16) {
             Text("\(Int((r.doneShare * 100).rounded()))% concluído")
             Text("\(r.flaggedOpen) bloqueadas")
-            Text(r.isOverdue ? "fora de prazo" : r.daysLeft == 1 ? "acaba em 1 dia" : "acaba em \(r.daysLeft) dias")
-                .foregroundStyle(r.isOverdue ? Brand.red : .primary)
+            Text(closed ? "fechada" : r.isOverdue ? "fora de prazo" : r.daysLeft == 0 ? "acaba hoje"
+                 : r.daysLeft == 1 ? "acaba em 1 dia" : "acaba em \(r.daysLeft) dias")
+                .foregroundStyle(!closed && r.isOverdue ? Brand.red : .primary)
         }
         .font(.callout)
     }
 
-    private func missingPoints(_ r: BurndownResult, total: Int) -> some View {
-        let missing = Int((r.missingPointsShare * Double(total)).rounded())
-        return HStack {
-            Label("\(missing) de \(total) tasks sem pontos", systemImage: "exclamationmark.triangle.fill")
+    private func missingPoints(_ r: BurndownResult) -> some View {
+        HStack {
+            Label("\(r.missingPointsCount) de \(r.memberCount) tasks sem pontos", systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(Brand.amber)
             Button("Ver em tasks") { store.unit = .tasks }
         }
