@@ -53,10 +53,18 @@ final class ManagementStore {
             do {
                 let all = try await self.client.fetchBoards(config)
                 let chosen = Settings.jiraSprintBoards
-                let boards = chosen.isEmpty ? all : all.filter { chosen.contains($0.id) }
+                if self.sprintField == nil { self.sprintField = try await self.client.sprintFieldID(config) }
+                var boards = all
+                if !chosen.isEmpty {
+                    boards = all.filter { chosen.contains($0.id) }
+                } else if let active = try? await self.client.fetchActiveSprints(config, field: self.sprintField, boards: []) {
+                    // No boards chosen: the boards of the sprints the user had tasks in; all boards if that yields none.
+                    let ids = Set(active.sprints.compactMap(\.boardID))
+                    let mineBoards = all.filter { ids.contains($0.id) }
+                    if !mineBoards.isEmpty { boards = mineBoards }
+                }
                 guard mine == self.generation else { return }
                 self.boards = boards
-                if self.sprintField == nil { self.sprintField = try await self.client.sprintFieldID(config) }
                 self.points = try await self.client.fetchPointsField(config)
                 guard mine == self.generation else { return }
                 guard let first = boards.first else {
@@ -65,7 +73,7 @@ final class ManagementStore {
                     self.status = .error("Não foram encontrados quadros Jira.")
                     return
                 }
-                await self.loadBoard(first.id, config: config)
+                await self.loadBoard(first.id, config: config, generation: mine)
             } catch {
                 self.fail(error)
             }
@@ -75,17 +83,19 @@ final class ManagementStore {
     func select(board: Int) {
         guard let config else { return }
         generation += 1
-        Task { [weak self] in await self?.loadBoard(board, config: config) }
+        let mine = generation
+        Task { [weak self] in await self?.loadBoard(board, config: config, generation: mine) }
     }
 
     func select(sprint: Int) {
         guard let config, let record = sprints.first(where: { $0.id == sprint }) else { return }
         generation += 1
-        Task { [weak self] in await self?.loadSprint(record, config: config) }
+        let mine = generation
+        Task { [weak self] in await self?.loadSprint(record, config: config, generation: mine) }
     }
 
-    private func loadBoard(_ id: Int, config: JiraConfig) async {
-        let mine = generation
+    private func loadBoard(_ id: Int, config: JiraConfig, generation mine: Int) async {
+        guard mine == generation else { return }
         selectedBoard = id
         status = .loading
         do {
@@ -98,15 +108,15 @@ final class ManagementStore {
                 status = .ok
                 return
             }
-            await loadSprint(pick, config: config)
+            await loadSprint(pick, config: config, generation: mine)
         } catch {
             guard mine == generation else { return }
             fail(error)
         }
     }
 
-    private func loadSprint(_ sprint: SprintRecord, config: JiraConfig) async {
-        let mine = generation
+    private func loadSprint(_ sprint: SprintRecord, config: JiraConfig, generation mine: Int) async {
+        guard mine == generation else { return }
         selectedSprint = sprint.id
         if let cached = cache.load(sprintID: sprint.id) {
             snapshot = cached
