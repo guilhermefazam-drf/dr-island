@@ -11,18 +11,20 @@ final class IslandController {
     private let musicStore: MusicStore
     private let costStore: CostStore
     private let focusStore: FocusStore
+    private let managementStore: ManagementStore
     private let openSettings: () -> Void
     private var instances: [CGDirectDisplayID: IslandInstance] = [:]
     private var monitors: [Any] = []
     private var briefingTimer: Timer?
 
-    init(store: UsageStore, prStore: PullRequestStore, jiraStore: JiraStore, musicStore: MusicStore, costStore: CostStore, focusStore: FocusStore, openSettings: @escaping () -> Void) {
+    init(store: UsageStore, prStore: PullRequestStore, jiraStore: JiraStore, musicStore: MusicStore, costStore: CostStore, focusStore: FocusStore, managementStore: ManagementStore, openSettings: @escaping () -> Void) {
         self.store = store
         self.prStore = prStore
         self.jiraStore = jiraStore
         self.musicStore = musicStore
         self.costStore = costStore
         self.focusStore = focusStore
+        self.managementStore = managementStore
         self.openSettings = openSettings
     }
 
@@ -85,6 +87,20 @@ final class IslandController {
         }
         if let global = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved], handler: handler) { monitors.append(global) }
         if let local = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved], handler: { event in handler(event); return event }) { monitors.append(local) }
+        // A horizontal two-finger swipe over an open island turns its page; the event is swallowed so nothing else scrolls.
+        let scroll = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { [weak self] event in
+            nonisolated(unsafe) let scrolled = event   // delivered on the main thread; only handed to the main actor for a moment
+            let consumed = MainActor.assumeIsolated { self?.routeScroll(scrolled) ?? false }
+            return consumed ? nil : event
+        }
+        if let scroll { monitors.append(scroll) }
+    }
+
+    /// The island under the pointer decides whether the scroll is a page swipe; true swallows the event.
+    private func routeScroll(_ event: NSEvent) -> Bool {
+        let point = NSEvent.mouseLocation
+        guard let target = instances.values.first(where: { $0.containsMouse(point) }) else { return false }
+        return target.scroll(event, at: point)
     }
 
     /// The stores need a moment to catch up after launch or a wake before the briefing has anything to say.
@@ -155,7 +171,7 @@ final class IslandController {
         for screen in islandScreens() {
             guard let id = screen.displayID else { continue }
             seen.insert(id)
-            let instance = instances[id] ?? IslandInstance(store: store, prStore: prStore, jiraStore: jiraStore, musicStore: musicStore, costStore: costStore, focusStore: focusStore, openSettings: openSettings)
+            let instance = instances[id] ?? IslandInstance(store: store, prStore: prStore, jiraStore: jiraStore, musicStore: musicStore, costStore: costStore, focusStore: focusStore, managementStore: managementStore, openSettings: openSettings)
             instances[id] = instance
             instance.update(screen: screen, metrics: currentMetrics(for: screen))
         }

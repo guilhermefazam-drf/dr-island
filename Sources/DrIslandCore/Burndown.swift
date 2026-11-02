@@ -50,14 +50,14 @@ public enum Burndown {
                                 : min(endDay, calendar.startOfDay(for: now))
 
         func weight(_ issue: SprintIssue, at instant: Date) -> Double {
-            unit == .tasks ? 1 : (points(of: issue, at: instant) ?? 0)
+            unit == .tasks ? 1 : (SprintIssueState.points(of: issue, at: instant) ?? 0)
         }
         func isDone(_ issue: SprintIssue, at instant: Date) -> Bool {
-            snapshot.statusCategories[statusID(of: issue, at: instant)] == "done"
+            snapshot.statusCategories[SprintIssueState.statusID(of: issue, at: instant)] == "done"
         }
         func measure(at instant: Date) -> (remaining: Double, scope: Double) {
             var remaining = 0.0, scope = 0.0
-            for issue in issues where isMember(issue, sprintID: sprint.id, at: instant) {
+            for issue in issues where SprintIssueState.isMember(issue, sprintID: sprint.id, at: instant) {
                 let w = weight(issue, at: instant)
                 scope += w
                 if !isDone(issue, at: instant) { remaining += w }
@@ -71,7 +71,7 @@ public enum Burndown {
         var workdays = 0
         var cursor = startDay
         while cursor <= endDay {
-            if isWorkday(cursor, calendar) { workdays += 1 }
+            if SprintIssueState.isWorkday(cursor, calendar) { workdays += 1 }
             guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
             cursor = next
         }
@@ -82,7 +82,7 @@ public enum Burndown {
         var lastInstant = now
         while day <= lastDay {
             guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { break }
-            if isWorkday(day, calendar) { workdaysSoFar += 1 }
+            if SprintIssueState.isWorkday(day, calendar) { workdaysSoFar += 1 }
             let instant = nextDay.addingTimeInterval(-0.001)
             let m = measure(at: instant)
             let ideal: Double
@@ -97,9 +97,9 @@ public enum Burndown {
         let doneShare: Double
         if let last = series.last, last.scope > 0 { doneShare = 1 - last.remaining / last.scope } else { doneShare = 0 }
 
-        let members = issues.filter { isMember($0, sprintID: sprint.id, at: lastInstant) }
+        let members = issues.filter { SprintIssueState.isMember($0, sprintID: sprint.id, at: lastInstant) }
         let flaggedOpen = members.filter { $0.isFlagged && !isDone($0, at: lastInstant) }.count
-        let missing = members.filter { (points(of: $0, at: lastInstant) ?? 0) == 0 }.count
+        let missing = members.filter { (SprintIssueState.points(of: $0, at: lastInstant) ?? 0) == 0 }.count
         let missingShare = members.isEmpty ? 0 : Double(missing) / Double(members.count)
 
         let nowDay = calendar.startOfDay(for: now)
@@ -110,43 +110,5 @@ public enum Burndown {
             daysLeft: daysLeft, isOverdue: isOverdue, missingPointsShare: missingShare,
             showsMissingPointsWarning: unit == .points && missingShare > missingPointsWarning,
             memberCount: members.count, missingPointsCount: missing)
-    }
-
-    // MARK: - State at an instant
-
-    private static func isWorkday(_ date: Date, _ calendar: Calendar) -> Bool {
-        let weekday = calendar.component(.weekday, from: date)
-        return weekday != 1 && weekday != 7
-    }
-
-    private static func sprintIDs(_ text: String?) -> Set<String> {
-        Set((text ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
-    }
-
-    private static func isMember(_ issue: SprintIssue, sprintID: Int, at instant: Date) -> Bool {
-        // Jira logs no event for values set at creation, so nothing is a member before the issue existed.
-        guard instant >= issue.created else { return false }
-        let id = String(sprintID)
-        let events = issue.events.filter { $0.kind == .sprint }.sorted { $0.date < $1.date }
-        guard let first = events.first else { return true }
-        var member = sprintIDs(first.from).contains(id)
-        for event in events where event.date <= instant { member = sprintIDs(event.to).contains(id) }
-        return member
-    }
-
-    private static func statusID(of issue: SprintIssue, at instant: Date) -> String {
-        let events = issue.events.filter { $0.kind == .status }.sorted { $0.date < $1.date }
-        guard let first = events.first else { return issue.statusID ?? "" }
-        var status = first.from ?? ""
-        for event in events where event.date <= instant { status = event.to ?? "" }
-        return status
-    }
-
-    private static func points(of issue: SprintIssue, at instant: Date) -> Double? {
-        let events = issue.events.filter { $0.kind == .points }.sorted { $0.date < $1.date }
-        guard let first = events.first else { return issue.points }
-        var value = first.from.flatMap { Double($0) }
-        for event in events where event.date <= instant { value = event.to.flatMap { Double($0) } }
-        return value
     }
 }

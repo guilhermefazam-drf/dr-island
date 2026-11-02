@@ -24,7 +24,7 @@ open DrIsland.app
 - Plain `swift build` fails: the macOS 27 SDK in the Command Line Tools lacks the SwiftUI macro plugin, so `bundle.sh` pins `MacOSX26.sdk` (override with `SDKROOT_OVERRIDE`). Always build the app through `bundle.sh`; `swift test` with `DEVELOPER_DIR` set to Xcode works directly.
 - The app must run as the bundled `.app` for notifications, Keychain "Always Allow" and login-item behaviour.
 - Version lives in `VERSION`. Signing for distribution: `CODESIGN_IDENTITY=… NOTARY_PROFILE=… scripts/dmg.sh`.
-- Debug env vars: `DR_ISLAND_SNAPSHOT=<png>` writes a render of the island (and `.menubar.png`), `DR_ISLAND_FAKE=0..1` forces the Claude % without network, `DR_ISLAND_COLLAPSED` keeps it collapsed.
+- Debug env vars: `DR_ISLAND_SNAPSHOT=<png>` writes a render of the island (and `.menubar.png`), `DR_ISLAND_FAKE=0..1` forces the Claude % without network, `DR_ISLAND_COLLAPSED` keeps it collapsed, `DR_ISLAND_PAGE=management` renders the «Gestão» page and `DR_ISLAND_FAKE_MANAGEMENT=1` fills it with a made-up sprint (no Jira).
 
 ## Architecture
 

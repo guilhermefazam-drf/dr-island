@@ -54,6 +54,7 @@ enum SettingsKey {
     static let alertHistory = "alertHistory"          // JSON list of AlertEntry
     static let showOwner = "showOwner"                // "eu" / initials before each PR and task row
     static let jiraSprintBoards = "jiraSprintBoards"  // ids of the boards (streams) whose active sprints show, "483,846"; empty = those of my tasks
+    static let showManagement = "showManagement"      // the island's second page, «Gestão» (swipe, dots and the sprint card's button)
     static let showSprint = "showSprint"              // "Sprint" block: active Jira sprint dates and elapsed time
     static let showTimeline = "showTimeline"          // "linha do tempo" block: what happened today
     static let briefingAuto = "briefingAuto"          // the day briefing opens by itself, once a day

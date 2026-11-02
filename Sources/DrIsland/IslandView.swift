@@ -11,6 +11,7 @@ struct IslandView: View {
     let musicStore: MusicStore
     let costStore: CostStore
     let focusStore: FocusStore
+    let managementStore: ManagementStore
     var openSettings: () -> Void
     /// Height of the screen this island is on: the columns never grow past half of it, they scroll instead.
     var screenHeight: CGFloat = 900
@@ -59,6 +60,7 @@ struct IslandView: View {
     @AppStorage(SettingsKey.islandLayout) private var layoutJSON = IslandLayoutConfig.vertical.encoded()
     @AppStorage(SettingsKey.showHistory) private var showHistory = false
     @AppStorage(SettingsKey.showSprint) private var showSprint = true
+    @AppStorage(SettingsKey.showManagement) private var showManagement = true
     @AppStorage(SettingsKey.jiraBacklogEnabled) private var showBacklog = true
     @AppStorage(SettingsKey.shortcuts) private var shortcutsJSON = "[]"
     @AppStorage(SettingsKey.showForecast) private var showForecast = true
@@ -145,6 +147,8 @@ struct IslandView: View {
                 withAnimation(.easeOut(duration: 0.25).delay(0.1 / speed)) { peekContent = 1 }
             }
         }
+        .onChange(of: state.page) { _, page in if page == .management { managementStore.refreshIfNeeded() } }
+        .onChange(of: showManagement) { _, shown in if !shown { state.go(to: .overview) } }
         .onChange(of: prStore.alertTick) { _, _ in playAlertPulse() }
         .onChange(of: store.updateTick) { _, _ in if updateAnimation { playUpdateAnimation() } }
         .onChange(of: store.newSessionTick) { _, _ in
@@ -152,6 +156,7 @@ struct IslandView: View {
             if newSessionAnimation { playNewSessionAnimation() }
         }
         .onChange(of: contentHeight, initial: true) { _, height in state.visibleHeight = height }
+        .onChange(of: max(overviewHeight, showManagement ? managementHeight : 0), initial: true) { _, height in state.hitHeight = height }
         .onChange(of: layoutWidth, initial: true) { _, width in state.visibleWidth = width }
         .onChange(of: state.expanded) { _, expanded in
             if !expanded { tips.tip = nil }
@@ -397,9 +402,21 @@ struct IslandView: View {
     /// The tallest column (capped) plus the dock sets the island's height.
     private var columnsHeight: CGFloat { min(visibleColumns.map(naturalHeight(of:)).max() ?? 0, maxColumnHeight) }
 
-    private var contentHeight: CGFloat {
+    /// The overview page's height; the «Gestão» page has its own, and the island glides between the two with the swipe.
+    private var overviewHeight: CGFloat {
         let top = metrics.height + 6, bottom: CGFloat = 10
         return top + columnsHeight + dockExtra + bottom
+    }
+
+    /// Cards side by side from two columns on; capped like the overview's columns, and they scroll beyond it.
+    private var managementColumns: Int { layout.columnCount >= 2 ? 2 : 1 }
+    private var managementGridHeight: CGFloat { min(IslandLayout.managementGrid(columns: managementColumns), maxColumnHeight) }
+    private var managementHeight: CGFloat {
+        metrics.height + 6 + IslandLayout.managementHeader + 8 + managementGridHeight + 10
+    }
+
+    private var contentHeight: CGFloat {
+        overviewHeight + (managementHeight - overviewHeight) * state.pageProgress
     }
 
     @ViewBuilder private var attentionDot: some View {
@@ -777,12 +794,24 @@ struct IslandView: View {
         let hinge = effect == .hinge && !reduceMotion ? -78 * (1 - min(max(heightProgress, 0), 1)) : 0
         return Color.clear
             .frame(width: layoutWidth, height: contentHeight)
-            .animation(resizeAnimation, value: contentHeight)
+            .animation(state.isSwiping ? nil : resizeAnimation, value: contentHeight)
             .animation(resizeAnimation, value: layoutWidth)
             .background(alignment: .top) { shape.fill(Color.black) }
+            .overlay(alignment: .topLeading) { watermark.opacity(showContent ? 1 : 0) }   // fixed: it stays on both pages
             .overlay(alignment: .topTrailing) { HStack(spacing: 2) { restartButton; gearButton } }
+            .overlay(alignment: .bottom) {
+                if showManagement {
+                    IslandPageDots(page: state.page) { state.go(to: $0) }
+                        .opacity(showContent ? 1 : 0)
+                        .allowsHitTesting(showContent)
+                }
+            }
             .overlay(alignment: .top) {
-                details
+                IslandPager(progress: state.pageProgress, width: layoutWidth) {
+                    details
+                } second: {
+                    managementPage
+                }
                     .frame(width: layoutWidth, height: contentHeight, alignment: .top)
                     .scaleEffect(x: showContent ? 1 : from.x, y: showContent ? 1 : from.y, anchor: .top)
                     .blur(radius: showContent ? 0 : from.blur)
@@ -838,7 +867,7 @@ struct IslandView: View {
             VStack(alignment: .leading, spacing: 0) {
                 CardTitle(title: single ? "SPRINT - \(sections[0].sprint.name)" : sections.isEmpty ? "Sprint atual" : "Sprints atuais",
                           icon: "flag.checkered", sprint: single ? sections[0].sprint : nil,
-                          onManagement: { NotificationCenter.default.post(name: .openManagement, object: nil) })
+                          onManagement: showManagement ? { state.go(to: .management) } : nil)
                 if sections.isEmpty {
                     JiraSection(title: "As minhas até ao fim", rows: sprintEmptyRows, changes: rowChanges, myName: jiraStore.myName) { _ in }
                 }
@@ -901,8 +930,17 @@ struct IslandView: View {
         .padding(.top, metrics.height + 6)
         .padding(.bottom, 10)
         .frame(maxHeight: .infinity, alignment: .top)
-        .overlay(alignment: .topLeading) { watermark }
         .preferredColorScheme(.dark)
+    }
+
+    /// The second page: the manager's burndown, in the same side padding as the overview.
+    private var managementPage: some View {
+        ManagementPage(store: managementStore, columns: managementColumns, gridHeight: managementGridHeight)
+            .padding(.horizontal, Self.sidePadding)
+            .padding(.top, metrics.height + 6)
+            .padding(.bottom, 10)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .preferredColorScheme(.dark)
     }
 
     /// The Doutor Finanças logo, small, white and translucent in the top-left corner of the island (level with the notch), like a watermark.

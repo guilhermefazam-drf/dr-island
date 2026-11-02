@@ -17,25 +17,48 @@ final class ManagementStore {
     var unit: MetricUnit = .points
     private(set) var snapshot: SprintSnapshot?
     private(set) var status: Status = .idle
+    /// The bugs and velocity charts' data.
+    let side = ManagementSideData()
 
     /// False when the site has no story-points field: only «tasks» makes sense then.
     var hasPointsField: Bool { points != nil }
 
+    /// The unit actually used: without a story-points field only tasks can be counted.
+    var effectiveUnit: MetricUnit { hasPointsField ? unit : .tasks }
+
     /// Derived from `snapshot` and `unit`; the Observation framework tracks both through this computed property.
     var burndown: BurndownResult? {
-        snapshot.map { Burndown.compute($0, unit: unit, now: Date(), calendar: .current) }
+        snapshot.map { Burndown.compute($0, unit: effectiveUnit, now: Date(), calendar: .current) }
     }
 
     @ObservationIgnored private let cache: SprintMetricsCache
     @ObservationIgnored private let client = JiraClient()
     @ObservationIgnored private var config: JiraConfig?
     @ObservationIgnored private var sprintField: String?
-    @ObservationIgnored private var points: (id: String, name: String)?
+    private var points: (id: String, name: String)?
     /// Guards against a slower, older load overwriting a newer selection.
     @ObservationIgnored private var generation = 0
 
     init(cache: SprintMetricsCache = NoSprintMetricsCache()) {
         self.cache = cache
+    }
+
+    /// Called when the «Gestão» page comes into view: reads (or refreshes) unless a read is already running.
+    func refreshIfNeeded() {
+        if ProcessInfo.processInfo.environment["DR_ISLAND_FAKE_MANAGEMENT"] != nil { loadDemo(); return }
+        if status != .loading { start() }
+    }
+
+    /// `DR_ISLAND_FAKE_MANAGEMENT`: a made-up sprint instead of Jira, to see the page.
+    private func loadDemo() {
+        boards = ManagementDemo.boards
+        selectedBoard = 483
+        sprints = ManagementDemo.sprints()
+        selectedSprint = sprints.first?.id
+        points = (id: "customfield_10008", name: "Story Points")
+        snapshot = ManagementDemo.snapshot()
+        status = .ok
+        side.loadDemo()
     }
 
     func start() {
@@ -114,6 +137,7 @@ final class ManagementStore {
             let list = try await client.fetchBoardSprints(config, boardID: id)
             guard mine == generation else { return }
             sprints = list
+            side.loadVelocity(config: config, sprints: list, sprintField: sprintField, points: points)
             guard let pick = list.first(where: { $0.id == preferred }) ?? list.first(where: { $0.state == "active" }) ?? list.first else {
                 selectedSprint = nil
                 snapshot = nil
@@ -136,7 +160,10 @@ final class ManagementStore {
             snapshot = cached
             status = .ok
             // A closed sprint no longer changes: the cached copy is final.
-            if cached.sprint.state == "closed" { return }
+            if cached.sprint.state == "closed" {
+                side.loadBugs(config: config, project: Backlog.guessProject(from: cached.issues.map(\.key)))
+                return
+            }
         }
         status = .loading
         guard let sprintField else {
@@ -149,6 +176,7 @@ final class ManagementStore {
             snapshot = fresh
             status = .ok
             if sprint.state == "closed" { cache.save(fresh) }
+            side.loadBugs(config: config, project: Backlog.guessProject(from: fresh.issues.map(\.key)))
         } catch {
             guard mine == generation else { return }
             fail(error)

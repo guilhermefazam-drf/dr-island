@@ -62,6 +62,7 @@ enum Settings {
             SettingsKey.showAlertsBlock: true,
             SettingsKey.alertHistory: "[]",
             SettingsKey.showSprint: true,
+            SettingsKey.showManagement: true,
             SettingsKey.jiraSprintBoards: "",
             SettingsKey.showTimeline: true,
             SettingsKey.showOwner: true,
@@ -136,6 +137,7 @@ enum Settings {
     static var jiraSprintBoards: Set<Int> {
         BoardParser.parseIDs(UserDefaults.standard.string(forKey: SettingsKey.jiraSprintBoards) ?? "")
     }
+    static var showManagement: Bool { UserDefaults.standard.bool(forKey: SettingsKey.showManagement) }
     static var showSprint: Bool { UserDefaults.standard.bool(forKey: SettingsKey.showSprint) }
     static var jiraApproverEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.jiraApproverEnabled) }
     static var jiraRefreshSeconds: TimeInterval {
@@ -221,8 +223,6 @@ extension Notification.Name {
     static let newSessionTest = Notification.Name("newSessionTest")
     /// Asks the open settings window to go to a page (object: the page's raw value).
     static let showSettingsPage = Notification.Name("showSettingsPage")
-    /// Asks the app delegate to open the «Gestão» window.
-    static let openManagement = Notification.Name("openManagement")
     /// Posted after the Jira API token is saved or removed so the store re-reads the Keychain.
     static let jiraTokenChanged = Notification.Name("jiraTokenChanged")
 }

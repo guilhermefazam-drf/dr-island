@@ -93,6 +93,16 @@ enum SprintMetricsParser {
         return result
     }
 
+    /// Status id → name from `GET /rest/api/3/status`.
+    static func statusNames(_ data: Data) -> [String: String]? {
+        guard let statuses = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return nil }
+        var result: [String: String] = [:]
+        for status in statuses {
+            if let id = status["id"] as? String, let name = status["name"] as? String { result[id] = name }
+        }
+        return result
+    }
+
     /// One page of `GET /rest/api/3/issue/{key}/changelog`.
     static func changelogPage(_ data: Data) -> (histories: [[String: Any]], isLast: Bool)? {
         guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -146,6 +156,14 @@ extension JiraClient {
         return map
     }
 
+    /// Status id → category key, and status id → name, from one read of `GET /rest/api/3/status`.
+    public func fetchStatuses(_ config: JiraConfig) async throws -> (categories: [String: String], names: [String: String]) {
+        let (site, header) = try prepare(config)
+        let data = try await get(site.appendingPathComponent("rest/api/3/status"), authorization: header)
+        guard let categories = SprintMetricsParser.statusCategories(data), let names = SprintMetricsParser.statusNames(data) else { throw JiraError.invalidResponse }
+        return (categories, names)
+    }
+
     /// Every issue currently in the sprint, with its changelog. Issues whose changelog came back truncated get
     /// the rest from the changelog endpoint. All requests are GETs.
     public func fetchSprintSnapshot(_ config: JiraConfig, sprint: SprintRecord, sprintField: String,
@@ -183,7 +201,7 @@ extension JiraClient {
             issues[index].events = ChangelogParser.events(fromHistories: histories, sprintField: sprintField, pointsField: points?.id)
         }
 
-        let categories = try await fetchStatusCategories(config)
-        return SprintSnapshot(sprint: sprint, issues: issues, statusCategories: categories, fetchedAt: Date())
+        let statuses = try await fetchStatuses(config)
+        return SprintSnapshot(sprint: sprint, issues: issues, statusCategories: statuses.categories, fetchedAt: Date(), statusNames: statuses.names)
     }
 }

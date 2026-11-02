@@ -57,10 +57,13 @@ public struct SprintSnapshot: Codable, Equatable, Sendable {
     /// Status id → `"new"`, `"indeterminate"` or `"done"`.
     public var statusCategories: [String: String]
     public var fetchedAt: Date
+    /// Status id → its name, for the flow chart (empty when not read).
+    public var statusNames: [String: String]
 
-    public init(sprint: SprintRecord, issues: [SprintIssue], statusCategories: [String: String], fetchedAt: Date) {
+    public init(sprint: SprintRecord, issues: [SprintIssue], statusCategories: [String: String], fetchedAt: Date,
+                statusNames: [String: String] = [:]) {
         self.sprint = sprint; self.issues = issues
-        self.statusCategories = statusCategories; self.fetchedAt = fetchedAt
+        self.statusCategories = statusCategories; self.fetchedAt = fetchedAt; self.statusNames = statusNames
     }
 }
 

@@ -22,6 +22,19 @@ enum IslandLayout {
     /// The title row of a Git / Jira card (a 16 pt label and the gap under it).
     static let cardTitle: CGFloat = 20
 
+    // The «Gestão» page: header strip, the burndown card (title, chart, legend, summary) and the gaps between.
+    static let managementHeader: CGFloat = 24
+    static let managementChart: CGFloat = 110
+    static let managementSummary: CGFloat = 18
+    static let managementFlowRow: CGFloat = 14
+    static let managementCardContent: CGFloat = cardTitle + 6 + managementChart + 6 + 14 + 6 + managementSummary
+    static let managementCardGap: CGFloat = 8
+    /// The cards of the «Gestão» page: four in a column, or two rows of two when the island is wide.
+    static func managementGrid(columns: Int) -> CGFloat {
+        let rows: CGFloat = columns >= 2 ? 2 : 4
+        return rows * card(managementCardContent) + (rows - 1) * managementCardGap
+    }
+
     static let sectionSpacing: CGFloat = 16
     static let cardPadding: CGFloat = 10
     // Content heights of the blocks; a block drawn on a card adds `cardPadding` on each side.

@@ -28,7 +28,8 @@ Levantamento factual, a partir do código, de todas as features e regras da app 
 1. **Claude (uso)** — medidor de sessão (5h) e semana, previsão de esgotamento, estimativa local, histórico.
 2. **Custo e tokens** — hoje / 7 d / 14 d / total, por família de modelo.
 3. **Pull requests (GitHub)** — meus, a rever, alterações detetadas, silenciar.
-4. **Jira** — tasks próprias, bloco "Aprovações" e card "Backlog" (backlog da equipa por sprint).
+4. **Jira** (só leitura: a app nunca cria, edita, transita nem comenta nada no Jira; só faz consultas `GET`, e o cliente recusa qualquer outro método) — card "Sprint atual", card "Backlog" (backlog da equipa por sprint) e, abaixo deles, o card "Jira" com "As minhas tasks" e "Aprovações".
+   - Com uma sprint ativa (e «Sprint» ligado) existe o card «Sprint atual» (`IslandBlock.sprint`), com fundo azul da marca e contorno fino (`blockCard(active:)`). Mostra a sprint ativa de cada **stream** (board scrum do Jira): `jiraSprintBoards` guarda os ids escolhidos nas Definições, que lista os boards pelo nome (`GET /rest/agile/1.0/board?type=scrum`, só leitura). Sem nenhum escolhido, usa as streams das sprints onde já tive tasks (`assignee was currentUser()`); um diretor escolhe todas as que quer ver. Com uma sprint, o título é «SPRINT - nome» com a barra de tempo; com várias, «Sprints atuais» e uma secção por sprint («nome · tempo restante», e «nome · Aprovações»). Uma sprint continua «ativa» até ser fechada no Jira, mesmo depois do fim planeado, e é essa que se mostra (por board, a que começou mais tarde). Lista as tasks dessas sprints (por id, `cf[N] in (…)`) que são ou **já foram minhas** (`assignee was currentUser()`), para seguir o estado até ao fim mesmo depois de passarem a outro responsável (teste, revisão); as concluídas (statusCategory Done) não aparecem; as minhas vêm primeiro, o dono atual aparece na tag. As aprovações de tasks de uma sprint mostrada ficam nesse card. Não gera alertas. O card «Jira» (minhas tasks + aprovações) já não tem o estilo da sprint. Não há secção «Fora da Sprint»: as tasks e os PRs ficam todos nas listas normais (o que não está na sprint ativa vê-se no card Backlog).
 5. **Música** — Spotify, Música e Now Playing do sistema.
 6. **Foco (Pomodoro)**.
 7. **Atalhos de desenvolvimento** — dock de apps.
@@ -36,7 +37,7 @@ Levantamento factual, a partir do código, de todas as features e regras da app 
 9. **Resumo do dia e linha do tempo**.
 10. **Layout e aparência**, barra de menu, atalho global.
 
-Blocos disponíveis no layout: Claude, Pull requests, Jira, Backlog, Foco, Histórico, Música, Avisos recentes, Resumo do dia, Linha do tempo.
+Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jira, Foco, Histórico, Música, Avisos recentes, Resumo do dia, Linha do tempo.
 
 ## Regras de negócio por domínio
 
@@ -61,7 +62,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Jira, Backlog, Foco, Hist�
 | Âmbar | ≥60% | slider 10–100, passo 5 |
 | Vermelho | ≥85% | nunca abaixo do âmbar |
 
-**Limite semanal diário**: a barra "Semana" está dividida nos 5 dias úteis da janela semanal (20% cada; fins de semana não somam). A marca branca é o que se pode gastar até ao fim de hoje (dias úteis já começados na janela × 20%, mínimo 20%); o que sobra de dias anteriores acumula. A cor usa os mesmos limiares âmbar/vermelho da sessão, aplicados a `uso semanal ÷ permitido até hoje` (`WeeklyPace`). Sem `resets_at`, usa a % semanal simples.
+**Limite semanal diário**: a barra "Semana" está dividida nos 5 dias úteis da janela semanal (20% cada; fins de semana não somam). A marca branca é o que se pode ter gasto *agora*: dias úteis já terminados × 20% + a parte de hoje proporcional ao tempo de trabalho (8 h a partir da hora de início, configurável em Claude → Horário de trabalho, por omissão 09:00; 1 h de almoço a meio, 4 h depois do início, em que a marca pára; antes do início conta 0 e depois do fim conta o dia inteiro), com mínimo de 1 hora de trabalho para não dividir por zero; o que sobra de dias anteriores acumula. A cor usa os mesmos limiares âmbar/vermelho da sessão, aplicados a `uso semanal ÷ permitido até hoje` (`WeeklyPace`). Sem `resets_at`, usa a % semanal simples.
 
 **Refresh**
 
@@ -218,6 +219,8 @@ Blocos disponíveis no layout: Claude, Pull requests, Jira, Backlog, Foco, Hist�
 
 **Ordenação**: Sprint Goal primeiro (label `Sprint_Goal`, qualquer capitalização, tolera `-`/`_`/espaço), depois "em curso" (statusCategory indeterminate), depois o resto, mantendo a ordem do JQL dentro de cada grupo. Tag "★ sprint goal" a amarelo.
 
+**Tipo de issue**: cada task mostra um ícone do tipo antes da chave (`issuetype`): bug = joaninha vermelha (só o ícone; o fundo vermelho da linha é para tasks com a flag do Jira, campo `customfield_10006`, abaixo do destaque de alerta e do sprint goal), feature/story/melhoria = faíscas verdes, task = quadrado azul, epic = raio roxo, subtask = seta cinzenta; tipos desconhecidos não levam ícone. Tolera maiúsculas, acentos e nomes em português (`JiraIssueKind`).
+
 **Bloco "Aprovações"** (`jiraApproverEnabled`, default ligado)
 - Tasks onde sou approver, via campo custom "Approvers" `customfield_10127`. JQL default: `cf[10127] = currentUser() AND statusCategory != Done ORDER BY updated DESC`.
 - O antigo `approver = currentUser()…` é migrado automaticamente (`approver` não é campo JQL neste Jira).
@@ -323,7 +326,9 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 **Offline/online**: a borda fica vermelha sem rede (`NetworkMonitor`); a mini ilha avisa "Sem ligação à internet" / "Ligação restabelecida"; ao voltar a rede (após 2s) atualiza tudo.
 
-**Splash no arranque**: ~1s depois de abrir, a mini ilha mostra o logo da Doutor Finanças (`Resources/DoutorFinancasLogo.svg`, copiado pelo `bundle.sh`; fora do `.app` não aparece), mesmo com o banner de avisos desligado. Nos primeiros 15s após o arranque, as mudanças de rede não abrem a mini ilha ("Offline"/"Online"), mas a borda vermelha e o refresh ao voltar a rede mantêm-se.
+**Logo na ilha**: o logo da Doutor Finanças aparece pequeno, a branco (60 % de opacidade) no canto superior esquerdo da ilha aberta, à altura do notch, como marca de água (`IslandView.watermark`), sem interceptar cliques.
+
+**Splash no arranque**: ~1s depois de abrir, a mini ilha mostra o logo da Doutor Finanças (`Resources/DoutorFinancasLogo.svg`, copiado pelo `bundle.sh`; fora do `.app` não aparece), mesmo com o banner de avisos desligado. O logo surge de um desfoque com escala em mola e um brilho atravessa-o uma vez (`SplashLogo`; com Reduzir movimento, só um fade). A borda do notch e os pontos de atenção/novidades/sincronização só aparecem depois do splash terminar (`IslandState.splashPending`; se o splash não chegar a tocar, são libertados ao fim de 8s). Nos primeiros 15s após o arranque, as mudanças de rede não abrem a mini ilha ("Offline"/"Online"), mas a borda vermelha e o refresh ao voltar a rede mantêm-se.
 
 ### 8. Resumo do dia e linha do tempo
 
@@ -362,7 +367,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 **Barra de menu**
 - Ícone gauge; texto opcional com a % da sessão (ou o tempo do foco).
-- Menu: 4 linhas de resumo (Sessão % · reinicia em; Semana %; PRs: N meus · N a rever; Jira: N tasks, N a aprovar), Atualizar agora (⌘R), Silenciar avisos (toggle), Acerca, Histórico de avisos…, Definições… (⌘,), Registo de erros…, Reiniciar, Sair (⌘Q).
+- Menu: 4 linhas de resumo (Sessão % · reinicia em; Semana %; PRs: N meus · N a rever; Jira: N tasks, N a aprovar), Atualizar agora (⌘R), Silenciar avisos (toggle), Acerca, Histórico de avisos…, Gestão…, Definições… (⌘,), Registo de erros…, Reiniciar, Sair (⌘Q).
 - `showIsland=false` → só barra de menu. Arrancar no login em Definições → Geral.
 
 **Páginas das Definições**: Geral, Aparência, Conteúdo, Layout, Claude, Custo, GitHub, Jira, Atalhos, Avisos, Histórico/Dia, Registo, Acerca.
@@ -376,6 +381,19 @@ Bloco "Foco" (`showFocus`, default desligado).
 - Definição `showOwner` (default ligado) em Definições → Conteúdo → "Dono nas linhas".
 - Útil sobretudo nas Reviews e Aprovações, onde as linhas são de outras pessoas.
 - Lógica em `Owner` (DrIslandCore).
+
+### 11. Gestão (2.ª página da ilha)
+
+- A ilha tem **duas páginas**: o resumo habitual e a «Gestão». Passa-se de uma à outra com um **deslize horizontal de dois dedos** no touchpad (só com a ilha aberta e o rato por cima; a ilha acompanha o dedo e a altura anima entre as duas), pelos **dois pontinhos** no fundo (clicáveis) ou pelo botão (`chart.xyaxis.line`, tooltip «Gestão») no título do card da sprint. Passa de página com 1/3 da largura ou um gesto rápido (`PageSwipe`, DrIslandCore); movimento vertical e rodas de rato nunca mudam de página. Com «Reduzir movimento» a troca é um fade. Ao fechar, a ilha volta ao resumo. Não há janela nem item de menu. Definições → Jira → «Gestão» (`showManagement`, default ligado) esconde a página: sem deslize, sem pontinhos e sem o botão no card da sprint.
+- `ManagementStore` lê tudo do Jira em **só leitura** (GET); sem cache em disco nesta fase. Lê quando a página abre (e de cada vez que se volta a ela), mantendo o gráfico visível enquanto atualiza.
+- Cabeçalho: chips de **stream** (as escolhidas nas Definições, ou as das sprints onde já tive tasks), ‹ nome › da sprint (abre na ativa; também as fechadas) e **Pontos | Tasks**. Sem campo de pontos no site, a unidade fica em «tasks».
+- **Quatro cartões** (grelha 2×2 quando a ilha tem 2 ou 3 colunas, empilhados e com scroll vertical numa coluna só; cada um tem a mesma altura):
+  - **Burndown · sprint**: «por fazer» (azul), ideal tracejado (dias úteis), âmbito (cinza, em degraus), marca «hoje» e legenda. Etiquetas: «62% concluído», «N bloqueadas», prazo («acaba em N dias», «acaba hoje», «fora de prazo», «fechada») e, em pontos, «N de M tasks sem pontos» (clicar passa a tasks) quando falta pontos a mais de 20 %.
+  - **Fluxo** (`FlowMetrics`): por estado, quanto trabalho (pontos ou tasks) há agora (barra: cinza = por fazer, azul = em curso, verde = feito) e a **mediana de dias** que o trabalho lá fica (das estadias já terminadas). Por baixo, até 3 tasks **bloqueadas (flag) ou paradas há ≥ 3 dias** no mesmo estado, as bloqueadas primeiro. Os estados vêm do Jira por id (`/rest/api/3/status`), com o nome.
+  - **Bugs · 8 semanas** (`BugFlow`, `BugsClient`): criados vs. resolvidos por semana (semanas a começar à segunda), «N abertos» (com «+» se houver mais do que os 100 lidos), totais e mediana de dias até resolver. São os bugs de **todo o projeto** da sprint (o prefixo das chaves), pelos tipos que `JiraIssueKind` reconhece como bug; lê até 200 recentes e 100 abertos.
+  - **Velocity** (`VelocityMetrics`): por sprint fechada do board (até 6, a mais antiga à esquerda), planeado (o que estava na sprint ao começar) contra concluído, com a média como linha. As sprints fechadas são lidas uma vez por sessão (em memória) e o gráfico vai enchendo à medida que chegam.
+- Estados: «A carregar…», erro em português (mantém o último gráfico), «Sem boards», «Sem sprints neste board», «Sem tasks nesta sprint», «Sem pontos nesta sprint».
+- Teste sem Jira: `DR_ISLAND_FAKE_MANAGEMENT=1` com `DR_ISLAND_PAGE=management` e `DR_ISLAND_SNAPSHOT=<png>`.
 
 ## Avisos/alertas — resumo rápido
 
