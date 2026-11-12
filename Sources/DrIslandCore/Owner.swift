@@ -12,5 +12,6 @@ public enum Owner {
         return [first, words[words.count - 1]].compactMap { $0.first }.map { String($0).uppercased() }.joined()
     }
 
-    public static func label(name: String?, isMine: Bool) -> String? { isMine ? me : initials(name) }
+    /// Nothing on the user's own rows: the mark only tells other people's apart.
+    public static func label(name: String?, isMine: Bool) -> String? { isMine ? nil : initials(name) }
 }

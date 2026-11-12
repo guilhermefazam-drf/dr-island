@@ -12,7 +12,6 @@ struct JiraTaskRow: View {
     var body: some View {
         Button { NSWorkspace.shared.open(task.url) } label: {
             HStack(spacing: 8) {
-                Circle().fill(task.category == .inProgress ? Color.blue : Color.gray).frame(width: 7, height: 7).frame(width: 14)
                 if let symbol = Self.kindSymbol(task.kind) {
                     Image(systemName: symbol.name).font(.caption2).foregroundStyle(symbol.color).islandTip(task.issueType ?? "")
                 }

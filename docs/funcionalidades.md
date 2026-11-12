@@ -169,7 +169,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jir
 **Refresh**: default 120s (60–600). Em erro mantém o último snapshot; problemas de setup repetem em ≤30s; outros com backoff até 900s. Desligar GitHub limpa a lista.
 
 **UI**
-- Linha por PR: ícone de CI, aviso de conflitos, ícone de review, `repo#n`, título, tag (alteração não vista ou motivo de atenção), "draft", e no fim a marca de dono (ver [[#10. Marca de dono nas linhas]]).
+- Linha por PR: ícone de CI, aviso de conflitos, ícone de review, `#n`, título, tag (alteração não vista ou motivo de atenção), "draft", e no fim a marca de dono (ver [[#10. Marca de dono nas linhas]]).
 - Clique abre no navegador. Controlos "+N mais / mostrar menos" e "+N não listados".
 - Botão direito: Abrir no navegador, Copiar link, Abrir o CI com falha (`/checks`), silenciar PR (1 hora / 1 dia / até eu reativar), silenciar repositório (1 dia / até reativar), Reativar avisos.
 
@@ -236,7 +236,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jir
 - Lido no mesmo ciclo que o resto do Jira mas à parte: se falhar mantém os últimos grupos ("Jira: JQL do backlog inválido" se nunca leu). Não gera alertas.
 
 **Linha**
-- Bolinha azul (em curso) ou cinzenta, chave, resumo, ícone de prioridade, tag de estado, tag de alerta e, no fim, a marca de dono (ver [[#10. Marca de dono nas linhas]]). Clique abre `/browse/<KEY>`.
+- Ícone do tipo, chave, resumo, ícone de prioridade, tag de estado, tag de alerta e, no fim, a marca de dono (ver [[#10. Marca de dono nas linhas]]). Clique abre `/browse/<KEY>`.
 - Os campos pedidos à API passam a incluir `assignee`; `JiraTask.assignee` = displayName do responsável. O app lê o nome da própria conta uma vez (`/myself`, guardado em `JiraStore.myName`) e a task é "minha" quando coincide.
 - Prioridade: Highest/Blocker/Critical vermelho (⌃⌃); High/Major laranja (⌃); Low/Minor e Lowest/Trivial azul-petróleo (⌄).
 
@@ -297,7 +297,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 - **Nova sessão na mini ilha**: com a mini ilha visível (Mini ilha e aviso de nova sessão ligados), o cometa e o brilho verde percorrem o CONTORNO da mini ilha (`miniSessionAnimation`, usa `IslandShape` com `outlineOnly`), os dois brilhos (sparkles) aparecem ao lado dela e a mini ilha abre logo (atraso de 0,15 s em vez de 1,4 s à espera da volta do cometa). Sem mini ilha, continua no anel do notch.
 
 **Origem do aviso**
-- Todas as mensagens começam pela origem, no formato `ORIGEM - texto`: `GIT - PR aprovado: repo#n`, `JIRA - Novo comentário em TEP-1`. Outras origens: `CLAUDE` (nova sessão), `REDE` (offline/online), `RESUMO` (briefing, só o título).
+- Todas as mensagens começam pela origem, no formato `ORIGEM - texto`: `GIT - PR aprovado: #n`, `JIRA - Novo comentário em TEP-1`. Outras origens: `CLAUDE` (nova sessão), `REDE` (offline/online), `RESUMO` (briefing, só o título).
 - Vale para a notificação do macOS, a mini ilha (marca pequena com a origem antes do código), o bloco "Avisos recentes", o histórico (Definições → Avisos e Dia) e a linha do tempo.
 - As entradas antigas do histórico foram gravadas sem origem: ao mostrar, o app junta-a (`AlertEntry.displayMessage`); os dados guardados não mudaram.
 
@@ -375,9 +375,9 @@ Bloco "Foco" (`showFocus`, default desligado).
 ### 10. Marca de dono nas linhas
 
 - Cápsula no FIM de cada linha de PR e de task.
-- "eu" (azul) quando é meu; caso contrário, as iniciais do autor/responsável (cinzento).
+- Só nas linhas dos outros: as iniciais do autor/responsável (cinzento). Quando é meu não aparece nada.
 - Iniciais: nome com 2+ palavras → primeira e última (Luís Pedro Bettencourt Costa → LC); uma só palavra/login → 2 primeiras letras (luisinhoc → LU).
-- Dica ao passar o rato: "Teu" ou o nome completo.
+- Dica ao passar o rato: o nome completo.
 - Definição `showOwner` (default ligado) em Definições → Conteúdo → "Dono nas linhas".
 - Útil sobretudo nas Reviews e Aprovações, onde as linhas são de outras pessoas.
 - Lógica em `Owner` (DrIslandCore).

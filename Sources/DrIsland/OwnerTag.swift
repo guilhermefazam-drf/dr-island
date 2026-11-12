@@ -1,7 +1,7 @@
 import SwiftUI
 import DrIslandCore
 
-/// "eu" on the user's own PRs and tasks, the owner's initials on the rest, so a mixed list reads at a glance.
+/// The owner's initials on other people's PRs and tasks; nothing on the user's own.
 struct OwnerTag: View {
     let name: String?
     let isMine: Bool

@@ -32,7 +32,7 @@ struct ContentPage: View {
             }
             Section("Avisos") {
                 ToggleRow("Avisos recentes", detail: "Os últimos avisos de PRs e Jira com a hora, na ilha. Só aparece quando há avisos; o histórico completo está na página Histórico.", isOn: $showAlerts)
-                ToggleRow("Dono nas linhas", detail: "Uma marca antes de cada PR e task: «eu» nas tuas, as iniciais do autor ou do responsável nas dos outros.", isOn: $showOwner)
+                ToggleRow("Dono nas linhas", detail: "Uma marca no fim de cada PR e task com as iniciais do autor ou do responsável; nas tuas não aparece nada.", isOn: $showOwner)
                 ToggleRow("Sprint", detail: "No topo do card Jira: nome, datas e uma barra com o tempo decorrido da sprint ativa. Só aparece com o Jira ligado e uma sprint ativa.", isOn: $showSprint)
                 ToggleRow("Linha do tempo", detail: "Um gráfico de linha com os eventos de hoje por hora, com os botões «resumo» e «detalhes» (página Dia). Só mostra o que a ilha já regista (PRs e Jira).", isOn: $showTimeline)
                 ToggleRow("Resumo do dia automático", detail: "De manhã, uma vez por dia, a ilha abre sozinha a dizer o que mudou desde a última vez que a viste. Também podes pedi-lo no botão «resumo» da linha do tempo.", isOn: $briefingAuto)

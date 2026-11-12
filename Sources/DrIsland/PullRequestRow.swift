@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import DrIslandCore
 
-/// One PR: CI, review state, repository#number, title, then why it needs attention and who owns it.
+/// One PR: CI, review state, #number, title, then why it needs attention and who owns it.
 /// Clicking opens it; the context menu copies the link or silences it.
 struct PullRequestRow: View {
     let pr: PullRequest
@@ -17,7 +17,7 @@ struct PullRequestRow: View {
                     .islandTip(Self.ciText(pr.ci))
                 if pr.hasConflicts { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).islandTip("Conflitos com a branch base") }
                 ReviewIcon(pr: pr)
-                Text("\(pr.repository.split(separator: "/").last.map(String.init) ?? pr.repository)#\(pr.number)")
+                Text("#\(pr.number)")
                     .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                 Text(pr.title).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
                 Spacer(minLength: 4)
