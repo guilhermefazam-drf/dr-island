@@ -10,6 +10,7 @@ struct JiraPage: View {
     @AppStorage(SettingsKey.jiraApproverJQL) private var approverJQL = JiraConfig.defaultApproverJQL
     @AppStorage(SettingsKey.jiraMaxTasks) private var maxTasks = 20
     @AppStorage(SettingsKey.showSprint) private var showSprint = true
+    @AppStorage(SettingsKey.showManagement) private var showManagement = true
     @AppStorage(SettingsKey.jiraSprintBoards) private var sprintBoards = ""
     @State private var boards: [JiraBoard] = []
     @State private var boardsMessage: String?
@@ -62,6 +63,10 @@ struct JiraPage: View {
                     if loadingBoards { ProgressView().controlSize(.small) }
                 }
                 Text(boardsMessage ?? defaultBoardsHint).font(.caption).foregroundStyle(.secondary)
+            }
+            .disabled(!enabled)
+            Section("Gestão") {
+                ToggleRow("Mostrar a página «Gestão»", detail: "A segunda página da ilha, com os gráficos de manager. Passa-se a ela com um deslize horizontal de dois dedos, pelos pontinhos no fundo ou pelo botão do card da sprint. Desligada, a ilha fica só com o resumo.", isOn: $showManagement)
             }
             .disabled(!enabled)
             Section("Tasks") {

@@ -123,7 +123,7 @@ final class PullRequestStore {
         if forced == nil { sampleIndex += 1 }
         let target = snapshot.authored.first ?? snapshot.reviewRequested.first
         let sample = target.map { PRChange(prID: $0.id, ref: PRFingerprint($0).ref, title: $0.title, kind: kind) }
-            ?? PRChange(prID: "sample", ref: "exemplo#1", title: "PR de exemplo", kind: kind)
+            ?? PRChange(prID: "sample", ref: "#1", title: "PR de exemplo", kind: kind)
         unseen = unseen.filter { $0.prID != sample.prID } + [sample]
         sampleIDs.insert(sample.id)   // saveUnseen leaves it out: a sample on a real PR must never be read back as a real alert
         announce([sample])

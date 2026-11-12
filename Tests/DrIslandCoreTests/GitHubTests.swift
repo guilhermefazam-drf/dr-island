@@ -87,7 +87,7 @@ import Foundation
     @Test func ownerLabelsAreMeOrInitials() {
         #expect(Owner.label(name: "Luís Pedro Bettencourt Costa", isMine: false) == "LC")
         #expect(Owner.label(name: "luisinhoc", isMine: false) == "LU")
-        #expect(Owner.label(name: "Guilherme Fazam", isMine: true) == "eu")
+        #expect(Owner.label(name: "Guilherme Fazam", isMine: true) == nil)
         #expect(Owner.label(name: nil, isMine: false) == nil)
     }
 

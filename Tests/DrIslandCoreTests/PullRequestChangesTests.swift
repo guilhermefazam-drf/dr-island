@@ -65,7 +65,7 @@ import Testing
         let old = PullRequestDiff.fingerprints(of: snap())
         let changes = PullRequestDiff.changes(from: old, to: snap(authored: [pr(1)], review: [pr(2, role: .reviewRequested)]))
         #expect(kinds(changes) == [.reviewRequested])
-        #expect(changes.first?.ref == "r#2")
+        #expect(changes.first?.ref == "#2")
     }
 
     @Test func ciReviewAndConflictTransitionsOnOwnPRs() {

@@ -4,7 +4,7 @@ import Foundation
 /// so a change that happened while the app was closed is still noticed. Holds no secrets.
 public struct PRFingerprint: Codable, Equatable, Sendable {
     public var id: String
-    public var ref: String          // "repo#123"
+    public var ref: String          // "#123"
     public var role: PullRequest.Role
     public var ci: CIState
     public var review: ReviewState
@@ -15,7 +15,7 @@ public struct PRFingerprint: Codable, Equatable, Sendable {
 
     public init(_ pr: PullRequest) {
         id = pr.id
-        ref = "\(pr.repository.split(separator: "/").last.map(String.init) ?? pr.repository)#\(pr.number)"
+        ref = "#\(pr.number)"
         role = pr.role; ci = pr.ci; review = pr.review; hasConflicts = pr.hasConflicts; commentCount = pr.commentCount; ownCommentCount = pr.ownCommentCount
     }
 }
@@ -179,7 +179,7 @@ public struct PRMute: Codable, Equatable, Identifiable, Sendable {
     public init(key: String, label: String, until: Date?) { self.key = key; self.label = label; self.until = until }
 
     public static func pr(_ pr: PullRequest, until: Date?) -> PRMute {
-        PRMute(key: "pr:" + pr.id, label: "\(pr.repository)#\(pr.number)", until: until)
+        PRMute(key: "pr:" + pr.id, label: "#\(pr.number)", until: until)
     }
     public static func repository(_ pr: PullRequest, until: Date?) -> PRMute {
         PRMute(key: "repo:" + pr.repository, label: pr.repository, until: until)

@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var island: IslandController?
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
+    private let managementStore = ManagementStore()
     private var nap: NSObjectProtocol?
     private let hotKey = HotKeyManager()
     private var cancellables = Set<AnyCancellable>()
@@ -27,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         nap = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep, reason: "Atualizar uso do Claude, PRs e Jira")
         setupMainMenu()
         setupStatusItem()
-        let island = IslandController(store: store, prStore: prStore, jiraStore: jiraStore, musicStore: musicStore, costStore: costStore, focusStore: focusStore) { [weak self] in self?.openSettings() }
+        let island = IslandController(store: store, prStore: prStore, jiraStore: jiraStore, musicStore: musicStore, costStore: costStore, focusStore: focusStore, managementStore: managementStore) { [weak self] in self?.openSettings() }
         island.start()
         self.island = island
         NotificationCenter.default.addObserver(forName: .newSessionTest, object: nil, queue: .main) { [weak self] _ in
@@ -228,6 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func refresh() { store.refreshNow(); prStore.refreshNow(); jiraStore.refreshNow() }
+
 
     @objc func openSettings() {
         if settingsWindow == nil {

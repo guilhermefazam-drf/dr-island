@@ -11,6 +11,7 @@ final class IslandInstance {
     private let musicStore: MusicStore
     private let costStore: CostStore
     private let focusStore: FocusStore
+    private let managementStore: ManagementStore
     private let openSettings: () -> Void
     private let state = IslandState()
     private var panel: IslandPanel?
@@ -25,18 +26,20 @@ final class IslandInstance {
     private var peekWork: DispatchWorkItem?
     /// Opened by the global shortcut: stays open until the shortcut is pressed again (or Escape), however the pointer moves.
     private var pinned = false
+    private let swiper = IslandPageSwiper()
     private var expandedAt: Date?
     /// The morning briefing opened the island and holds it until it is read, dismissed or 30 s pass.
     private var briefingPinned = false
     private var briefingWork: DispatchWorkItem?
 
-    init(store: UsageStore, prStore: PullRequestStore, jiraStore: JiraStore, musicStore: MusicStore, costStore: CostStore, focusStore: FocusStore, openSettings: @escaping () -> Void) {
+    init(store: UsageStore, prStore: PullRequestStore, jiraStore: JiraStore, musicStore: MusicStore, costStore: CostStore, focusStore: FocusStore, managementStore: ManagementStore, openSettings: @escaping () -> Void) {
         self.store = store
         self.prStore = prStore
         self.jiraStore = jiraStore
         self.musicStore = musicStore
         self.costStore = costStore
         self.focusStore = focusStore
+        self.managementStore = managementStore
         self.openSettings = openSettings
         // The border waits for the launch splash; if it never plays here (a screen plugged in later, the island opened first), do not keep it away.
         DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
@@ -47,7 +50,7 @@ final class IslandInstance {
     /// Panel size: always the maximum, so content height changes never resize the window.
     private var panelSize: CGSize { IslandLayout.panelSize(metrics) }
     /// What is actually visible while expanded (for hover hit-testing).
-    private var visibleExpandedSize: CGSize { CGSize(width: state.visibleWidth, height: max(state.visibleHeight, metrics.height)) }
+    private var visibleExpandedSize: CGSize { CGSize(width: state.visibleWidth, height: max(state.visibleHeight, state.hitHeight, metrics.height)) }
 
     /// Creates or repositions the panel; does nothing when neither the screen frame nor the metrics changed.
     func update(screen: NSScreen, metrics newMetrics: NotchMetrics) {
@@ -61,7 +64,7 @@ final class IslandInstance {
         displayID = screen.displayID
         let frame = NotchGeometry.topCenteredFrame(screenFrame: screen.frame, size: panelSize, centerOffset: metrics.centerOffset)
 
-        let view = IslandView(metrics: metrics, expandedSize: panelSize, state: state, store: store, prStore: prStore, jiraStore: jiraStore, musicStore: musicStore, costStore: costStore, focusStore: focusStore, openSettings: openSettings, screenHeight: screen.frame.height)
+        let view = IslandView(metrics: metrics, expandedSize: panelSize, state: state, store: store, prStore: prStore, jiraStore: jiraStore, musicStore: musicStore, costStore: costStore, focusStore: focusStore, managementStore: managementStore, openSettings: openSettings, screenHeight: screen.frame.height)
         let host = NSHostingView(rootView: view)
         host.sizingOptions = []
         host.frame = CGRect(origin: .zero, size: frame.size)
@@ -109,7 +112,10 @@ final class IslandInstance {
             setExpanded(true, reason: "snapshot")
             pinned = true   // the real pointer must not close it before the snapshot
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+        // `DR_ISLAND_PAGE=management` renders the «Gestão» page instead, after giving Jira time to answer.
+        let showsManagement = ProcessInfo.processInfo.environment["DR_ISLAND_PAGE"] == "management"
+        if showsManagement { state.go(to: .management) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (showsManagement ? 20 : 2.5)) { [weak self] in
             MainActor.assumeIsolated {
                 guard let view = self?.panel?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                 view.cacheDisplay(in: view.bounds, to: rep)
@@ -119,6 +125,12 @@ final class IslandInstance {
     }
 
     func containsMouse(_ point: CGPoint) -> Bool { screenFrame.contains(point) }
+
+    /// A scroll event over this island: a horizontal two-finger swipe turns the page. True when the event was consumed.
+    func scroll(_ event: NSEvent, at point: CGPoint) -> Bool {
+        guard Settings.showManagement, state.expanded, !previewing, expandedRect.contains(point) else { return false }
+        return swiper.handle(event, state: state, width: state.visibleWidth) { [weak state] in state?.go(to: $0) }
+    }
 
     func toggleFromHotKey() {
         guard !previewing else { return }
@@ -268,6 +280,8 @@ final class IslandInstance {
                     self.state.expandedSprintLists = []
                     self.state.showAllApprovals = false
                     self.state.expandedBacklog = []
+                    self.state.page = .overview
+                    self.state.pageProgress = 0
                 }
             }
         }
