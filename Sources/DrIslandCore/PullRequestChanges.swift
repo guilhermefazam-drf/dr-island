@@ -14,10 +14,13 @@ public struct PRFingerprint: Codable, Equatable, Sendable {
     public var ownCommentCount: Int?
     /// The PR title, so an alert for a PR that already left the list (merged) can still show it; `nil` when stored by an older version.
     public var title: String?
+    /// Initials of who opened it, `nil` for the user's own PRs (and when stored by an older version).
+    public var authorInitials: String?
 
     public init(_ pr: PullRequest) {
         id = pr.id
         title = pr.title
+        authorInitials = Owner.label(name: pr.author, isMine: pr.isMine)
         ref = "#\(pr.number)"
         role = pr.role; ci = pr.ci; review = pr.review; hasConflicts = pr.hasConflicts; commentCount = pr.commentCount; ownCommentCount = pr.ownCommentCount
     }
@@ -115,7 +118,8 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
         case .approved: return "PR aprovado: \(ref)"
         case .changesRequested: return "Alterações pedidas: \(ref)"
         case .conflicts: return "Conflitos: \(ref)"
-        case .left: return "Saiu da lista (fechado ou merged): \(ref)"
+        // Someone else's PR carries who opened it; without initials (the user's own, closed without merge) it only left the list.
+        case .left: return title.isEmpty ? "PR \(ref) saiu da lista" : "PR \(ref) de \(title) foi aceito"
         case .newComment: return "Novo comentário: \(ref)"
         case .mentioned: return "Mencionado em \(ref)"
         case .merged: return title.isEmpty ? "PR merged: \(ref)" : "PR merged: \(ref) \(title)"
@@ -166,7 +170,8 @@ public enum PullRequestDiff {
         }
         for gone in old where !currentIDs.contains(gone.id) && !snapshot.unlistedOpenIDs.contains(gone.id) && gone.role != .mentioned {
             let merged = gone.role == .authored && snapshot.mergedIDs.contains(gone.id)
-            result.append(PRChange(prID: gone.id, ref: gone.ref, title: merged ? (gone.title ?? "") : "", kind: merged ? .merged : .left))
+            // A merge carries the PR title; someone else's PR that left carries who opened it.
+            result.append(PRChange(prID: gone.id, ref: gone.ref, title: (merged ? gone.title : gone.authorInitials) ?? "", kind: merged ? .merged : .left))
         }
         return result
     }

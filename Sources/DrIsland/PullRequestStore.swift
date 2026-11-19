@@ -152,6 +152,7 @@ final class PullRequestStore {
         if record {
             let log = AlertLog.appending(changes, to: AlertLog.decode(UserDefaults.standard.string(forKey: SettingsKey.alertHistory)))
             UserDefaults.standard.set(AlertLog.encode(log), forKey: SettingsKey.alertHistory)
+            NotificationCenter.default.post(name: .alertHistoryChanged, object: nil)
         }
         announce(changes)
     }

@@ -95,6 +95,18 @@ import Testing
         #expect(changes.first?.tone == .neutral)
     }
 
+    @Test func mergeShowsTheTitleAndSomeoneElsesClosedPRShowsWhoOpenedIt() {
+        let theirs = PullRequest(number: 7, title: "PR 7", url: URL(string: "https://github.com/o/r/pull/7")!, repository: "o/r",
+                                 isDraft: false, ci: .none, review: .none, hasConflicts: false, role: .reviewRequested, author: "Luís Pedro Costa")
+        let old = PullRequestDiff.fingerprints(of: snap(authored: [pr(1), pr(2)], review: [theirs]))
+        let changes = PullRequestDiff.changes(from: old, to: PullRequestSnapshot(mergedIDs: ["https://github.com/o/r/pull/1"]))
+        #expect(changes.map(\.message) == [
+            "GIT - PR merged: #1 PR 1",
+            "GIT - PR #2 saiu da lista",
+            "GIT - PR #7 de LC foi aceito",
+        ])
+    }
+
     @Test func toneOrderingPutsFailuresFirst() {
         #expect(PRChange.Tone.critical > .warning && PRChange.Tone.warning > .info && PRChange.Tone.info > .success)
     }

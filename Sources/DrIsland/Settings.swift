@@ -61,6 +61,8 @@ enum Settings {
             SettingsKey.quietMuted: false,
             SettingsKey.showAlertsBlock: true,
             SettingsKey.alertHistory: "[]",
+            SettingsKey.historySyncMode: HistorySyncMode.gist.rawValue,
+            SettingsKey.historyClearedAt: 0.0,
             SettingsKey.showSprint: true,
             SettingsKey.showManagement: true,
             SettingsKey.jiraSprintBoards: "",
@@ -107,6 +109,23 @@ enum Settings {
     }
     static var githubRefreshSeconds: TimeInterval {
         min(max(UserDefaults.standard.double(forKey: SettingsKey.githubRefreshSeconds), 60), 600)
+    }
+    static var historySyncMode: HistorySyncMode {
+        HistorySyncMode(rawValue: UserDefaults.standard.string(forKey: SettingsKey.historySyncMode) ?? "") ?? .gist
+    }
+    /// The history as it is backed up: the entries plus when it was last cleared.
+    static var historyBackup: HistoryBackup {
+        get {
+            let d = UserDefaults.standard
+            let cleared = d.double(forKey: SettingsKey.historyClearedAt)
+            return HistoryBackup(entries: AlertLog.decode(d.string(forKey: SettingsKey.alertHistory)),
+                                 clearedAt: cleared > 0 ? Date(timeIntervalSince1970: cleared) : nil)
+        }
+        set {
+            let d = UserDefaults.standard
+            d.set(AlertLog.encode(newValue.entries), forKey: SettingsKey.alertHistory)
+            d.set(newValue.clearedAt?.timeIntervalSince1970 ?? 0, forKey: SettingsKey.historyClearedAt)
+        }
     }
     static var githubEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.githubEnabled) }
     static var githubOptions: GitHubClient.Options {
@@ -219,6 +238,8 @@ extension Notification.Name {
     static let prChangesDetected = Notification.Name("prChangesDetected")
     /// Posted by the settings window to fire a sample alert with the current options.
     static let prAlertTest = Notification.Name("prAlertTest")
+    /// Posted when this Mac added to or cleared the alert history, so the backup is updated.
+    static let alertHistoryChanged = Notification.Name("alertHistoryChanged")
     static let prConfettiTest = Notification.Name("prConfettiTest")
     static let newSessionTest = Notification.Name("newSessionTest")
     /// Asks the open settings window to go to a page (object: the page's raw value).

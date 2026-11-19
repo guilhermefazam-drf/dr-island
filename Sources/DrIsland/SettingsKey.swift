@@ -52,6 +52,10 @@ enum SettingsKey {
     static let quietMuted = "quietMuted"              // manual "silenciar agora"
     static let showAlertsBlock = "showAlertsBlock"    // recent alerts block in the island
     static let alertHistory = "alertHistory"          // JSON list of AlertEntry
+    static let historySyncMode = "historySyncMode"    // HistorySyncMode: "gist" (default) | "oneDrive" | "local"
+    static let historyClearedAt = "historyClearedAt"  // timeIntervalSince1970 of the last "Limpar histórico" (0 = never), synced so other Macs drop it too
+    static let historyGistID = "historyGistID"        // id of the secret gist holding the history
+    static let historyGistLogin = "historyGistLogin"  // GitHub account the gist belongs to; another `gh` account searches again
     static let showOwner = "showOwner"                // "eu" / initials before each PR and task row
     static let jiraSprintBoards = "jiraSprintBoards"  // ids of the boards (streams) whose active sprints show, "483,846"; empty = those of my tasks
     static let showManagement = "showManagement"      // the island's second page, «Gestão» (swipe, dots and the sprint card's button)

@@ -101,7 +101,8 @@ public struct GitHubClient: Sendable {
 
     // MARK: Process
 
-    private static func run(_ executable: String, _ arguments: [String]) throws -> Data {
+    /// Runs `gh` and returns its stdout; `input` is written to its stdin (for `gh api --input -`).
+    static func run(_ executable: String, _ arguments: [String], input: Data? = nil) throws -> Data {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
@@ -114,7 +115,16 @@ public struct GitHubClient: Sendable {
         let out = Pipe(), err = Pipe()
         process.standardOutput = out
         process.standardError = err
+        let inPipe = input.map { _ in Pipe() }
+        if let inPipe { process.standardInput = inPipe }
         do { try process.run() } catch { throw GitHubError.notInstalled }
+        if let inPipe, let input {
+            // Written off this thread so a large body cannot block while gh waits to drain its own stdout.
+            DispatchQueue.global().async {
+                inPipe.fileHandleForWriting.write(input)
+                try? inPipe.fileHandleForWriting.close()
+            }
+        }
         // Drain stderr concurrently so a chatty gh cannot fill the pipe and deadlock.
         let errBox = DataBox()
         let group = DispatchGroup()
