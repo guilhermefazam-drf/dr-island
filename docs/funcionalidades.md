@@ -183,6 +183,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jir
 | novo comentário | sobem os comentários dos OUTROS (total − meus); os meus não avisam; não em PRs a rever. Ver nota abaixo |
 | CI falhou / CI passou / aprovado / alterações pedidas / conflitos | só PRs próprios |
 | merged | PR sai da lista, é meu e está nos merged recentes; a mensagem inclui o título do PR (guardado na fingerprint): "GIT - PR merged: #123 Título" |
+| left (de outra pessoa) | a mensagem junta as iniciais de quem abriu o PR (guardadas na fingerprint): "GIT - PR #123 de LC foi aceito"; sem iniciais (PRs meus fechados sem merge, ou guardados por versões antigas): "GIT - PR #123 saiu da lista" |
 | fechado/left | PR sai da lista; só reportado se `alertOnClose`; PRs revistos ainda abertos não contam como fechados; menções não reportam saída |
 
 > [!info] Contagem de comentários (só de outros)
@@ -323,6 +324,14 @@ Bloco "Foco" (`showFocus`, default desligado).
 - Só PRs e Jira (offline/online, nova sessão e briefing nunca entram). Entradas de tipos antigos removidos são ignoradas ao ler.
 - Filtro por origem (Tudo / PRs / Jira); clicar abre o PR/task.
 - Acesso: menu da barra "Histórico de avisos…", Definições, bloco "Avisos recentes" ("ver tudo").
+
+**Cópia de segurança do histórico** (`HistorySyncStore`, `HistorySync`; Definições → Histórico → "Guardar em")
+- O histórico fica sempre neste Mac (UserDefaults); a cópia só acrescenta. Uma falha de sincronização mostra o erro na página e no registo de erros, sem perder nada.
+- **Gist do GitHub** (default): gist secreto `dr-island-sync.json` na conta do `gh` (sem tokens na app; precisa do scope `gist`). No arranque procura um gist com esse ficheiro; se não houver, cria-o. O id e a conta ficam guardados; se o `gh` mudar de conta, procura de novo. Secreto = não listado: quem tiver o link consegue abri-lo.
+- **OneDrive**: pasta `Dr Island` dentro de `~/Library/CloudStorage/OneDrive-…` (a da empresa antes da pessoal), um ficheiro por Mac (`dr-island-historico-<nome-do-mac>.json`), por isso o OneDrive nunca cria cópias de conflito. Lê e junta os ficheiros de todos os Macs. Se a pasta não existir, a opção aparece como "não encontrado" e não pode ser escolhida.
+- **Só neste Mac**: pede confirmação ("sem cópia de segurança"); a cópia que já existia não é apagada.
+- Sincroniza ~8s após o arranque, 5s depois de cada novo aviso (junta vários) e a cada 15 min; botão "Sincronizar agora" e "Abrir gist"/"Mostrar pasta".
+- Junção: união por id, mais recentes primeiro, mesmos limites (30 dias, 300). "Limpar histórico…" grava a data da limpeza (`historyClearedAt`), que viaja com a cópia: as entradas até essa data desaparecem em todos os Macs.
 
 **Offline/online**: a borda fica vermelha sem rede (`NetworkMonitor`); a mini ilha avisa "Sem ligação à internet" / "Ligação restabelecida"; ao voltar a rede (após 2s) atualiza tudo.
 

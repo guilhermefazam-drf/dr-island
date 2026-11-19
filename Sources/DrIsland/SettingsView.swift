@@ -5,6 +5,7 @@ import DrIslandCore
 /// The settings window: a sidebar with the pages grouped by what they are about, and the page on the right.
 struct SettingsView: View {
     let costStore: CostStore
+    let historySync: HistorySyncStore
     @State private var page: SettingsPage = {
         let pending = UserDefaults.standard.string(forKey: SettingsPage.pendingKey).flatMap(SettingsPage.init(rawValue:))
         UserDefaults.standard.removeObject(forKey: SettingsPage.pendingKey)
@@ -51,7 +52,7 @@ struct SettingsView: View {
         case .alerts: AlertsPage()
         case .events: EventsPage()
         case .day: DayPage()
-        case .history: HistoryPage()
+        case .history: HistoryPage(sync: historySync)
         case .log: LogPage()
         case .focus: FocusPage()
         case .about: AboutPage()

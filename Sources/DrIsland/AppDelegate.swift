@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let musicStore = MusicStore()
     private let costStore = CostStore()
     private let focusStore = FocusStore()
+    private let historySync = HistorySyncStore()
     private var island: IslandController?
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
@@ -85,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         musicStore.start()
         costStore.start()
         focusStore.start()
+        historySync.start()
     }
 
     /// An accessory app has no visible menu bar, but without an Edit menu the standard
@@ -233,7 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func openSettings() {
         if settingsWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(costStore: costStore)))
+            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(costStore: costStore, historySync: historySync)))
             window.title = "Definições do Dr Island"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.setContentSize(NSSize(width: 780, height: 600))
