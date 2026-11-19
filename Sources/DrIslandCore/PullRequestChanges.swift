@@ -12,9 +12,12 @@ public struct PRFingerprint: Codable, Equatable, Sendable {
     public var commentCount: Int?
     /// Comments written by the user; `nil` when stored by an older version.
     public var ownCommentCount: Int?
+    /// The PR title, so an alert for a PR that already left the list (merged) can still show it; `nil` when stored by an older version.
+    public var title: String?
 
     public init(_ pr: PullRequest) {
         id = pr.id
+        title = pr.title
         ref = "#\(pr.number)"
         role = pr.role; ci = pr.ci; review = pr.review; hasConflicts = pr.hasConflicts; commentCount = pr.commentCount; ownCommentCount = pr.ownCommentCount
     }
@@ -115,7 +118,7 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
         case .left: return "Saiu da lista (fechado ou merged): \(ref)"
         case .newComment: return "Novo comentário: \(ref)"
         case .mentioned: return "Mencionado em \(ref)"
-        case .merged: return "PR merged: \(ref)"
+        case .merged: return title.isEmpty ? "PR merged: \(ref)" : "PR merged: \(ref) \(title)"
         case .jiraNew: return "Nova task: \(ref)"
         case .jiraStatus: return "\(ref) passou a «\(title)»"
         case .jiraComment: return "Novo comentário em \(ref)"
@@ -163,7 +166,7 @@ public enum PullRequestDiff {
         }
         for gone in old where !currentIDs.contains(gone.id) && !snapshot.unlistedOpenIDs.contains(gone.id) && gone.role != .mentioned {
             let merged = gone.role == .authored && snapshot.mergedIDs.contains(gone.id)
-            result.append(PRChange(prID: gone.id, ref: gone.ref, title: "", kind: merged ? .merged : .left))
+            result.append(PRChange(prID: gone.id, ref: gone.ref, title: merged ? (gone.title ?? "") : "", kind: merged ? .merged : .left))
         }
         return result
     }

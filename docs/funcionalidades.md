@@ -182,7 +182,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jir
 | menção | PR onde fui mencionado |
 | novo comentário | sobem os comentários dos OUTROS (total − meus); os meus não avisam; não em PRs a rever. Ver nota abaixo |
 | CI falhou / CI passou / aprovado / alterações pedidas / conflitos | só PRs próprios |
-| merged | PR sai da lista, é meu e está nos merged recentes |
+| merged | PR sai da lista, é meu e está nos merged recentes; a mensagem inclui o título do PR (guardado na fingerprint): "GIT - PR merged: #123 Título" |
 | fechado/left | PR sai da lista; só reportado se `alertOnClose`; PRs revistos ainda abertos não contam como fechados; menções não reportam saída |
 
 > [!info] Contagem de comentários (só de outros)
