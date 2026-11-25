@@ -20,7 +20,7 @@ Levantamento factual, a partir do código, de todas as features e regras da app 
 | Helper | `helper/nowplaying.c` e `.pl` (Now Playing do sistema) |
 | SDK | 26 fixo: o SDK 27 das CLT não traz o plugin de macros do SwiftUI |
 | Cor da marca | `#00A6E5` (`make-icon.swift`) |
-| Debug | `DR_ISLAND_SNAPSHOT=<png>` grava o render; `DR_ISLAND_FAKE=0..1` força a % |
+| Debug | `DR_ISLAND_SNAPSHOT=<png>` grava o render; `DR_ISLAND_FAKE=0..1` força a %; `DR_ISLAND_THEME`, `DR_ISLAND_DENSITY`, `DR_ISLAND_COLUMNS` (1–3) e `DR_ISLAND_SNAPSHOT_DELAY` (segundos, default 3) forçam tema, tamanho, colunas e o atraso do render |
 | Processo | Mantido acordado (`beginActivity`), pois o painel transparente click-through pode ser limitado pelo macOS |
 
 ## Features por bloco
@@ -251,7 +251,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jir
 - Desde macOS 15.4 só processos Apple-signed respondem; numa execução `swift run` sem helper essa fonte não existe.
 - Prefere o que está realmente a tocar. Mostra título, artista, capa (só https, ou bytes do sistema) e barra de progresso que avança entre polls.
 - Controlos: play/pausa, anterior/seguinte via teclas de media (`MediaKeys`; pode precisar de Acessibilidade). Clique abre a app de origem.
-- Vazio: "Nada a tocar — Abre uma música para a controlar aqui".
+- Vazio: uma só linha, "Nada a tocar".
 
 ### 5. Temporizador de foco (Pomodoro)
 
@@ -347,6 +347,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 - "detalhes" abre Definições → Dia, com seletor de dia (30 dias) e "Em números".
 
 **Resumo/briefing**
+- Enquanto o resumo está ativo, o bloco "Avisos recentes" fica escondido (mostraria as mesmas linhas).
 - Digest do que mudou desde a última vez que viste a ilha (`briefingLastSeen`; sem isso, 24h atrás).
 - Abre sozinho no máximo 1×/dia, a partir das 05:00, só se houver algo novo e `briefingAuto` ligado (default).
 - Anunciado na mini ilha ("Resumo do dia: 3 PRs · 2 Jira"); o bloco completo aparece na abertura seguinte até "ok" (marca como visto).
@@ -355,9 +356,25 @@ Bloco "Foco" (`showFocus`, default desligado).
 ### 9. Layout e aparência
 
 **Colunas e blocos**
-- 1–3 colunas simétricas em torno do notch (largura 400 / 660 / 870 pt; ajuste extra por coluna −60…+120 pt). Predefinições: vertical (1 col), duas colunas, três colunas.
+- 1–3 colunas simétricas em torno do notch (largura Normal 400 / 660 / 870 pt, Compacto 340 / 560 / 740 pt; ajuste extra por coluna −60…+120 pt). Predefinições: vertical (1 col), duas colunas, três colunas.
 - Cada bloco move-se de coluna ou posição e aparece exatamente 1×: repetido mantém o 1º; em falta vai para o fim da 1ª coluna; ao reduzir colunas, os blocos passam para a última mantida.
 - Blocos sem conteúdo ou desligados não ocupam espaço. Altura = coluna mais alta.
+- Sem linha divisória entre colunas. Uma coluna mais alta do que o máximo faz scroll e desvanece no fundo (fade) em vez de ser cortada; começa sempre pelo topo.
+
+**Layout «Camadas»**
+- Cada bloco é um card com fundo, borda fina, brilho no topo e um cabeçalho com um quadrado colorido da fonte (Claude laranja, Git roxo, Jira/Sprint/Backlog/Histórico/Linha do tempo azul, Foco verde, Música rosa, Avisos/Resumo âmbar).
+- Cabeçalho da ilha na faixa do notch: logótipo e, com 2+ colunas em Normal, a saudação («Bom dia» 05–11h, «Boa tarde» 12–19h, «Boa noite» no resto) e a data.
+- Linhas de PR e de task com uma segunda linha de detalhes em Normal (repositório e autor; tipo e responsável ou prioridade) e o estado num pill colorido pela categoria. O dono aparece como avatar com as iniciais e uma cor estável por nome.
+- **Abas nos cards Git e Jira**: Git «Meus · N» / «A rever · N»; Jira (e Sprint) «Tasks» / «Aprovações». Só há abas quando a 2.ª lista está ligada e as duas têm conteúdo; senão o card mostra uma só lista. Ao abrir a ilha, muda para a outra aba só se ela tiver novidades por ver e a atual não tiver nenhuma (`TabChoice`, DrIslandCore).
+
+**Temas** (Definições → Aparência → «Tema e tamanho», miniaturas)
+- Grafite (default, as cores originais), Meia-noite (gradiente azul-escuro), Aurora (dois brilhos, violeta e verde-azulado) e Claro (fundo claro com uma faixa preta de altura notch + 6 pt, para se fundir com o notch; cabeçalho em branco).
+- A mini ilha e a borda do notch continuam pretas em todos os temas; só as cores de destaque seguem o tema.
+- «Aumentar contraste» do macOS aproxima os textos secundários do principal e reforça bordas e cards; «Reduzir transparência» torna os cards opacos e tira os brilhos da Aurora (`IslandPalette.adjusted`).
+
+**Tamanho: Normal e Compacto**
+- Compacto: cards mais pequenos (cantos 12 pt, padding 9), linhas de uma só linha (22 pt, sem detalhes), anel do Claude de 52 pt, ícones do dock de 22 pt, texto 11,5 pt; nunca fica mais alto do que a ilha antiga.
+- Escolha manual em «Tema e tamanho» e atalho global opcional «Atalho para alternar o tamanho» (desligado por defeito; mesmas opções do atalho principal). Os dois atalhos não podem ser iguais: o seletor desativa a combinação do outro e, se coincidirem, ganha o de abrir a ilha.
 
 **Hover e atalho**
 - `expandOnHover` ligado; atraso ao fechar 0–1s (default 0,2).
@@ -383,7 +400,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 ### 10. Marca de dono nas linhas
 
-- Cápsula no FIM de cada linha de PR e de task.
+- Avatar redondo no FIM de cada linha de PR e de task, com uma cor estável por nome (`AvatarColor`).
 - Só nas linhas dos outros: as iniciais do autor/responsável (cinzento). Quando é meu não aparece nada.
 - Iniciais: nome com 2+ palavras → primeira e última (Luís Pedro Bettencourt Costa → LC); uma só palavra/login → 2 primeiras letras (luisinhoc → LU).
 - Dica ao passar o rato: o nome completo.
@@ -441,6 +458,8 @@ Ver [[#7. Avisos (alertas)]] para canais e regras, e a tabela de tons em [[#2. P
 | Atraso ao fechar | 0,2s |
 | Efeito / velocidade / elasticidade | Mola / 1,6× / 0,55 |
 | Atalho global | ⌃⌥I |
+| Tema / tamanho | Grafite / Normal |
+| Atalho para alternar o tamanho | desligado |
 | `alertConfetti` | ligado |
 | `showOwner` | ligado |
 | `claudeUpdateAnimation` | ligado |

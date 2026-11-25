@@ -10,14 +10,14 @@ struct MusicBlock: View {
 
     /// One line with the cover, title, artist and controls; at Normal density a thin progress bar runs under it when
     /// the source tells the track's length. With nothing playing, a single «Nada a tocar» row.
-    static func contentHeight(_ playing: NowPlaying?, _ m: IslandMetrics) -> CGFloat {
+    nonisolated static func contentHeight(_ playing: NowPlaying?, _ m: IslandMetrics) -> CGFloat {
         guard let playing else { return CGFloat(m.rowHeight) }
         let line: CGFloat = m.rowHasMeta ? 40 : CGFloat(m.rowHeight)
         return line + (m.rowHasMeta && playing.duration != nil ? 18 : 0)
     }
 
     /// The tallest the block gets (for the panel's maximum size).
-    static func maxContentHeight(_ m: IslandMetrics) -> CGFloat { (m.rowHasMeta ? 40 : CGFloat(m.rowHeight)) + (m.rowHasMeta ? 18 : 0) }
+    nonisolated static func maxContentHeight(_ m: IslandMetrics) -> CGFloat { (m.rowHasMeta ? 40 : CGFloat(m.rowHeight)) + (m.rowHasMeta ? 18 : 0) }
 
     private var coverSize: CGFloat { metrics.rowHasMeta ? 40 : CGFloat(metrics.rowHeight) }
     private var mainButton: CGFloat { metrics.rowHasMeta ? 30 : 22 }

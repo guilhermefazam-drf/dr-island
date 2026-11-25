@@ -10,7 +10,7 @@ struct UsageHistoryChart: View {
     @Environment(\.islandPalette) private var palette
     @Environment(\.islandMetrics) private var metrics
 
-    static func contentHeight(_ m: IslandMetrics) -> CGFloat { CGFloat(m.cardHeader) + 6 + IslandLayout.historyContent }
+    nonisolated static func contentHeight(_ m: IslandMetrics) -> CGFloat { CGFloat(m.cardHeader) + 6 + IslandLayout.historyContent }
 
     var body: some View {
         let days = UsageHistory.lastDays(14, from: history)

@@ -87,8 +87,8 @@ Uma borda à volta do notch enche à medida que gastas a sessão do Claude (fica
 Cada bloco está num card próprio e pode ser movido entre 1 a 3 colunas em **Definições → Layout**:
 
 - **Claude** — uso da sessão e da semana, e histórico.
-- **Git** — Os meus PRs, A rever; menu de contexto para abrir, copiar o link ou silenciar um PR.
-- **Jira** — As minhas tasks, Aprovações.
+- **Git** — Os meus PRs e A rever, em abas; menu de contexto para abrir, copiar o link ou silenciar um PR.
+- **Jira** — As minhas tasks e Aprovações, em abas.
 - **Música** — Spotify, Música e o que toca no browser.
 - **Foco** — temporizador Pomodoro (também na barra de menu).
 - **Avisos recentes**, **Resumo do dia** e **Linha do tempo** dos eventos de hoje.
@@ -103,9 +103,9 @@ De manhã, se houver novidades, a mini ilha anuncia o **resumo do dia** com o qu
 
 ### Aparência e movimento
 
-Em **Definições → Aparência** escolhes o efeito de abrir e fechar (Mola, Génio, Gota, Dissolver, Dobradiça, Fenda), a velocidade e a elasticidade, com pré-visualização.
+Em **Definições → Aparência** escolhes o tema (Grafite, Meia-noite, Aurora ou Claro) e o tamanho: **Normal** ou **Compacto**, com cards mais pequenos e linhas de uma só linha. O tamanho também pode ter um atalho de teclado próprio. Também escolhes o efeito de abrir e fechar (Mola, Génio, Gota, Dissolver, Dobradiça, Fenda), a velocidade e a elasticidade, com pré-visualização.
 
-Com **Reduzir movimento** ligado no macOS (Definições do Sistema → Acessibilidade → Ecrã), a ilha usa um fade curto em vez dos efeitos, e o cometa, os brilhos, o confetti, a magnificação do dock e o texto a deslizar ficam desligados.
+Com **Reduzir movimento** ligado no macOS (Definições do Sistema → Acessibilidade → Ecrã), a ilha usa um fade curto em vez dos efeitos, e o cometa, os brilhos, o confetti, a magnificação do dock e o texto a deslizar ficam desligados. **Aumentar contraste** e **Reduzir transparência** também são respeitados.
 
 ## Problemas comuns
 
@@ -131,5 +131,5 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test --filter Spr
 
 - `swift build` simples falha por falta do plugin de macros do SwiftUI no SDK 27; o `scripts/bundle.sh` fixa o SDK 26 (muda com `SDKROOT_OVERRIDE`).
 - A verificação estrita de concorrência está ligada: a build deve sair sem avisos.
-- Para depurar: `DR_ISLAND_SNAPSHOT=<png>` grava um render da ilha, `DR_ISLAND_FAKE=0..1` força a % do Claude sem rede e `DR_ISLAND_COLLAPSED` mantém-na fechada.
+- Para depurar: `DR_ISLAND_SNAPSHOT=<png>` grava um render da ilha, `DR_ISLAND_FAKE=0..1` força a % do Claude sem rede e `DR_ISLAND_COLLAPSED` mantém-na fechada; `DR_ISLAND_THEME`, `DR_ISLAND_DENSITY`, `DR_ISLAND_COLUMNS` e `DR_ISLAND_SNAPSHOT_DELAY` forçam o tema, o tamanho, as colunas e o atraso do render.
 - Cada tipo vive no seu ficheiro. Ao mudar comportamento, atualiza o [docs/funcionalidades.md](docs/funcionalidades.md).

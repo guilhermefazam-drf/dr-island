@@ -9,7 +9,7 @@ struct FocusBlock: View {
     @Environment(\.islandMetrics) private var metrics
 
     /// Normal shows the round dots under the label; Compacto keeps a single line.
-    static func contentHeight(_ m: IslandMetrics) -> CGFloat { m.rowHasMeta ? 40 : CGFloat(m.rowHeight) }
+    nonisolated static func contentHeight(_ m: IslandMetrics) -> CGFloat { m.rowHasMeta ? 40 : CGFloat(m.rowHeight) }
 
     var body: some View {
         let timer = store.timer

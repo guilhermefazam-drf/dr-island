@@ -8,9 +8,9 @@ struct AlertsBlock: View {
     let openAll: () -> Void
     @Environment(\.islandMetrics) private var metrics
 
-    static let maxRows = 4
+    nonisolated static let maxRows = 4
 
-    static func contentHeight(rows: Int, metrics m: IslandMetrics) -> CGFloat {
+    nonisolated static func contentHeight(rows: Int, metrics m: IslandMetrics) -> CGFloat {
         CGFloat(m.cardHeader) + 4 + CGFloat(rows) * EntryRow.height(m)
     }
 
