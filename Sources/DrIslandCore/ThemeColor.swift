@@ -27,6 +27,16 @@ public struct ThemeColor: Equatable, Sendable {
         return ThemeColor(r: mix(r, base.r), g: mix(g, base.g), b: mix(b, base.b), a: outA)
     }
 
+    /// A colour `amount` (0…1) of the way from this one to `other`, channel by channel (alpha too).
+    public func mixed(with other: ThemeColor, amount: Double) -> ThemeColor {
+        let t = min(max(amount, 0), 1)
+        func lerp(_ x: Double, _ y: Double) -> Double { x + (y - x) * t }
+        return ThemeColor(r: lerp(r, other.r), g: lerp(g, other.g), b: lerp(b, other.b), a: lerp(a, other.a))
+    }
+
+    /// The same colour with another alpha.
+    public func withAlpha(_ alpha: Double) -> ThemeColor { ThemeColor(r: r, g: g, b: b, a: min(max(alpha, 0), 1)) }
+
     /// WCAG 2 relative luminance (alpha ignored).
     public var luminance: Double {
         func channel(_ c: Double) -> Double { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }

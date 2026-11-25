@@ -22,6 +22,8 @@ struct IslandView: View {
     /// macOS «Reduzir movimento»: the island fades instead of growing or springing, and the decorative motion (comet,
     /// sweep, sparkles, confetti, dock magnification) is skipped. Pure opacity effects stay.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
     /// Update animation on the ring: a highlight sweeping along it plus a glow pulse.
     @State private var sweep: CGFloat = 0
     @State private var sweepOpacity: Double = 0
@@ -386,7 +388,11 @@ struct IslandView: View {
     @AppStorage(SettingsKey.islandDensity) private var densityName = IslandDensity.regular.rawValue
     private var islandTheme: IslandTheme { IslandOverrides.theme ?? IslandTheme(stored: themeName) }
     private var islandDensity: IslandDensity { IslandOverrides.density ?? IslandDensity(stored: densityName) }
-    private var islandPalette: IslandPalette { islandTheme.palette }
+    private var islandPalette: IslandPalette {
+        islandTheme.palette.adjusted(increaseContrast: contrast == .increased, reduceTransparency: reduceTransparency)
+    }
+    /// Ink for the header strip (logo, greeting, buttons): it sits on the collar, which stays black on light themes.
+    private var headerInk: Color { islandPalette.isLight ? Color.white : Color(islandPalette.text) }
     private var islandMetrics: IslandMetrics { IslandMetrics.forDensity(islandDensity) }
     /// The gap between two columns (no divider: the cards already separate them).
     private var columnGap: CGFloat { CGFloat(islandMetrics.cardGap) * 2 }
@@ -862,7 +868,11 @@ struct IslandView: View {
             .frame(width: layoutWidth, height: contentHeight)
             .animation(state.isSwiping ? nil : resizeAnimation, value: contentHeight)
             .animation(resizeAnimation, value: layoutWidth)
-            .background(alignment: .top) { shape.fill(Color(islandPalette.base.last!)) }
+            .background(alignment: .top) {
+                IslandBackground(theme: islandTheme, palette: islandPalette, collarHeight: metrics.height + 6,
+                                 reduceTransparency: reduceTransparency)
+                    .clipShape(shape)
+            }
             .overlay(alignment: .topLeading) { watermark.opacity(showContent ? 1 : 0) }   // fixed: it stays on both pages
             .overlay(alignment: .topTrailing) { HStack(spacing: 2) { restartButton; gearButton } }
             .overlay(alignment: .bottom) {
@@ -890,7 +900,7 @@ struct IslandView: View {
 
     private var restartButton: some View {
         Button(action: { ErrorLog.relaunch() }) {
-            Image(systemName: "arrow.clockwise").font(.system(size: 12)).foregroundStyle(Color(islandPalette.textSecondary))
+            Image(systemName: "arrow.clockwise").font(.system(size: 12)).foregroundStyle(headerInk.opacity(0.65))
                 .frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -903,7 +913,7 @@ struct IslandView: View {
 
     private var gearButton: some View {
         Button(action: openSettings) {
-            Image(systemName: "gearshape").font(.system(size: 13)).foregroundStyle(Color(islandPalette.textSecondary))
+            Image(systemName: "gearshape").font(.system(size: 13)).foregroundStyle(headerInk.opacity(0.65))
                 .frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1020,7 +1030,7 @@ struct IslandView: View {
         .padding(.top, metrics.height + 6)
         .padding(.bottom, 10)
         .frame(maxHeight: .infinity, alignment: .top)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(islandPalette.isLight ? .light : .dark)
         .foregroundStyle(Color(islandPalette.text))
     }
 
@@ -1031,15 +1041,14 @@ struct IslandView: View {
             .padding(.top, metrics.height + 6)
             .padding(.bottom, 10)
             .frame(maxHeight: .infinity, alignment: .top)
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(islandPalette.isLight ? .light : .dark)
             .foregroundStyle(Color(islandPalette.text))
     }
 
-    /// The Doutor Finanças logo, small, white and translucent in the top-left corner of the island (level with the notch), like a watermark.
     /// The island's header, level with the notch: the Doutor Finanças logo and, with room (2+ columns at Normal),
     /// the greeting and today's date. It sits on the theme's collar, which stays black on the light theme.
     @ViewBuilder private var watermark: some View {
-        let ink = islandPalette.isLight ? Color.white : Color(islandPalette.text)
+        let ink = headerInk
         HStack(spacing: 10) {
             if let logo = Brand.logo {
                 Image(nsImage: logo).renderingMode(.template).resizable().interpolation(.high).aspectRatio(contentMode: .fit)

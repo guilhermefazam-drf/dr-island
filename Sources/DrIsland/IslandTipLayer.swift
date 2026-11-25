@@ -27,8 +27,8 @@ struct IslandTipLayer: View {
                         .frame(width: Self.textWidth(tip.text), alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 8).padding(.vertical, 5)
-                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(palette.isLight ? Color.white : Color(white: 0.17)))
-                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color(palette.text).opacity(0.14), lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(palette.surfaceRaised.over(palette.base.last ?? palette.collar))))
+                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color(palette.border), lineWidth: 1))
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
                         .opacity(size == .zero ? 0 : 1)
                         .offset(x: x, y: y)

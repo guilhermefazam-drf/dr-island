@@ -7,6 +7,7 @@ import DrIslandCore
 /// A day in full: the events-per-hour chart, a few numbers, and every event in order. The island shows the same chart small.
 struct DayPage: View {
     @AppStorage(SettingsKey.alertHistory) private var json = "[]"
+    @Environment(\.colorScheme) private var colorScheme
     @State private var daysBack = 0
 
     private static let daysShown = 7
@@ -30,6 +31,8 @@ struct DayPage: View {
             }
             Section("Eventos por hora") {
                 HourlyLineChart(counts: counts, range: range, nowHour: isToday ? calendar.component(.hour, from: Date()) : nil, height: 150, labelStride: 2)
+                    // Settings follow the system appearance, not the island's theme.
+                    .environment(\.islandPalette, (colorScheme == .dark ? IslandTheme.grafite : IslandTheme.claro).palette)
                     .padding(.vertical, 6)
                     .overlay { if entries.isEmpty { Text("Sem eventos neste dia").foregroundStyle(.secondary).padding(.bottom, 16) } }
             }
