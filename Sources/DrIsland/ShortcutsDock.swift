@@ -1,11 +1,11 @@
 import SwiftUI
 import DrIslandCore
 
-/// The pinned apps under the columns, centred, on a snug pill (not a full card). Like the Dock, the icon under the
-/// pointer grows out of the pill and its neighbours follow.
+/// The pinned apps under the columns, centred, on a snug pill (not a full card). The icon under the pointer grows
+/// a little; the others stay put.
 struct ShortcutsDock: View {
     let shortcuts: [DevShortcut]
-    @State private var pointerX: CGFloat?
+    @State private var hovered: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.islandMetrics) private var metrics
     @Environment(\.islandPalette) private var palette
@@ -22,12 +22,15 @@ struct ShortcutsDock: View {
     /// Share of an app icon's canvas taken by its artwork (Apple's icon grid: 824 of 1024 pt).
     private static let artwork: CGFloat = 824.0 / 1024.0
 
-    /// The dock's full height (the pill around one row of icons); a grown icon rises above it.
+    /// How much the icon under the pointer grows.
+    private static let hoverScale: CGFloat = 1.12
+
+    /// The dock's full height (the pill around one row of icons).
     nonisolated static func height(_ m: IslandMetrics) -> CGFloat { CGFloat(m.dockIcon) + 2 * vertical(m) }
 
     var body: some View {
         HStack(spacing: spacing) {
-            ForEach(Array(shortcuts.enumerated()), id: \.element.id) { index, shortcut in
+            ForEach(shortcuts, id: \.id) { shortcut in
                 Button { ShortcutLauncher.open(shortcut) } label: {
                     // macOS app icons carry a transparent margin (the artwork is ~82% of the canvas), so the image
                     // is drawn larger than its slot for the visible icon to fill it, as in the design.
@@ -38,14 +41,14 @@ struct ShortcutsDock: View {
                 }
                 .buttonStyle(.plain)
                 .pointingHandCursor()
-                // Anchored to the bottom, so a grown icon rises out of the row.
-                .scaleEffect(scale(at: index), anchor: .bottom)
-                .offset(y: -(scale(at: index) - 1) * 4)
+                .scaleEffect(hovered == shortcut.id && !reduceMotion ? Self.hoverScale : 1)
+                .animation(.spring(response: 0.25, dampingFraction: 0.75), value: hovered)
+                .onHover { inside in
+                    if inside { hovered = shortcut.id } else if hovered == shortcut.id { hovered = nil }
+                }
                 .islandTip(shortcut.folder.map { "\(shortcut.name) · \(($0 as NSString).lastPathComponent)" } ?? shortcut.name)
             }
         }
-        .coordinateSpace(.named("dock"))
-        .onContinuousHover(coordinateSpace: .named("dock"), perform: track)
         .frame(height: icon)
         .padding(.vertical, Self.vertical(metrics))
         .padding(.horizontal, Self.horizontal(metrics))
@@ -60,20 +63,5 @@ struct ShortcutsDock: View {
         }
         .fixedSize()
         .frame(maxWidth: .infinity)   // centred under the columns
-    }
-
-    private func track(_ phase: HoverPhase) {
-        switch phase {
-        case .active(let point): withAnimation(.spring(response: 0.22, dampingFraction: 0.7)) { pointerX = point.x }
-        case .ended: withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { pointerX = nil }
-        }
-    }
-
-    /// 1 at rest, up to 1.7 right under the pointer, falling off smoothly over about two icons.
-    private func scale(at index: Int) -> CGFloat {
-        guard let x = pointerX, !reduceMotion else { return 1 }
-        let center = icon / 2 + CGFloat(index) * (icon + spacing)
-        let distance = abs(x - center)
-        return 1 + 0.7 * exp(-pow(distance / 36, 2))
     }
 }

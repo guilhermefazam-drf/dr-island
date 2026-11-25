@@ -97,7 +97,7 @@ Por baixo das colunas fica o dock de **atalhos de apps** (Definições → Atalh
 
 ### Avisos
 
-Quando algo muda (review pedido, CI, aprovação, comentário, conflito, nova task no Jira…), a ilha avisa pelos canais que escolheres em **Definições → Avisos**: pulso na borda, ponto azul, linha destacada, mini ilha, confetti, notificação do macOS e som. O **Não incomodar** (manual, horário silencioso ou Focus do macOS) silencia o som e as notificações. O histórico dos últimos 30 dias está no menu da barra → **Histórico de avisos…** e em **Definições → Dia**.
+Quando algo muda (review pedido, CI, aprovação, comentário, conflito, nova task no Jira…), a ilha avisa pelos canais que escolheres em **Definições → Avisos**: pulso na borda, ponto azul, linha destacada, mini ilha, confetti, notificação do macOS e som. O **Não incomodar** (manual, horário silencioso ou Focus do macOS) silencia o som e as notificações. O histórico dos últimos 30 dias está no menu da barra → **Histórico de avisos…** e em **Definições → Dia**, com cópia num gist secreto do GitHub (ou no OneDrive). Com o gist, as **definições** também vão para lá, sem o token do Jira: num Mac novo, basta ter o `gh` com a mesma conta para recuperar tudo.
 
 De manhã, se houver novidades, a mini ilha anuncia o **resumo do dia** com o que mudou desde a última vez que viste a ilha.
 
@@ -105,7 +105,7 @@ De manhã, se houver novidades, a mini ilha anuncia o **resumo do dia** com o qu
 
 Em **Definições → Aparência** escolhes o tema (Grafite, Meia-noite, Aurora ou Claro) e o tamanho: **Normal** ou **Compacto**, com cards mais pequenos e linhas de uma só linha. O tamanho também pode ter um atalho de teclado próprio. Também escolhes o efeito de abrir e fechar (Mola, Génio, Gota, Dissolver, Dobradiça, Fenda), a velocidade e a elasticidade, com pré-visualização.
 
-Com **Reduzir movimento** ligado no macOS (Definições do Sistema → Acessibilidade → Ecrã), a ilha usa um fade curto em vez dos efeitos, e o cometa, os brilhos, o confetti, a magnificação do dock e o texto a deslizar ficam desligados. **Aumentar contraste** e **Reduzir transparência** também são respeitados.
+Com **Reduzir movimento** ligado no macOS (Definições do Sistema → Acessibilidade → Ecrã), a ilha usa um fade curto em vez dos efeitos, e o cometa, os brilhos, o confetti, o crescimento dos ícones do dock e o texto a deslizar ficam desligados. **Aumentar contraste** e **Reduzir transparência** também são respeitados.
 
 ## Problemas comuns
 

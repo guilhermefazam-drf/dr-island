@@ -277,7 +277,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 - Dock centrado sob as colunas (não é um bloco movível). Apps à escolha (arrastar para ordenar), com pasta opcional (abre a app nessa pasta, p. ex. projeto no VS Code, se a pasta existir). Clique abre ou traz para a frente.
 - A mesma app não se adiciona 2×.
 - Sugestões, se instaladas: VS Code, Cursor, Claude, Xcode, IntelliJ (+CE), PhpStorm, WebStorm, PyCharm, Android Studio, Warp, iTerm, Terminal, Docker, Postman, TablePlus, Sublime Text, GitHub Desktop.
-- Ícones em alta resolução com magnificação tipo Dock.
+- Ícones em alta resolução numa pílula justa; o ícone por baixo do rato cresce um pouco (12%, nada com «Reduzir movimento»).
 
 ### 7. Avisos (alertas)
 
@@ -332,6 +332,12 @@ Bloco "Foco" (`showFocus`, default desligado).
 - **Só neste Mac**: pede confirmação ("sem cópia de segurança"); a cópia que já existia não é apagada.
 - Sincroniza ~8s após o arranque, 5s depois de cada novo aviso (junta vários) e a cada 15 min; botão "Sincronizar agora" e "Abrir gist"/"Mostrar pasta".
 - Junção: união por id, mais recentes primeiro, mesmos limites (30 dias, 300). "Limpar histórico…" grava a data da limpeza (`historyClearedAt`), que viaja com a cópia: as entradas até essa data desaparecem em todos os Macs.
+
+**Definições no gist** (`settingsSyncEnabled`, default ligado; só com a cópia em «Gist do GitHub»)
+- Ficheiro `dr-island-settings.json` no mesmo gist secreto do histórico, com a data da última alteração, o Mac e os valores (`SettingsBackup`, DrIslandCore).
+- Vão todas as preferências com default em `Settings.registerDefaults()`, menos (`SyncedSettings.excluded`): caminho do `gh`, ecrãs (todos/desligados/ecrã da ilha), ajuste do notch, calibração interna do uso, o histórico e a sua configuração, a contabilidade desta sincronização, «silenciar agora», estado do resumo do dia, timer a correr e uso diário. O token do Jira nunca vai (só está na Keychain).
+- Regras (`SettingsSync`): ganha a alteração mais recente (`settingsChangedAt`, carimbada ~2 s depois de uma preferência mudar neste Mac); um Mac que nunca sincronizou as definições (`settingsSyncedOnce`) adota as do gist; só se aplicam chaves conhecidas e do mesmo tipo; o que vem do gist não conta como alteração local.
+- Sincroniza com o histórico (arranque, 15 min, "Sincronizar agora") e 5 s depois de uma alteração. Uma falha aparece à parte em Definições → Histórico e no registo de erros, sem afetar o histórico.
 
 **Offline/online**: a borda fica vermelha sem rede (`NetworkMonitor`); a mini ilha avisa "Sem ligação à internet" / "Ligação restabelecida"; ao voltar a rede (após 2s) atualiza tudo.
 
@@ -471,7 +477,7 @@ Ver [[#7. Avisos (alertas)]] para canais e regras, e a tabela de tons em [[#2. P
 - Token do Claude: lido do Keychain do Claude Code, nunca guardado nem registado.
 - Token do Jira: só no Keychain (`com.fazam.token-island` / `jira-api-token`), com cache em memória.
 - GitHub: sem tokens na app; usa o `gh` autenticado.
-- UserDefaults: apenas números/estado (cache do uso, baselines de PRs/Jira, mutes, estado do foco, não vistos, `briefingLastSeen`).
+- UserDefaults: preferências e estado (cache do uso, baselines de PRs/Jira, mutes, estado do foco, não vistos, `briefingLastSeen`). As preferências têm cópia no gist (ver «Definições no gist»).
 - Transcripts do Claude Code: só leitura.
 - Jira: só https.
 
