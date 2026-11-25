@@ -68,6 +68,9 @@ enum SettingsKey {
     static let briefingLastSeen = "briefingLastSeen"  // when the island was last looked at (closed)
     static let claudeGauge = "claudeGauge"            // "bar" | "ring": how the session is drawn in the Claude block
     static let islandLayout = "islandLayout"          // JSON IslandLayoutConfig
+    static let islandTheme = "islandTheme"            // IslandTheme.rawValue: "grafite" | "meia-noite" | "aurora" | "claro"
+    static let islandDensity = "islandDensity"        // IslandDensity.rawValue: "regular" | "compact"
+    static let densityHotKey = "densityHotKey"        // HotKeyOption.rawValue that toggles Normal / Compacto
     static let showFocus = "showFocus"                // focus timer block in the island
     static let focusMinutes = "focusMinutes"
     static let focusShortBreak = "focusShortBreak"

@@ -315,8 +315,20 @@ struct IslandView: View {
 
     // MARK: Layout (columns of blocks)
 
-    private var layout: IslandLayoutConfig { IslandLayoutConfig.decode(layoutJSON) }
-    private var layoutWidth: CGFloat { CGFloat(layout.width) }
+    private var layout: IslandLayoutConfig {
+        let saved = IslandLayoutConfig.decode(layoutJSON)
+        return IslandOverrides.columns.map { saved.resized(to: $0) } ?? saved
+    }
+    private var layoutWidth: CGFloat { CGFloat(layout.width(density: islandDensity)) }
+
+    // MARK: Theme and density
+
+    @AppStorage(SettingsKey.islandTheme) private var themeName = IslandTheme.grafite.rawValue
+    @AppStorage(SettingsKey.islandDensity) private var densityName = IslandDensity.regular.rawValue
+    private var islandTheme: IslandTheme { IslandOverrides.theme ?? IslandTheme(stored: themeName) }
+    private var islandDensity: IslandDensity { IslandOverrides.density ?? IslandDensity(stored: densityName) }
+    private var islandPalette: IslandPalette { islandTheme.palette }
+    private var islandMetrics: IslandMetrics { IslandMetrics.forDensity(islandDensity) }
     private static let columnGap: CGFloat = 14          // either side of the divider between columns
     private static let sidePadding: CGFloat = 24
 
@@ -357,7 +369,8 @@ struct IslandView: View {
     }
 
     private func height(of block: IslandBlock) -> CGFloat {
-        func section(_ rows: Int) -> CGFloat { rows == 0 ? 0 : IslandLayout.cardListHeader + 2 + CGFloat(rows) * IslandLayout.prRowHeight }
+        let m = islandMetrics
+        func card(_ content: CGFloat) -> CGFloat { CGFloat(m.card(Double(content))) }
         let (authored, review) = (prRows(for: .authored).count, prRows(for: .review).count)
         switch block {
         case .claude:
@@ -365,23 +378,20 @@ struct IslandView: View {
                 : IslandLayout.claudeHeight + (ClaudeBlock.showsForecast(store, enabled: showForecast) ? IslandLayout.forecastExtra : 0)
             return core + (showCost ? IslandLayout.costExtra : 0)
         case .pullRequests:
-            let parts = [section(authored), section(review)].filter { $0 > 0 }
-            return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
+            return CGFloat(m.listCard(sections: [authored, review]))
         case .sprint:
             let sections = sprintSections
-            let parts = sections.isEmpty ? [section(sprintEmptyRows.count)]
-                : sections.flatMap { [section($0.rows.count), section($0.approvalRows.count)] }.filter { $0 > 0 }
-            return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
+            let counts = sections.isEmpty ? [sprintEmptyRows.count] : sections.flatMap { [$0.rows.count, $0.approvalRows.count] }
+            return CGFloat(m.listCard(sections: counts))
         case .jira:
-            let parts = [section(jiraRows.count), section(approvalRows.count)].filter { $0 > 0 }
-            return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
-        case .backlog: return IslandLayout.card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated))
-        case .focus: return IslandLayout.card(IslandLayout.focusContent)
-        case .history: return IslandLayout.card(IslandLayout.historyContent)
-        case .music: return IslandLayout.card(musicStore.nowPlaying.map(MusicBlock.contentHeight) ?? IslandLayout.musicContent)
-        case .alerts: return IslandLayout.card(AlertsBlock.contentHeight(rows: min(recentAlerts.count, AlertsBlock.maxRows)))
-        case .briefing: return IslandLayout.card(BriefingBlock.contentHeight(rows: min(briefingEntries.count, BriefingBlock.maxRows)))
-        case .timeline: return IslandLayout.card(TimelineBlock.contentHeight)
+            return CGFloat(m.listCard(sections: [jiraRows.count, approvalRows.count]))
+        case .backlog: return card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated))
+        case .focus: return card(IslandLayout.focusContent)
+        case .history: return card(IslandLayout.historyContent)
+        case .music: return card(musicStore.nowPlaying.map(MusicBlock.contentHeight) ?? IslandLayout.musicContent)
+        case .alerts: return card(AlertsBlock.contentHeight(rows: min(recentAlerts.count, AlertsBlock.maxRows)))
+        case .briefing: return card(BriefingBlock.contentHeight(rows: min(briefingEntries.count, BriefingBlock.maxRows)))
+        case .timeline: return card(TimelineBlock.contentHeight)
         }
     }
 
@@ -390,14 +400,14 @@ struct IslandView: View {
     private func naturalHeight(of column: [IslandBlock]) -> CGFloat {
         var total: CGFloat = 0
         for block in column { total += height(of: block) }
-        return total + CGFloat(max(column.count - 1, 0)) * IslandLayout.sectionSpacing
+        return total + CGFloat(max(column.count - 1, 0)) * CGFloat(islandMetrics.sectionSpacing)
     }
 
     /// Half of the screen at most; a taller column scrolls inside the island.
     private var maxColumnHeight: CGFloat { screenHeight * 0.5 }
 
     /// The shortcuts dock sits under the columns, centred and always last, so it adds to the height on its own.
-    private var dockExtra: CGFloat { shortcuts.isEmpty ? 0 : IslandLayout.card(IslandLayout.shortcutsContent) + IslandLayout.sectionSpacing }
+    private var dockExtra: CGFloat { shortcuts.isEmpty ? 0 : CGFloat(islandMetrics.card(Double(IslandLayout.shortcutsContent)) + islandMetrics.sectionSpacing) }
 
     /// The tallest column (capped) plus the dock sets the island's height.
     private var columnsHeight: CGFloat { min(visibleColumns.map(naturalHeight(of:)).max() ?? 0, maxColumnHeight) }
@@ -905,14 +915,14 @@ struct IslandView: View {
     }
 
     private var details: some View {
-        VStack(spacing: IslandLayout.sectionSpacing) {
+        VStack(spacing: CGFloat(islandMetrics.sectionSpacing)) {
             HStack(alignment: .top, spacing: Self.columnGap) {
                 ForEach(Array(visibleColumns.enumerated()), id: \.offset) { index, column in
                     if index > 0 {
                         Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1)
                     }
                     ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: IslandLayout.sectionSpacing) {
+                        VStack(alignment: .leading, spacing: CGFloat(islandMetrics.sectionSpacing)) {
                             ForEach(column, id: \.self) { block in
                                 blockView(block)
                             }
@@ -931,6 +941,8 @@ struct IslandView: View {
         .padding(.bottom, 10)
         .frame(maxHeight: .infinity, alignment: .top)
         .preferredColorScheme(.dark)
+        .environment(\.islandPalette, islandPalette)
+        .environment(\.islandMetrics, islandMetrics)
     }
 
     /// The second page: the manager's burndown, in the same side padding as the overview.
@@ -941,6 +953,8 @@ struct IslandView: View {
             .padding(.bottom, 10)
             .frame(maxHeight: .infinity, alignment: .top)
             .preferredColorScheme(.dark)
+            .environment(\.islandPalette, islandPalette)
+            .environment(\.islandMetrics, islandMetrics)
     }
 
     /// The Doutor Finanças logo, small, white and translucent in the top-left corner of the island (level with the notch), like a watermark.

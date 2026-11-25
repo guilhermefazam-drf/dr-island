@@ -31,7 +31,7 @@ final class IslandController {
     func start() {
         sync()
         if let path = ProcessInfo.processInfo.environment["DR_ISLAND_SNAPSHOT"] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.instances.values.first?.writeSnapshot(to: path) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + IslandOverrides.snapshotDelay) { [weak self] in self?.instances.values.first?.writeSnapshot(to: path) }
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
