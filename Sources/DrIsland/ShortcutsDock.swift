@@ -19,6 +19,9 @@ struct ShortcutsDock: View {
     nonisolated private static func radius(_ m: IslandMetrics) -> CGFloat { m.rowHasMeta ? 16 : 12 }
     nonisolated private static func spacing(_ m: IslandMetrics) -> CGFloat { m.rowHasMeta ? 8 : 6 }
 
+    /// Share of an app icon's canvas taken by its artwork (Apple's icon grid: 824 of 1024 pt).
+    private static let artwork: CGFloat = 824.0 / 1024.0
+
     /// The dock's full height (the pill around one row of icons); a grown icon rises above it.
     nonisolated static func height(_ m: IslandMetrics) -> CGFloat { CGFloat(m.dockIcon) + 2 * vertical(m) }
 
@@ -26,8 +29,12 @@ struct ShortcutsDock: View {
         HStack(spacing: spacing) {
             ForEach(Array(shortcuts.enumerated()), id: \.element.id) { index, shortcut in
                 Button { ShortcutLauncher.open(shortcut) } label: {
+                    // macOS app icons carry a transparent margin (the artwork is ~82% of the canvas), so the image
+                    // is drawn larger than its slot for the visible icon to fill it, as in the design.
                     Image(nsImage: AppIcons.icon(forFile: shortcut.appPath))
-                        .resizable().interpolation(.high).frame(width: icon, height: icon)
+                        .resizable().interpolation(.high)
+                        .frame(width: icon / Self.artwork, height: icon / Self.artwork)
+                        .frame(width: icon, height: icon)
                 }
                 .buttonStyle(.plain)
                 .pointingHandCursor()
