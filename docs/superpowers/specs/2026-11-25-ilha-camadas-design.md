@@ -97,7 +97,6 @@ Na app, uma extensão converte `ThemeColor` em `Color`. Com «Aumentar contraste
 | tile | 24 | 18 |
 | texto: título / conteúdo / meta | 13 sb / 13 / 11,5 | 11,5 sb / 11,5 / 10,5 |
 | anel do Claude | 84 | 52 |
-| cabeçalho da ilha | 46 | 36 |
 | largura base: 1 / 2 / 3 col. | 400 / 660 / 870 (iguais a hoje) | 340 / 560 / 740 |
 
 `IslandLayout` mantém as medidas que não dependem da densidade (overshoot, mini ilha, splash) e passa a delegar as restantes. As alturas dos blocos (`height(of:)`) e as larguras (`IslandLayoutConfig.width`) passam a receber a densidade. `extraColumnWidth` continua a somar-se por coluna e mantém o significado de hoje. `maxWidth` e o tamanho do painel não mudam (o Normal com 3 colunas e o extra máximo continua a ser o maior caso).
@@ -135,7 +134,7 @@ Todas as views ficam em ficheiros próprios.
 - **Avisos:** linha do tempo com ponto na cor da fonte, origem em versaletes, título e hora. Escondido enquanto o Resumo do dia estiver ativo.
 - **Resumo do dia:** mesmo visual que os Avisos, com o cabeçalho «Desde ontem · HH:MM» e o botão «ok».
 - **Dock:** mesma posição, com a superfície e a borda do tema. No Compacto, os ícones passam de 30 para 22 pt (a altura do dock entra nas métricas e em `maxHeight`).
-- **Faixa preta do Claro:** com a altura do cabeçalho da ilha nas métricas (46 no Normal, 36 no Compacto).
+- **Cabeçalho da ilha e faixa preta do Claro:** o cabeçalho continua na faixa do notch, como hoje (altura `NotchMetrics.height`, em qualquer densidade). A faixa preta do Claro mede `NotchMetrics.height + 6`, o mesmo que o topo do conteúdo.
 
 ### Colunas
 
