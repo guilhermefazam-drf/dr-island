@@ -10,6 +10,14 @@ import Testing
         }
     }
 
+    @Test func compactWidths() {
+        #expect(IslandLayoutConfig.width(columns: 1, density: .compact) == 340)
+        #expect(IslandLayoutConfig.width(columns: 2, density: .compact) == 560)
+        #expect(IslandLayoutConfig.width(columns: 3, density: .compact) == 740)
+        #expect(IslandLayoutConfig.twoColumns.width(density: .compact) == 560)
+        #expect(IslandLayoutConfig.twoColumns.width(density: .regular) == 660)
+    }
+
     @Test func widthsAndColumnCounts() {
         #expect(IslandLayoutConfig.vertical.width == 400)
         #expect(IslandLayoutConfig.twoColumns.width == 660)

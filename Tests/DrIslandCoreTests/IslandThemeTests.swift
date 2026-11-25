@@ -50,4 +50,47 @@ import Testing
         #expect(abs(ThemeColor(0x000000).contrast(with: ThemeColor(0xFFFFFF)) - 21) < 0.01)
         #expect(ThemeColor(0x777777).contrast(with: ThemeColor(0x777777)) == 1)
     }
+
+    @Test func grafiteInfoAndNeutralTokens() {
+        let p = IslandTheme.grafite.palette
+        #expect(p.info == ThemeColor(0x5C9EFF))
+        #expect(p.neutral == ThemeColor(0x8E8E93))
+    }
+
+    @Test func increasedContrastRaisesSecondaryText() {
+        for theme in IslandTheme.allCases {
+            let p = theme.palette
+            let a = p.adjusted(increaseContrast: true, reduceTransparency: false)
+            let card = p.surface.over(p.base.last!)
+            let adjustedCard = a.surface.over(a.base.last!)
+            #expect(a.textSecondary.contrast(with: adjustedCard) > p.textSecondary.contrast(with: card), "\(theme)")
+            #expect(a.border.a >= p.border.a, "\(theme)")
+        }
+    }
+
+    @Test func reducedTransparencyMakesSurfacesOpaque() {
+        for theme in IslandTheme.allCases {
+            let p = theme.palette
+            let a = p.adjusted(increaseContrast: false, reduceTransparency: true)
+            #expect(a.surface.a == 1, "\(theme)")
+            #expect(a.surfaceRaised.a == 1, "\(theme)")
+            #expect(a.surface == p.surface.over(p.base.last!), "\(theme)")
+        }
+    }
+
+    @Test func noSettingsLeavesThePaletteUnchanged() {
+        for theme in IslandTheme.allCases {
+            #expect(theme.palette.adjusted(increaseContrast: false, reduceTransparency: false) == theme.palette)
+        }
+    }
+
+    @Test func mixedAndWithAlpha() {
+        let black = ThemeColor(0x000000), white = ThemeColor(0xFFFFFF)
+        #expect(black.mixed(with: white, amount: 0) == black)
+        #expect(black.mixed(with: white, amount: 1) == white)
+        #expect(black.mixed(with: white, amount: 0.5).r == 0.5)
+        #expect(black.mixed(with: white, amount: 2) == white)
+        #expect(white.withAlpha(0.3).a == 0.3)
+        #expect(white.withAlpha(1.5).a == 1)
+    }
 }
