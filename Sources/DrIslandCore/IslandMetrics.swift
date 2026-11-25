@@ -27,8 +27,8 @@ public struct IslandMetrics: Equatable, Sendable {
 
     public static func forDensity(_ density: IslandDensity) -> IslandMetrics {
         switch density {
-        // Compacto gets its own values with the compact mode; until then it shares Normal's.
-        case .regular, .compact: regular
+        case .regular: regular
+        case .compact: compact
         }
     }
 
@@ -37,6 +37,12 @@ public struct IslandMetrics: Equatable, Sendable {
         cardPadding: 14, cardGap: 12, cardRadius: 18, rowHeight: 34, rowHasMeta: true,
         listHeader: 20, listRule: 13, cardHeader: 26, tile: 24,
         titleSize: 13, bodySize: 13, metaSize: 11.5, ringSize: 84, dockIcon: 30, sectionSpacing: 12)
+
+    /// Compacto: today's sizes in the new style, with one-line rows, so the island is never taller than before.
+    public static let compact = IslandMetrics(
+        cardPadding: 9, cardGap: 8, cardRadius: 12, rowHeight: 22, rowHasMeta: false,
+        listHeader: 16, listRule: 9, cardHeader: 20, tile: 18,
+        titleSize: 11.5, bodySize: 11.5, metaSize: 10.5, ringSize: 52, dockIcon: 22, sectionSpacing: 8)
 
     /// A card's height for content of the given height.
     public func card(_ content: Double) -> Double { content + 2 * cardPadding }

@@ -6,6 +6,7 @@ struct GeneralPage: View {
     @AppStorage(SettingsKey.showIsland) private var showIsland = true
     @AppStorage(SettingsKey.expandOnHover) private var expandOnHover = true
     @AppStorage(SettingsKey.hotKey) private var hotKey = HotKeyOption.default.rawValue
+    @AppStorage(SettingsKey.densityHotKey) private var densityHotKey = HotKeyOption.off.rawValue
     @AppStorage(SettingsKey.showOnAllScreens) private var showOnAllScreens = true
     @AppStorage(SettingsKey.targetScreen) private var targetScreen = "notch"
     @AppStorage(SettingsKey.menuBarText) private var menuBarText = false
@@ -18,7 +19,10 @@ struct GeneralPage: View {
                 ToggleRow("Mostrar a ilha", detail: "Desliga se preferires usar só a barra de menu (útil em Macs sem notch).", isOn: $showIsland)
                 ToggleRow("Abrir ao passar o rato no notch", isOn: $expandOnHover)
                 Picker("Atalho de teclado", selection: $hotKey) {
-                    ForEach(HotKeyOption.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+                    ForEach(HotKeyOption.allCases, id: \.rawValue) { option in
+                        Text(option.title).tag(option.rawValue)
+                            .selectionDisabled(option != .off && option.rawValue == densityHotKey)
+                    }
                 }
                 Text("Abre e fecha a ilha no ecrã onde está o rato.").font(.caption).foregroundStyle(.secondary)
             }
