@@ -73,6 +73,7 @@ enum SettingsKey {
     static let islandLayout = "islandLayout"          // JSON IslandLayoutConfig
     static let islandTheme = "islandTheme"            // IslandTheme.rawValue: "grafite" | "meia-noite" | "aurora" | "claro"
     static let islandDensity = "islandDensity"        // IslandDensity.rawValue: "regular" | "compact"
+    static let islandStyle = "islandStyle"            // IslandStyle.rawValue: "camadas" | "bento"
     static let densityHotKey = "densityHotKey"        // HotKeyOption.rawValue that toggles Normal / Compacto
     static let showFocus = "showFocus"                // focus timer block in the island
     static let focusMinutes = "focusMinutes"

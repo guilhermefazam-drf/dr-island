@@ -21,15 +21,8 @@ struct CardHeader<Accessory: View>: View {
     }
 
     var body: some View {
-        let tile = CGFloat(metrics.tile)
-        let colour = Color(palette.source(source))
         HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: tile * 0.55, weight: .semibold))
-                .foregroundStyle(colour)
-                .frame(width: tile, height: tile)
-                .background(RoundedRectangle(cornerRadius: tile * 0.3, style: .continuous).fill(colour.opacity(0.2)))
-                .accessibilityHidden(true)
+            SourceTile(icon: icon, source: source)
             Text(title)
                 .font(.system(size: CGFloat(metrics.titleSize), weight: .semibold))
                 .foregroundStyle(Color(palette.text))

@@ -22,7 +22,7 @@ import Testing
         #expect(IslandLayoutConfig.vertical.width == 400)
         #expect(IslandLayoutConfig.twoColumns.width == 660)
         #expect(IslandLayoutConfig.threeColumns.width == 870)
-        #expect(IslandLayoutConfig.maxWidth == 870 + 3 * IslandLayoutConfig.maxExtraColumnWidth)
+        #expect(IslandLayoutConfig.maxWidth == 960 + 3 * IslandLayoutConfig.maxExtraColumnWidth)   // the widest style (Bento)
     }
 
     @Test func normalizesDuplicatesMissingAndTooManyColumns() {

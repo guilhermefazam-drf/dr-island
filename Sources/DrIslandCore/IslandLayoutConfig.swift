@@ -76,11 +76,25 @@ public struct IslandLayoutConfig: Codable, Equatable, Sendable {
         case (_, .compact): return 740
         }
     }
-    public func width(density: IslandDensity = .regular) -> Double {
-        Self.width(columns: columnCount, density: density) + Double(columnCount) * extraColumnWidth
+    /// Bento is wider from two columns on, for the row of numbers on top: 780 / 960 pt (Compacto 620 / 800);
+    /// one column keeps Camadas' width (its numbers go in a 2 × 2 grid).
+    public static func width(columns: Int, density: IslandDensity = .regular, style: IslandStyle) -> Double {
+        guard style == .bento else { return width(columns: columns, density: density) }
+        switch (columns, density) {
+        case (...1, _): return width(columns: 1, density: density)
+        case (2, .regular): return 780
+        case (_, .regular): return 960
+        case (2, .compact): return 620
+        case (_, .compact): return 800
+        }
+    }
+    public func width(density: IslandDensity = .regular, style: IslandStyle = .camadas) -> Double {
+        Self.width(columns: columnCount, density: density, style: style) + Double(columnCount) * extraColumnWidth
     }
     public var width: Double { width(density: .regular) }
-    public static var maxWidth: Double { width(columns: maxColumns) + Double(maxColumns) * maxExtraColumnWidth }
+    public static var maxWidth: Double {
+        IslandStyle.allCases.map { width(columns: maxColumns, style: $0) }.max()! + Double(maxColumns) * maxExtraColumnWidth
+    }
 
     /// 1–3 columns, every block exactly once (a repeated one keeps its first place; a missing one goes to the end of the first column).
     private mutating func normalize() {

@@ -380,13 +380,119 @@ struct IslandView: View {
         }
     }
 
+    // MARK: Bento (numbers on top, events strip, music in the dock)
+
+    /// Music goes into the dock in Bento, when something is playing.
+    private var dockMusic: MusicStore? { isBento && musicStore.nowPlaying != nil ? musicStore : nil }
+
+    private var kpiModels: [KPITile.Model] { kpiModels(now: Date()) }
+
+    private func kpiModels(now: Date) -> [KPITile.Model] {
+        var available: Set<BentoLayout.KPI> = [.claude]
+        if prStore.status != .disabled { available.insert(.pullRequests) }
+        if showSprint, jiraStore.status != .disabled, !sprintSections.isEmpty { available.insert(.sprint) }
+        if showFocus { available.insert(.focus) }
+        if jiraStore.status != .disabled { available.insert(.jira) }
+        if showAlertsBlock { available.insert(.alerts) }
+        return BentoLayout.kpis(columns: layout.columnCount, available: available).map { kpiModel($0, now: now) }
+    }
+
+    private func kpiModel(_ kpi: BentoLayout.KPI, now: Date) -> KPITile.Model {
+        let p = islandPalette
+        switch kpi {
+        case .claude:
+            let fraction = store.sessionFraction
+            let colour = Brand.color(forFraction: fraction, amber: amber, red: red, palette: p)
+            let reset = store.sessionResetsAt.map { "reinicia em " + SprintInfo.remainingLabel($0.timeIntervalSince(now)) } ?? "Sessão · 5 h"
+            return .init(id: kpi, title: "Claude", icon: "sparkle", source: .claude,
+                         value: (store.isEstimate ? "≈" : "") + "\(Int((fraction * 100).rounded()))", unit: "%",
+                         detail: store.hasValue ? reset : "sem leitura", gauge: .bar(fraction, colour), valueColor: colour,
+                         tip: statusMessage)
+        case .pullRequests:
+            let mine = prStore.snapshot.authored.count
+            let review = includeReviews ? prStore.snapshot.reviewRequested.count : 0
+            return .init(id: kpi, title: "Pull requests", icon: "arrow.triangle.pull", source: .pullRequests,
+                         value: "\(mine + review)", unit: "abertos", detail: "\(mine) teus · \(review) a rever",
+                         gauge: .stack([(Double(mine), Color(p.green)), (Double(review), Color(p.purple))]))
+        case .sprint:
+            let section = sprintSections.first
+            let sprint = section?.sprint
+            let calendar = Calendar.current
+            let total = sprint.map { max(calendar.dateComponents([.day], from: calendar.startOfDay(for: $0.start), to: calendar.startOfDay(for: $0.end)).day ?? 0, 1) } ?? 0
+            let day = sprint.map { min(max((calendar.dateComponents([.day], from: calendar.startOfDay(for: $0.start), to: calendar.startOfDay(for: now)).day ?? 0) + 1, 1), total) } ?? 0
+            return .init(id: kpi, title: sprint?.name ?? "Sprint", icon: "flag", source: .sprint,
+                         value: "\(day)", unit: "/ \(total) dias",
+                         detail: "\(section?.mineCount ?? 0) tuas · \(section?.approvalCount ?? 0) aprovações",
+                         gauge: .bar(sprint?.progress(now: now) ?? 0, Color(p.accent)),
+                         tip: sprint.map { SprintBar.tooltip($0) })
+        case .focus:
+            let timer = focusStore.timer, config = focusStore.config
+            let remaining = Int(timer.remaining(now: now, config).rounded(.up))
+            let total = config.roundsBeforeLongBreak
+            let done = timer.phase == .longBreak ? total : timer.completedRounds % total
+            let detail = timer.phase == .focus ? "ronda \(timer.completedRounds % total + 1) de \(total)" : timer.phase.title
+            return .init(id: kpi, title: "Foco", icon: "timer", source: .focus,
+                         value: String(format: "%d:%02d", remaining / 60, remaining % 60),
+                         detail: detail + (timer.isRunning ? "" : " · em pausa"),
+                         gauge: .dots(total: total, done: done, Color(p.green)),
+                         tip: timer.isRunning ? "Pausar" : "Começar", action: { focusStore.toggle() })
+        case .jira:
+            return .init(id: kpi, title: "Jira", icon: "checklist", source: .jira,
+                         value: "\(jiraStore.tasks.count)", unit: "tasks", detail: "\(approvalCount) aprovações")
+        case .alerts:
+            let today = todayCounts.reduce(0, +)
+            let latest = recentAlerts.first.map { "último: " + AlertsBlock.relative($0.date, now: now) } ?? "sem avisos"
+            return .init(id: kpi, title: "Avisos", icon: "bell", source: .alerts,
+                         value: "\(today)", unit: "hoje", detail: latest, tip: "Ver o histórico", action: openHistory)
+        }
+    }
+
+    private var kpiRows: Int { BentoLayout.kpiRows(count: isBento ? kpiModels.count : 0, columns: layout.columnCount) }
+    private var kpiTileHeight: CGFloat { CGFloat(islandMetrics.card(Double(KPITile.contentHeight(islandMetrics)))) }
+
+    /// The numbers' rows and the space under them.
+    private var kpiExtra: CGFloat {
+        let rows = CGFloat(kpiRows)
+        guard rows > 0 else { return 0 }
+        return rows * kpiTileHeight + (rows - 1) * CGFloat(islandMetrics.cardGap) + CGFloat(islandMetrics.sectionSpacing)
+    }
+
+    /// The events strip (Bento, under three columns; with three the alerts are a column card).
+    private var showsEventStrip: Bool {
+        isBento && layout.columnCount < 3 && showAlertsBlock && !recentAlerts.isEmpty && !briefingActive
+    }
+    private var eventSlots: Int { layout.columnCount <= 1 ? 2 : 4 }
+    private var stripExtra: CGFloat {
+        showsEventStrip ? CGFloat(islandMetrics.sectionSpacing) + CGFloat(islandMetrics.card(Double(BentoEventStrip.contentHeight(islandMetrics)))) : 0
+    }
+
+    @ViewBuilder private var kpiGrid: some View {
+        let running = focusStore.timer.isRunning
+        TimelineView(.periodic(from: .now, by: running ? 1 : 30)) { context in
+            let models = kpiModels(now: context.date)
+            let per = BentoLayout.perRow(columns: layout.columnCount)
+            VStack(spacing: CGFloat(islandMetrics.cardGap)) {
+                ForEach(0..<BentoLayout.kpiRows(count: models.count, columns: layout.columnCount), id: \.self) { row in
+                    HStack(spacing: CGFloat(islandMetrics.cardGap)) {
+                        ForEach(models[(row * per)..<min((row + 1) * per, models.count)]) { KPITile(model: $0) }
+                        // A short last row keeps the tiles one width.
+                        let missing = per - (min((row + 1) * per, models.count) - row * per)
+                        ForEach(0..<max(missing, 0), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity) }
+                    }
+                    .frame(height: kpiTileHeight)
+                }
+            }
+        }
+        .frame(height: kpiExtra - CGFloat(islandMetrics.sectionSpacing))
+    }
+
     // MARK: Layout (columns of blocks)
 
     private var layout: IslandLayoutConfig {
         let saved = IslandLayoutConfig.decode(layoutJSON)
         return IslandOverrides.columns.map { saved.resized(to: $0) } ?? saved
     }
-    private var layoutWidth: CGFloat { CGFloat(layout.width(density: islandDensity)) }
+    private var layoutWidth: CGFloat { CGFloat(layout.width(density: islandDensity, style: islandStyle)) }
 
     // MARK: Theme and density
 
@@ -394,6 +500,9 @@ struct IslandView: View {
     @AppStorage(SettingsKey.islandDensity) private var densityName = IslandDensity.regular.rawValue
     private var islandTheme: IslandTheme { IslandOverrides.theme ?? IslandTheme(stored: themeName) }
     private var islandDensity: IslandDensity { IslandOverrides.density ?? IslandDensity(stored: densityName) }
+    @AppStorage(SettingsKey.islandStyle) private var styleName = IslandStyle.camadas.rawValue
+    private var islandStyle: IslandStyle { IslandOverrides.style ?? IslandStyle(stored: styleName) }
+    private var isBento: Bool { islandStyle == .bento }
     private var islandPalette: IslandPalette {
         islandTheme.palette.adjusted(increaseContrast: contrast == .increased, reduceTransparency: reduceTransparency)
     }
@@ -471,7 +580,13 @@ struct IslandView: View {
         }
     }
 
-    private var visibleColumns: [[IslandBlock]] { layout.columns.map { $0.filter(isVisible) } }
+    /// Camadas: the user's columns as they are. Bento: the blocks not shown elsewhere, spread over the columns so
+    /// they end up about the same height.
+    private var visibleColumns: [[IslandBlock]] {
+        guard isBento else { return layout.columns.map { $0.filter(isVisible) } }
+        return BentoLayout.distribute(BentoLayout.listBlocks(layout).filter(isVisible), columns: layout.columnCount,
+                                      gap: islandMetrics.sectionSpacing) { Double(height(of: $0)) }
+    }
 
     private func naturalHeight(of column: [IslandBlock]) -> CGFloat {
         var total: CGFloat = 0
@@ -482,8 +597,14 @@ struct IslandView: View {
     /// Half of the screen at most; a taller column scrolls inside the island.
     private var maxColumnHeight: CGFloat { screenHeight * 0.5 }
 
-    /// The shortcuts dock sits under the columns, centred and always last, so it adds to the height on its own.
-    private var dockExtra: CGFloat { shortcuts.isEmpty ? 0 : ShortcutsDock.height(islandMetrics) + CGFloat(islandMetrics.sectionSpacing) }
+    /// The bottom row under the columns: the shortcuts dock, centred, with the Doutor Finanças logo in the
+    /// bottom-right corner. It is always last, so it adds to the height on its own.
+    private var bottomRowHeight: CGFloat {
+        if !shortcuts.isEmpty || dockMusic != nil { return ShortcutsDock.height(islandMetrics) }
+        return Brand.logo == nil ? 0 : Self.logoHeight
+    }
+    private static let logoHeight: CGFloat = 14
+    private var dockExtra: CGFloat { bottomRowHeight == 0 ? 0 : bottomRowHeight + CGFloat(islandMetrics.sectionSpacing) }
 
     /// The tallest column (capped) plus the dock sets the island's height.
     private var columnsHeight: CGFloat { min(visibleColumns.map(naturalHeight(of:)).max() ?? 0, maxColumnHeight) }
@@ -491,7 +612,7 @@ struct IslandView: View {
     /// The overview page's height; the «Gestão» page has its own, and the island glides between the two with the swipe.
     private var overviewHeight: CGFloat {
         let top = metrics.height + 6, bottom: CGFloat = 10
-        return top + columnsHeight + dockExtra + bottom
+        return top + kpiExtra + columnsHeight + stripExtra + dockExtra + bottom
     }
 
     /// Cards side by side from two columns on; capped like the overview's columns, and they scroll beyond it.
@@ -1033,6 +1154,7 @@ struct IslandView: View {
 
     private var details: some View {
         VStack(spacing: CGFloat(islandMetrics.sectionSpacing)) {
+            if kpiRows > 0 { kpiGrid }
             HStack(alignment: .top, spacing: columnGap) {
                 ForEach(Array(visibleColumns.enumerated()), id: \.offset) { index, column in
                     ScrollView(.vertical, showsIndicators: false) {
@@ -1053,7 +1175,16 @@ struct IslandView: View {
                 }
             }
             .frame(height: columnsHeight, alignment: .top)
-            if !shortcuts.isEmpty { ShortcutsDock(shortcuts: shortcuts) }
+            if showsEventStrip {
+                BentoEventStrip(entries: recentAlerts, slots: eventSlots, openAll: openHistory)
+            }
+            if bottomRowHeight > 0 {
+                ZStack {
+                    if !shortcuts.isEmpty || dockMusic != nil { ShortcutsDock(shortcuts: shortcuts, music: dockMusic) }
+                    brandLogo.frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .frame(height: bottomRowHeight)
+            }
         }
         .padding(.horizontal, Self.sidePadding)
         .padding(.top, metrics.height + 6)
@@ -1074,18 +1205,23 @@ struct IslandView: View {
             .foregroundStyle(Color(islandPalette.text))
     }
 
-    /// The island's header, level with the notch: the Doutor Finanças logo and, with room (2+ columns at Normal),
-    /// the greeting and today's date. It sits on the theme's collar, which stays black on the light theme.
+    /// The Doutor Finanças logo, small and quiet, in the island's bottom-right corner (next to the dock).
+    @ViewBuilder private var brandLogo: some View {
+        if let logo = Brand.logo {
+            Image(nsImage: logo).renderingMode(.template).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                .foregroundStyle(Color(islandPalette.textSecondary))
+                .frame(height: Self.logoHeight)
+                .opacity(0.7)
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// The island's header, level with the notch: with room (2+ columns at Normal), the greeting and today's date.
+    /// It sits on the theme's collar, which stays black on the light theme.
     @ViewBuilder private var watermark: some View {
         let ink = headerInk
         HStack(spacing: 10) {
-            if let logo = Brand.logo {
-                Image(nsImage: logo).renderingMode(.template).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
-                    .foregroundStyle(ink)
-                    .frame(height: 16)
-                    .opacity(0.6)
-                    .accessibilityHidden(true)
-            }
             if layout.columnCount >= 2 && islandMetrics.rowHasMeta {
                 TimelineView(.everyMinute) { context in
                     (Text(Greeting.text(for: context.date)).fontWeight(.semibold)

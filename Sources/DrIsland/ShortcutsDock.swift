@@ -5,6 +5,8 @@ import DrIslandCore
 /// a little; the others stay put.
 struct ShortcutsDock: View {
     let shortcuts: [DevShortcut]
+    /// Bento puts what is playing at the dock's left end («a tocar», with the cover and play/pause).
+    var music: MusicStore?
     @State private var hovered: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.islandMetrics) private var metrics
@@ -30,6 +32,10 @@ struct ShortcutsDock: View {
 
     var body: some View {
         HStack(spacing: spacing) {
+            if let music, let playing = music.nowPlaying {
+                NowPlayingChip(store: music, playing: playing, size: icon)
+                if !shortcuts.isEmpty { Divider().frame(height: icon * 0.7) }
+            }
             ForEach(shortcuts, id: \.id) { shortcut in
                 Button { ShortcutLauncher.open(shortcut) } label: {
                     // macOS app icons carry a transparent margin (the artwork is ~82% of the canvas), so the image

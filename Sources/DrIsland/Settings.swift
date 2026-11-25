@@ -80,6 +80,7 @@ enum Settings {
             SettingsKey.islandLayout: IslandLayoutConfig.vertical.encoded(),
             SettingsKey.islandTheme: IslandTheme.grafite.rawValue,
             SettingsKey.islandDensity: IslandDensity.regular.rawValue,
+            SettingsKey.islandStyle: IslandStyle.camadas.rawValue,
             SettingsKey.densityHotKey: HotKeyOption.off.rawValue,
             SettingsKey.showFocus: false,
             SettingsKey.focusMinutes: 25,

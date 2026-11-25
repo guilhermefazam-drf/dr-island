@@ -55,6 +55,8 @@ enum IslandLayout {
         let blocks = claude + card(FocusBlock.contentHeight(m)) + card(MusicBlock.maxContentHeight(m)) + card(UsageHistoryChart.contentHeight(m)) + ShortcutsDock.height(m)
             + card(AlertsBlock.contentHeight(rows: AlertsBlock.maxRows, metrics: m)) + card(BriefingBlock.contentHeight(rows: BriefingBlock.maxRows, metrics: m)) + card(TimelineBlock.contentHeight(m))
         let lists = 4 * (prHeaderHeight + CGFloat(expandedRowLimit + 2) * prRowHeight)
-        return metrics.height + 6 + 10 + blocks + lists + 12 * sectionSpacing
+        // Bento adds up to two rows of numbers (one column: a 2 × 2 grid) and the events strip.
+        let bento = 2 * card(KPITile.contentHeight(m)) + card(BentoEventStrip.contentHeight(m)) + 3 * sectionSpacing
+        return metrics.height + 6 + 10 + blocks + lists + bento + 12 * sectionSpacing
     }
 }

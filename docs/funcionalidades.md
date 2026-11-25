@@ -20,7 +20,7 @@ Levantamento factual, a partir do código, de todas as features e regras da app 
 | Helper | `helper/nowplaying.c` e `.pl` (Now Playing do sistema) |
 | SDK | 26 fixo: o SDK 27 das CLT não traz o plugin de macros do SwiftUI |
 | Cor da marca | `#00A6E5` (`make-icon.swift`) |
-| Debug | `DR_ISLAND_SNAPSHOT=<png>` grava o render; `DR_ISLAND_FAKE=0..1` força a %; `DR_ISLAND_THEME`, `DR_ISLAND_DENSITY`, `DR_ISLAND_COLUMNS` (1–3) e `DR_ISLAND_SNAPSHOT_DELAY` (segundos, default 3) forçam tema, tamanho, colunas e o atraso do render |
+| Debug | `DR_ISLAND_SNAPSHOT=<png>` grava o render; `DR_ISLAND_FAKE=0..1` força a %; `DR_ISLAND_THEME`, `DR_ISLAND_DENSITY`, `DR_ISLAND_STYLE`, `DR_ISLAND_COLUMNS` (1–3) e `DR_ISLAND_SNAPSHOT_DELAY` (segundos, default 3) forçam tema, tamanho, colunas e o atraso do render |
 | Processo | Mantido acordado (`beginActivity`), pois o painel transparente click-through pode ser limitado pelo macOS |
 
 ## Features por bloco
@@ -369,10 +369,19 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 **Layout «Camadas»**
 - Cada bloco é um card com fundo, borda fina, brilho no topo e um cabeçalho com um quadrado colorido da fonte (Claude laranja, Git roxo, Jira/Sprint/Backlog/Histórico/Linha do tempo azul, Foco verde, Música rosa, Avisos/Resumo âmbar).
-- Cabeçalho da ilha na faixa do notch: logótipo e, com 2+ colunas em Normal, a saudação («Bom dia» 05–11h, «Boa tarde» 12–19h, «Boa noite» no resto) e a data.
+- Cabeçalho da ilha na faixa do notch: com 2+ colunas em Normal, a saudação («Bom dia» 05–11h, «Boa tarde» 12–19h, «Boa noite» no resto) e a data.
 - Linhas de PR e de task com uma segunda linha de detalhes em Normal (repositório e autor; tipo e responsável ou prioridade) e o estado num pill colorido pela categoria. O dono aparece como avatar com as iniciais e uma cor estável por nome.
 - **Abas nos cards Git e Jira**: Git «Meus N» / «A rever N»; Jira «Tasks N» / «Aprovações N». O card da Sprint não tem abas: mostra «As minhas · N» e «Aprovações · N» uma por baixo da outra, com os totais reais. Só há abas quando a 2.ª lista está ligada e as duas têm conteúdo; senão o card mostra uma só lista. Ao abrir a ilha, muda para a outra aba se a atual não tiver itens e a outra tiver, ou se a outra tiver novidades por ver e a atual não tiver nenhuma (`TabChoice`, DrIslandCore). As novidades por aba seguem o canal «linha destacada» dos avisos.
 - Tudo o que é desenhado sobre o preto do notch (mini ilha, borda, pontos) usa cores para fundo escuro, mesmo no tema Claro.
+
+**Estilo: Camadas ou Bento** (Definições → Aparência → «Tema e tamanho» → «Estilo»; `islandStyle`, default Camadas)
+- **Camadas**: os blocos nas colunas escolhidas em «Layout».
+- **Bento**: em cima, números grandes (`KPITile`): Claude (% da sessão, reinicia em, barra), Pull requests (abertos, teus · a rever, barra dividida), Sprint (dia X / Y dias, tuas · aprovações, progresso) e Foco (tempo, ronda, pontos; clicar começa/pausa). Com 3 colunas juntam-se Jira (tasks, aprovações) e Avisos (eventos de hoje, clicar abre o histórico). 1 coluna: grelha 2×2; 2: uma linha de 4; 3: uma linha de 6. Fontes desligadas saem da faixa. Em Compacto cada número fica numa linha (ícone e valor).
+- Por baixo, as listas: os blocos do layout menos os que estão noutro sítio (Claude e Foco nos números, Música no dock, Avisos na faixa com menos de 3 colunas), redistribuídos pelas colunas para equilibrar as alturas (`BentoLayout`, DrIslandCore).
+- Faixa de avisos ao fundo (menos de 3 colunas; escondida com o Resumo do dia ativo): os últimos avisos lado a lado (4, ou 2 com 1 coluna), com origem e há quanto tempo; em Compacto, uma linha com o último.
+- Música no dock, quando há algo a tocar: capa, título, «a tocar» e play/pausa.
+- Largura: 1 coluna 400 pt (Compacto 340), 2 colunas 780 (620), 3 colunas 960 (800). `DR_ISLAND_STYLE=camadas|bento` força o estilo num arranque.
+- O logótipo da Doutor Finanças fica no canto inferior direito, ao lado do dock (nos dois estilos).
 
 **Temas** (Definições → Aparência → «Tema e tamanho», miniaturas)
 - Grafite (default, as cores originais), Meia-noite (gradiente azul-escuro), Aurora (dois brilhos, violeta e verde-azulado) e Claro (fundo claro com uma faixa preta de altura notch + 6 pt, para se fundir com o notch; cabeçalho em branco).
@@ -465,7 +474,7 @@ Ver [[#7. Avisos (alertas)]] para canais e regras, e a tabela de tons em [[#2. P
 | Atraso ao fechar | 0,2s |
 | Efeito / velocidade / elasticidade | Mola / 1,6× / 0,55 |
 | Atalho global | ⌃⌥I |
-| Tema / tamanho | Grafite / Normal |
+| Tema / tamanho / estilo | Grafite / Normal / Camadas |
 | Atalho para alternar o tamanho | desligado |
 | `alertConfetti` | ligado |
 | `showOwner` | ligado |

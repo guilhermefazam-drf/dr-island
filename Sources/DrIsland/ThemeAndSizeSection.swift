@@ -5,6 +5,7 @@ import DrIslandCore
 struct ThemeAndSizeSection: View {
     @AppStorage(SettingsKey.islandTheme) private var themeName = IslandTheme.grafite.rawValue
     @AppStorage(SettingsKey.islandDensity) private var density = IslandDensity.regular.rawValue
+    @AppStorage(SettingsKey.islandStyle) private var style = IslandStyle.camadas.rawValue
     @AppStorage(SettingsKey.densityHotKey) private var densityHotKey = HotKeyOption.off.rawValue
     @AppStorage(SettingsKey.hotKey) private var hotKey = HotKeyOption.default.rawValue
 
@@ -24,6 +25,14 @@ struct ThemeAndSizeSection: View {
                     }
                 }
             }
+            Picker("Estilo", selection: $style) {
+                ForEach(IslandStyle.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+            }
+            .pickerStyle(.segmented)
+            Text(IslandStyle(stored: style) == .bento
+                 ? "Bento: números grandes em cima (Claude, PRs, sprint, foco), as listas por baixo, os avisos numa faixa e a música no dock."
+                 : "Camadas: os teus blocos nas colunas que escolheste em «Layout».")
+                .font(.caption).foregroundStyle(.secondary)
             Picker("Tamanho", selection: $density) {
                 ForEach(IslandDensity.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
             }
