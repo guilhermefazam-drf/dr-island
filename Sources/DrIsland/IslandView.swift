@@ -388,12 +388,13 @@ struct IslandView: View {
     private var islandDensity: IslandDensity { IslandOverrides.density ?? IslandDensity(stored: densityName) }
     private var islandPalette: IslandPalette { islandTheme.palette }
     private var islandMetrics: IslandMetrics { IslandMetrics.forDensity(islandDensity) }
-    private static let columnGap: CGFloat = 14          // either side of the divider between columns
+    /// The gap between two columns (no divider: the cards already separate them).
+    private var columnGap: CGFloat { CGFloat(islandMetrics.cardGap) * 2 }
     private static let sidePadding: CGFloat = 24
 
     private var columnWidth: CGFloat {
         let n = CGFloat(layout.columnCount)
-        return (layoutWidth - 2 * Self.sidePadding - (n - 1) * (2 * Self.columnGap + 1)) / n
+        return (layoutWidth - 2 * Self.sidePadding - (n - 1) * columnGap) / n
     }
 
     /// The newest alerts (only the few shown are decoded from the stored history).
@@ -421,7 +422,7 @@ struct IslandView: View {
         case .focus: return showFocus
         case .history: return showHistory
         case .music: return true   // shown disabled when nothing is playing
-        case .alerts: return showAlertsBlock && !recentAlerts.isEmpty
+        case .alerts: return showAlertsBlock && !recentAlerts.isEmpty && !briefingActive   // the briefing lists the same entries
         case .briefing: return briefingActive
         case .timeline: return showTimeline
         }
@@ -443,11 +444,11 @@ struct IslandView: View {
             return CGFloat(m.listCard(rows: jiraShowsApprovals ? approvalRows.count : jiraRows.count))
         case .backlog: return card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated, metrics: m))
         case .focus: return card(FocusBlock.contentHeight(m))
-        case .history: return card(IslandLayout.historyContent)
+        case .history: return card(UsageHistoryChart.contentHeight(m))
         case .music: return card(MusicBlock.contentHeight(musicStore.nowPlaying, m))
-        case .alerts: return card(AlertsBlock.contentHeight(rows: min(recentAlerts.count, AlertsBlock.maxRows)))
-        case .briefing: return card(BriefingBlock.contentHeight(rows: min(briefingEntries.count, BriefingBlock.maxRows)))
-        case .timeline: return card(TimelineBlock.contentHeight)
+        case .alerts: return card(AlertsBlock.contentHeight(rows: min(recentAlerts.count, AlertsBlock.maxRows), metrics: m))
+        case .briefing: return card(BriefingBlock.contentHeight(rows: min(briefingEntries.count, BriefingBlock.maxRows), metrics: m))
+        case .timeline: return card(TimelineBlock.contentHeight(m))
         }
     }
 
@@ -463,7 +464,7 @@ struct IslandView: View {
     private var maxColumnHeight: CGFloat { screenHeight * 0.5 }
 
     /// The shortcuts dock sits under the columns, centred and always last, so it adds to the height on its own.
-    private var dockExtra: CGFloat { shortcuts.isEmpty ? 0 : CGFloat(islandMetrics.card(Double(IslandLayout.shortcutsContent)) + islandMetrics.sectionSpacing) }
+    private var dockExtra: CGFloat { shortcuts.isEmpty ? 0 : CGFloat(islandMetrics.card(Double(ShortcutsDock.contentHeight(islandMetrics))) + islandMetrics.sectionSpacing) }
 
     /// The tallest column (capped) plus the dock sets the island's height.
     private var columnsHeight: CGFloat { min(visibleColumns.map(naturalHeight(of:)).max() ?? 0, maxColumnHeight) }
@@ -996,11 +997,8 @@ struct IslandView: View {
 
     private var details: some View {
         VStack(spacing: CGFloat(islandMetrics.sectionSpacing)) {
-            HStack(alignment: .top, spacing: Self.columnGap) {
+            HStack(alignment: .top, spacing: columnGap) {
                 ForEach(Array(visibleColumns.enumerated()), id: \.offset) { index, column in
-                    if index > 0 {
-                        Rectangle().fill(Color(islandPalette.text).opacity(0.08)).frame(width: 1)
-                    }
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: CGFloat(islandMetrics.sectionSpacing)) {
                             ForEach(column, id: \.self) { block in
@@ -1009,7 +1007,9 @@ struct IslandView: View {
                         }
                         .frame(width: columnWidth, alignment: .topLeading)
                     }
+                    .defaultScrollAnchor(.top)   // a column that grows while open keeps its top in view
                     .frame(width: columnWidth, height: min(naturalHeight(of: column), maxColumnHeight), alignment: .top)
+                    .columnFade(active: naturalHeight(of: column) > maxColumnHeight)
                     .environment(\.islandColumnWidth, columnWidth)
                 }
             }

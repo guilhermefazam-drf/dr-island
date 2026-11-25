@@ -8,9 +8,21 @@ struct UsageHistoryChart: View {
     let amber: Double
     let red: Double
     @Environment(\.islandPalette) private var palette
+    @Environment(\.islandMetrics) private var metrics
+
+    static func contentHeight(_ m: IslandMetrics) -> CGFloat { CGFloat(m.cardHeader) + 6 + IslandLayout.historyContent }
 
     var body: some View {
         let days = UsageHistory.lastDays(14, from: history)
+        VStack(alignment: .leading, spacing: 6) {
+            CardHeader(title: "Uso · 14 dias", icon: "chart.bar", source: .history)
+            chart(days)
+        }
+        .frame(height: Self.contentHeight(metrics), alignment: .top)
+        .blockCard()
+    }
+
+    private func chart(_ days: [(date: Date, usage: DayUsage?)]) -> some View {
         VStack(spacing: 2) {
             HStack(alignment: .bottom, spacing: 3) {
                 ForEach(Array(days.enumerated()), id: \.element.date) { index, entry in
@@ -35,6 +47,5 @@ struct UsageHistoryChart: View {
             }
         }
         .frame(height: IslandLayout.historyContent, alignment: .bottom)
-        .blockCard()
     }
 }

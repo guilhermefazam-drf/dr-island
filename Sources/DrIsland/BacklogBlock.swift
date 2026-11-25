@@ -20,7 +20,7 @@ struct BacklogBlock: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CardTitle(title: "Backlog", icon: "tray.full")
+            CardHeader(title: "Backlog", icon: "tray.full", source: .backlog)
             if let message { ListNote(text: message) }
             ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                 if index > 0 { ListRule() }

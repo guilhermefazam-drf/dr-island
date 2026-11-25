@@ -6,16 +6,20 @@ struct ShortcutsDock: View {
     let shortcuts: [DevShortcut]
     @State private var pointerX: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.islandMetrics) private var metrics
 
-    private static let icon: CGFloat = 26
-    private static let spacing: CGFloat = 14
+    private var icon: CGFloat { CGFloat(metrics.dockIcon) }
+    private var spacing: CGFloat { icon * 0.45 }
+
+    /// The icon row plus room for an icon to grow under the pointer.
+    nonisolated static func contentHeight(_ m: IslandMetrics) -> CGFloat { CGFloat(m.dockIcon) + 8 }
 
     var body: some View {
-        HStack(spacing: Self.spacing) {
+        HStack(spacing: spacing) {
             ForEach(Array(shortcuts.enumerated()), id: \.element.id) { index, shortcut in
                 Button { ShortcutLauncher.open(shortcut) } label: {
                     Image(nsImage: AppIcons.icon(forFile: shortcut.appPath))
-                        .resizable().interpolation(.high).frame(width: Self.icon, height: Self.icon)
+                        .resizable().interpolation(.high).frame(width: icon, height: icon)
                 }
                 .buttonStyle(.plain)
                 .pointingHandCursor()
@@ -27,7 +31,7 @@ struct ShortcutsDock: View {
         }
         .coordinateSpace(.named("dock"))
         .onContinuousHover(coordinateSpace: .named("dock"), perform: track)
-        .frame(height: IslandLayout.shortcutsContent, alignment: .bottom)
+        .frame(height: Self.contentHeight(metrics), alignment: .bottom)
         .blockCard()
         .fixedSize()
         .frame(maxWidth: .infinity)   // centred under the columns
@@ -43,7 +47,7 @@ struct ShortcutsDock: View {
     /// 1 at rest, up to 1.7 right under the pointer, falling off smoothly over about two icons.
     private func scale(at index: Int) -> CGFloat {
         guard let x = pointerX, !reduceMotion else { return 1 }
-        let center = Self.icon / 2 + CGFloat(index) * (Self.icon + Self.spacing)
+        let center = icon / 2 + CGFloat(index) * (icon + spacing)
         let distance = abs(x - center)
         return 1 + 0.7 * exp(-pow(distance / 36, 2))
     }

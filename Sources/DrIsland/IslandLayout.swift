@@ -39,9 +39,6 @@ enum IslandLayout {
     static let costTileHeight: CGFloat = 38
     static let costExtra: CGFloat = 8 + costTileHeight
     static let historyContent: CGFloat = 42
-    static let shortcutsContent: CGFloat = 34
-    static let alertsHeader: CGFloat = 16
-    static let alertsRow: CGFloat = 22
 
     static func baseHeight(_ metrics: NotchMetrics) -> CGFloat { metrics.height + 116 }
     static func panelSize(_ metrics: NotchMetrics) -> CGSize {
@@ -55,8 +52,8 @@ enum IslandLayout {
         func card(_ content: CGFloat) -> CGFloat { CGFloat(m.card(Double(content))) }
         let prRowHeight = CGFloat(m.rowHeight), sectionSpacing = CGFloat(m.sectionSpacing)
         let claude = card(CGFloat(m.cardHeader) + 8 + max(claudeBarBody + forecastExtra, CGFloat(m.ringSize)) + costExtra)
-        let blocks = claude + card(FocusBlock.contentHeight(m)) + card(MusicBlock.maxContentHeight(m)) + card(historyContent) + card(shortcutsContent)
-            + card(16 + 6 + 4 * alertsRow) + card(BriefingBlock.contentHeight(rows: BriefingBlock.maxRows)) + card(TimelineBlock.contentHeight)
+        let blocks = claude + card(FocusBlock.contentHeight(m)) + card(MusicBlock.maxContentHeight(m)) + card(UsageHistoryChart.contentHeight(m)) + card(ShortcutsDock.contentHeight(m))
+            + card(AlertsBlock.contentHeight(rows: AlertsBlock.maxRows, metrics: m)) + card(BriefingBlock.contentHeight(rows: BriefingBlock.maxRows, metrics: m)) + card(TimelineBlock.contentHeight(m))
         let lists = 4 * (prHeaderHeight + CGFloat(expandedRowLimit + 2) * prRowHeight)
         return metrics.height + 6 + 10 + blocks + lists + 12 * sectionSpacing
     }
