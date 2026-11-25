@@ -3,6 +3,7 @@ import DrIslandCore
 
 /// Where the sprint's work is, how long it stays in each status and what is stuck.
 struct FlowCard: View {
+    @Environment(\.islandMetrics) private var metrics
     let store: ManagementStore
 
     var body: some View {
@@ -16,7 +17,7 @@ struct FlowCard: View {
                 ListNote(text: ManagementStateMessage.text(for: store))
             }
         }
-        .frame(maxWidth: .infinity, minHeight: IslandLayout.managementCardContent, maxHeight: IslandLayout.managementCardContent, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: IslandLayout.managementCardContent(metrics), maxHeight: IslandLayout.managementCardContent(metrics), alignment: .topLeading)
         .blockCard()
     }
 }

@@ -11,4 +11,15 @@ extension PRChange.Tone {
         case .neutral: return .gray
         }
     }
+
+    /// The tone's colour in the island's theme.
+    func color(in palette: IslandPalette) -> Color {
+        switch self {
+        case .critical: Color(palette.red)
+        case .warning: Color(palette.amber)
+        case .info: Color(palette.info)
+        case .success: Color(palette.green)
+        case .neutral: Color(palette.neutral)
+        }
+    }
 }

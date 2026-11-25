@@ -13,6 +13,7 @@ struct BriefingBlock: View {
     let entries: [AlertEntry]
     let since: Date
     let dismiss: () -> Void
+    @Environment(\.islandPalette) private var palette
 
     nonisolated static let maxRows = 5
     nonisolated static let summaryHeight: CGFloat = 16
@@ -25,15 +26,15 @@ struct BriefingBlock: View {
         let shown = Array(entries.prefix(Self.maxRows))
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Label(DayBriefing.sinceLabel(since, now: Date()), systemImage: "sunrise").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                Label(DayBriefing.sinceLabel(since, now: Date()), systemImage: "sunrise").font(.caption.weight(.medium)).foregroundStyle(Color(palette.textSecondary))
                 Spacer()
-                Button(action: dismiss) { Text("ok").font(.caption2.weight(.semibold)).foregroundStyle(linkBlue) }
+                Button(action: dismiss) { Text("ok").font(.caption2.weight(.semibold)).foregroundStyle(Color(palette.info)) }
                     .buttonStyle(.plain).pointingHandCursor()
                     .islandTip("Marcar como visto")
             }
             .frame(height: IslandLayout.alertsHeader)
             Text(entries.isEmpty ? "Sem novidades" : DayBriefing.summary(entries) + (entries.count > Self.maxRows ? " · \(entries.count - Self.maxRows) mais" : ""))
-                .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                .font(.caption2).foregroundStyle(Color(palette.textSecondary)).lineLimit(1)
                 .frame(height: Self.summaryHeight, alignment: .leading)
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(shown) { EntryRow(entry: $0, caption: clock($0.date)) }

@@ -3,6 +3,7 @@ import DrIslandCore
 
 /// The burndown of the selected sprint on a card in the island's style.
 struct BurndownCard: View {
+    @Environment(\.islandMetrics) private var metrics
     let store: ManagementStore
 
     var body: some View {
@@ -18,7 +19,7 @@ struct BurndownCard: View {
                 ListNote(text: ManagementStateMessage.text(for: store))
             }
         }
-        .frame(maxWidth: .infinity, minHeight: IslandLayout.managementCardContent, maxHeight: IslandLayout.managementCardContent, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: IslandLayout.managementCardContent(metrics), maxHeight: IslandLayout.managementCardContent(metrics), alignment: .topLeading)
         .blockCard()
     }
 }

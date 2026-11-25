@@ -10,19 +10,20 @@ struct UsageBar: View {
     var height: CGFloat = 6
     var ticks: [Double] = []
     var marker: Double?
+    @Environment(\.islandPalette) private var palette
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.12))
+                Capsule().fill(Color(palette.text).opacity(0.12))
                 Capsule().fill(color).frame(width: max(geo.size.width * min(max(fraction, 0), 1), height))
                     .animation(.easeOut(duration: 0.5), value: fraction)
                 ForEach(ticks, id: \.self) { tick in
-                    Rectangle().fill(Color.black.opacity(0.55)).frame(width: 1.5, height: height)
+                    Rectangle().fill(Color(palette.base.last!).opacity(0.55)).frame(width: 1.5, height: height)
                         .offset(x: geo.size.width * tick - 0.75)
                 }
                 if let marker, marker < 1 {
-                    Rectangle().fill(Color.white.opacity(0.9)).frame(width: 1.5, height: height)
+                    Rectangle().fill(Color(palette.text).opacity(0.9)).frame(width: 1.5, height: height)
                         .offset(x: geo.size.width * marker - 0.75)
                 }
             }

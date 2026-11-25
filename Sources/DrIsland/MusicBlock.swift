@@ -5,6 +5,7 @@ import DrIslandCore
 struct MusicBlock: View {
     let store: MusicStore
     @Environment(\.islandColumnWidth) private var columnWidth
+    @Environment(\.islandPalette) private var palette
 
     /// The block's height for a given track: the progress row only exists when the source tells the length.
     static func contentHeight(_ playing: NowPlaying) -> CGFloat {
@@ -20,11 +21,11 @@ struct MusicBlock: View {
                     if store.needsAccessibility || store.needsAutomation {
                         Button { store.requestPermission() } label: {
                             Text(store.needsAutomation ? "Permite o Dr Island em Automação — toca para pedir" : "Permite o Dr Island em Acessibilidade — toca para pedir")
-                                .font(.caption2).foregroundStyle(Brand.amber).lineLimit(1)
+                                .font(.caption2).foregroundStyle(Color(palette.amber)).lineLimit(1)
                         }
                         .buttonStyle(.plain)
                     } else {
-                        MarqueeText(text: subtitle(playing), font: .caption, color: .secondary)
+                        MarqueeText(text: subtitle(playing), font: .caption, color: Color(palette.textSecondary))
                     }
                     if playing.duration != nil { progress(playing) }
                     HStack(spacing: 14) {
@@ -47,12 +48,12 @@ struct MusicBlock: View {
     /// Nothing playing: the block stays in place, dimmed and inert.
     private var idle: some View {
         HStack(spacing: 12) {
-            Image(systemName: "music.note").font(.title2).foregroundStyle(.secondary)
-                .frame(width: 64, height: 64).background(Color.white.opacity(0.08))
+            Image(systemName: "music.note").font(.title2).foregroundStyle(Color(palette.textSecondary))
+                .frame(width: 64, height: 64).background(Color(palette.text).opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Nada a tocar").font(.system(size: 13, weight: .semibold))
-                Text("Abre uma música para a controlar aqui").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text("Abre uma música para a controlar aqui").font(.caption).foregroundStyle(Color(palette.textSecondary)).lineLimit(1)
                 HStack(spacing: 14) {
                     Spacer(minLength: 0)
                     CircleButton(symbol: "backward.fill", help: "Anterior") {}
@@ -75,8 +76,8 @@ struct MusicBlock: View {
                 if let art = store.artwork {
                     Image(nsImage: art).resizable().scaledToFill()
                 } else {
-                    Image(systemName: "music.note").font(.title2).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.white.opacity(0.08))
+                    Image(systemName: "music.note").font(.title2).foregroundStyle(Color(palette.textSecondary))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(palette.text).opacity(0.08))
                 }
             }
             .frame(width: 64, height: 64)
@@ -94,10 +95,10 @@ struct MusicBlock: View {
             let length = playing.duration ?? 1
             HStack(spacing: 6) {
                 Text(Self.clock(position)).frame(width: 34, alignment: .trailing)
-                UsageBar(fraction: position / length, color: .white.opacity(0.85), height: 3.5)
+                UsageBar(fraction: position / length, color: Color(palette.text).opacity(0.85), height: 3.5)
                 Text(Self.clock(length)).frame(width: 34, alignment: .leading)
             }
-            .font(.system(size: 9).monospacedDigit()).foregroundStyle(.secondary)
+            .font(.system(size: 9).monospacedDigit()).foregroundStyle(Color(palette.textSecondary))
         }
         .frame(height: 12)
     }

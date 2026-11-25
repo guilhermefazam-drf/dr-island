@@ -66,7 +66,8 @@ struct IslandView: View {
     @AppStorage(SettingsKey.showForecast) private var showForecast = true
     @AppStorage(SettingsKey.alertBanner) private var alertBanner = false
     @State private var alertOpacity: Double = 0
-    @State private var alertColor: Color = PRChange.Tone.info.color
+    @State private var alertTone: PRChange.Tone = .info
+    private var alertColor: Color { alertTone.color(in: islandPalette) }
     /// Silhouette progress (0 = notch, 1 = expanded); width and height are staged separately per effect.
     @State private var widthProgress: CGFloat = 0
     @State private var heightProgress: CGFloat = 0
@@ -111,6 +112,8 @@ struct IslandView: View {
         .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
         .coordinateSpace(.named(islandRootSpace))
         .environment(tips)
+        .environment(\.islandPalette, islandPalette)
+        .environment(\.islandMetrics, islandMetrics)
         .animation(.easeOut(duration: 0.2), value: state.expanded)
         .animation(.easeInOut(duration: 0.2), value: syncing)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: prStore.unseen.isEmpty)
@@ -304,10 +307,6 @@ struct IslandView: View {
         }
     }
 
-    private func sectionHeight(rows: Int) -> CGFloat {
-        rows == 0 ? 0 : IslandLayout.sectionSpacing + IslandLayout.prHeaderHeight + CGFloat(rows) * IslandLayout.prRowHeight
-    }
-
     /// Pinned apps that still exist on disk (an uninstalled app just disappears from the row).
     private var shortcuts: [DevShortcut] {
         ShortcutList.decode(shortcutsJSON).filter { FileManager.default.fileExists(atPath: $0.appPath) }
@@ -385,7 +384,7 @@ struct IslandView: View {
             return CGFloat(m.listCard(sections: counts))
         case .jira:
             return CGFloat(m.listCard(sections: [jiraRows.count, approvalRows.count]))
-        case .backlog: return card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated))
+        case .backlog: return card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated, metrics: m))
         case .focus: return card(IslandLayout.focusContent)
         case .history: return card(IslandLayout.historyContent)
         case .music: return card(musicStore.nowPlaying.map(MusicBlock.contentHeight) ?? IslandLayout.musicContent)
@@ -420,7 +419,7 @@ struct IslandView: View {
 
     /// Cards side by side from two columns on; capped like the overview's columns, and they scroll beyond it.
     private var managementColumns: Int { layout.columnCount >= 2 ? 2 : 1 }
-    private var managementGridHeight: CGFloat { min(IslandLayout.managementGrid(columns: managementColumns), maxColumnHeight) }
+    private var managementGridHeight: CGFloat { min(IslandLayout.managementGrid(columns: managementColumns, metrics: islandMetrics), maxColumnHeight) }
     private var managementHeight: CGFloat {
         metrics.height + 6 + IslandLayout.managementHeader + 8 + managementGridHeight + 10
     }
@@ -432,7 +431,7 @@ struct IslandView: View {
     @ViewBuilder private var attentionDot: some View {
         if !state.expanded, !state.fullscreen, !state.splashPending, prStore.attention != .none {
             Circle()
-                .fill(prStore.attention == .critical ? Color.red : Color.orange)
+                .fill(prStore.attention == .critical ? Color(islandPalette.red) : Color(islandPalette.amber))
                 .frame(width: 7, height: 7)
                 .offset(x: metrics.width / 2 + CGFloat(thickness) + 9, y: metrics.height / 2 - 3.5)
                 .transition(.opacity)
@@ -491,12 +490,12 @@ struct IslandView: View {
             ForEach(segments.indices, id: \.self) { i in
                 let s = segments[i]
                 outline.trim(from: min(max(newSessionLap - s.from, 0), 1), to: min(max(newSessionLap - s.to, 0), 1))
-                    .stroke(i == segments.count - 1 ? Color.white : Brand.green, style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
-                    .shadow(color: Brand.green.opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
+                    .stroke(i == segments.count - 1 ? Color.white : Color(islandPalette.green), style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
+                    .shadow(color: Color(islandPalette.green).opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
                     .opacity(s.opacity)
             }
-            outline.stroke(Brand.green, style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
-                .shadow(color: Brand.green.opacity(0.9), radius: 7)
+            outline.stroke(Color(islandPalette.green), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
+                .shadow(color: Color(islandPalette.green).opacity(0.9), radius: 7)
                 .opacity(newSessionFlash)
         }
         .frame(width: IslandLayout.peekWidth, height: miniHeight, alignment: .top)
@@ -518,12 +517,12 @@ struct IslandView: View {
 
     private func alertRow(_ change: PRChange) -> some View {
         HStack(spacing: 6) {
-            Circle().fill(change.tone.color).frame(width: 7, height: 7).frame(width: 14)
-            Text(change.kind.origin).font(.system(size: 9, weight: .bold)).foregroundStyle(.white.opacity(0.55))
-            Text(change.ref).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-            Text(change.title).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
+            Circle().fill(change.tone.color(in: islandPalette)).frame(width: 7, height: 7).frame(width: 14)
+            Text(change.kind.origin).font(.system(size: 9, weight: .bold)).foregroundStyle(Color(islandPalette.textTertiary))
+            Text(change.ref).font(.caption2.monospacedDigit()).foregroundStyle(Color(islandPalette.textSecondary))
+            Text(change.title).font(.caption).foregroundStyle(Color(islandPalette.text).opacity(0.9)).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 4)
-            RowTag(change.label, change.tone.color)
+            RowTag(change.label, change.tone.color(in: islandPalette))
         }
         .frame(height: IslandLayout.peekRowHeight)
     }
@@ -532,7 +531,7 @@ struct IslandView: View {
     @ViewBuilder private var newsDot: some View {
         if alertDot, !state.expanded, !state.fullscreen, !state.splashPending, !prStore.unseen.isEmpty {
             Circle()
-                .fill(PRChange.Tone.info.color)
+                .fill(PRChange.Tone.info.color(in: islandPalette))
                 .frame(width: 7, height: 7)
                 .offset(x: metrics.width / 2 + CGFloat(thickness) + 9 + (prStore.attention != .none ? 11 : 0), y: metrics.height / 2 - 3.5)
                 .transition(.scale.combined(with: .opacity))
@@ -552,7 +551,7 @@ struct IslandView: View {
 
     private func playAlertPulse() {
         guard alertPulse, !state.expanded else { return }
-        alertColor = (prStore.lastChanges.map(\.tone).max() ?? .info).color
+        alertTone = prStore.lastChanges.map(\.tone).max() ?? .info
         alertOnMini = alertBanner
         flashAlert(times: 2)
     }
@@ -578,9 +577,8 @@ struct IslandView: View {
         }
     }
 
-    /// The thin rule between two parts of a Git / Jira card.
     private func color(forFraction fraction: Double) -> Color {
-        Brand.color(forFraction: fraction, amber: amber, red: red)
+        Brand.color(forFraction: fraction, amber: amber, red: red, palette: islandPalette)
     }
 
     private var ringOpacity: Double {
@@ -589,7 +587,7 @@ struct IslandView: View {
     }
 
     private var statusColor: Color {
-        store.hasValue ? color(forFraction: store.sessionFraction) : .gray
+        store.hasValue ? color(forFraction: store.sessionFraction) : Color(islandPalette.neutral)
     }
 
     // MARK: Collapsed ring
@@ -609,16 +607,16 @@ struct IslandView: View {
                         .stroke(statusColor.opacity(ringOpacity), style: StrokeStyle(lineWidth: t + 1.5 * glow, lineCap: .round))
                         .shadow(color: statusColor.opacity((0.45 + 0.5 * glow) * ringOpacity), radius: 2.5 + 5 * glow)
                 } else if !store.hasValue && store.status != .loading {
-                    shape.stroke(Color.gray.opacity(0.6), style: StrokeStyle(lineWidth: t, dash: [3, 4]))
+                    shape.stroke(Color(islandPalette.neutral).opacity(0.6), style: StrokeStyle(lineWidth: t, dash: [3, 4]))
                 }
                 focusRing(shape, thickness: t)
                 if isOffline {
-                    shape.stroke(Brand.red, style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
-                        .shadow(color: Brand.red.opacity(0.8), radius: 5)
+                    shape.stroke(Color(islandPalette.red), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
+                        .shadow(color: Color(islandPalette.red).opacity(0.8), radius: 5)
                 }
                 newSessionComet(shape, thickness: t)
-                shape.stroke(Brand.green, style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
-                    .shadow(color: Brand.green.opacity(0.9), radius: 7)
+                shape.stroke(Color(islandPalette.green), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
+                    .shadow(color: Color(islandPalette.green).opacity(0.9), radius: 7)
                     .opacity(newSessionFlash)
             }
             .overlay {
@@ -640,7 +638,7 @@ struct IslandView: View {
     /// ring, which stays visible dimmed underneath. Hidden when the timer is stopped.
     @ViewBuilder private func focusRing(_ shape: NotchRing, thickness t: CGFloat) -> some View {
         if focusStore.timer.isRunning {
-            let tint = focusStore.timer.phase == .focus ? Brand.blue : Brand.green
+            let tint = focusStore.timer.phase == .focus ? Color(islandPalette.accent) : Color(islandPalette.green)
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let progress = max(focusStore.timer.progress(now: context.date, focusStore.config), 0.004)
                 ZStack {
@@ -664,8 +662,8 @@ struct IslandView: View {
         ForEach(segments.indices, id: \.self) { i in
             let s = segments[i]
             shape.trim(from: min(max(newSessionLap - s.from, 0), 1), to: min(max(newSessionLap - s.to, 0), 1))
-                .stroke(i == segments.count - 1 ? Color.white : Brand.green, style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
-                .shadow(color: Brand.green.opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
+                .stroke(i == segments.count - 1 ? Color.white : Color(islandPalette.green), style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
+                .shadow(color: Color(islandPalette.green).opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
                 .opacity(s.opacity)
         }
     }
@@ -676,8 +674,8 @@ struct IslandView: View {
             ForEach([-1.0, 1.0], id: \.self) { side in
                 Image(systemName: "sparkle")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(side < 0 ? Brand.green : Color.white)
-                    .shadow(color: Brand.green.opacity(0.9), radius: 4)
+                    .foregroundStyle(side < 0 ? Color(islandPalette.green) : Color.white)
+                    .shadow(color: Color(islandPalette.green).opacity(0.9), radius: 4)
                     .scaleEffect(0.3 + 0.9 * newSessionSparkle)
                     .rotationEffect(.degrees(side * 90 * (1 - newSessionSparkle)))
                     .opacity(newSessionSparkle)
@@ -806,7 +804,7 @@ struct IslandView: View {
             .frame(width: layoutWidth, height: contentHeight)
             .animation(state.isSwiping ? nil : resizeAnimation, value: contentHeight)
             .animation(resizeAnimation, value: layoutWidth)
-            .background(alignment: .top) { shape.fill(Color.black) }
+            .background(alignment: .top) { shape.fill(Color(islandPalette.base.last!)) }
             .overlay(alignment: .topLeading) { watermark.opacity(showContent ? 1 : 0) }   // fixed: it stays on both pages
             .overlay(alignment: .topTrailing) { HStack(spacing: 2) { restartButton; gearButton } }
             .overlay(alignment: .bottom) {
@@ -834,7 +832,7 @@ struct IslandView: View {
 
     private var restartButton: some View {
         Button(action: { ErrorLog.relaunch() }) {
-            Image(systemName: "arrow.clockwise").font(.system(size: 12)).foregroundStyle(.secondary)
+            Image(systemName: "arrow.clockwise").font(.system(size: 12)).foregroundStyle(Color(islandPalette.textSecondary))
                 .frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -847,7 +845,7 @@ struct IslandView: View {
 
     private var gearButton: some View {
         Button(action: openSettings) {
-            Image(systemName: "gearshape").font(.system(size: 13)).foregroundStyle(.secondary)
+            Image(systemName: "gearshape").font(.system(size: 13)).foregroundStyle(Color(islandPalette.textSecondary))
                 .frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -919,7 +917,7 @@ struct IslandView: View {
             HStack(alignment: .top, spacing: Self.columnGap) {
                 ForEach(Array(visibleColumns.enumerated()), id: \.offset) { index, column in
                     if index > 0 {
-                        Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1)
+                        Rectangle().fill(Color(islandPalette.text).opacity(0.08)).frame(width: 1)
                     }
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: CGFloat(islandMetrics.sectionSpacing)) {
@@ -941,8 +939,7 @@ struct IslandView: View {
         .padding(.bottom, 10)
         .frame(maxHeight: .infinity, alignment: .top)
         .preferredColorScheme(.dark)
-        .environment(\.islandPalette, islandPalette)
-        .environment(\.islandMetrics, islandMetrics)
+        .foregroundStyle(Color(islandPalette.text))
     }
 
     /// The second page: the manager's burndown, in the same side padding as the overview.
@@ -953,15 +950,14 @@ struct IslandView: View {
             .padding(.bottom, 10)
             .frame(maxHeight: .infinity, alignment: .top)
             .preferredColorScheme(.dark)
-            .environment(\.islandPalette, islandPalette)
-            .environment(\.islandMetrics, islandMetrics)
+            .foregroundStyle(Color(islandPalette.text))
     }
 
     /// The Doutor Finanças logo, small, white and translucent in the top-left corner of the island (level with the notch), like a watermark.
     @ViewBuilder private var watermark: some View {
         if let logo = Brand.logo {
             Image(nsImage: logo).renderingMode(.template).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color(islandPalette.text))
                 .frame(height: 16)
                 .opacity(0.6)
                 .frame(height: metrics.height)
@@ -987,7 +983,7 @@ struct IslandView: View {
     private func bar(fraction: Double, color: Color, height: CGFloat) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.14))
+                Capsule().fill(Color(islandPalette.text).opacity(0.14))
                 Capsule().fill(color).frame(width: geo.size.width * fraction)
             }
         }
@@ -998,7 +994,7 @@ struct IslandView: View {
         if let date {
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 Text("\(prefix) \(RemainingTime.string(until: date, now: context.date))")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.caption2).foregroundStyle(Color(islandPalette.textSecondary))
             }
         }
     }

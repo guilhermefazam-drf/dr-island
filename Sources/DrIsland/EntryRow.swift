@@ -6,13 +6,14 @@ import DrIslandCore
 struct EntryRow: View {
     let entry: AlertEntry
     let caption: String
+    @Environment(\.islandPalette) private var palette
 
     var body: some View {
         let content = HStack(spacing: 8) {
-            Circle().fill(entry.tone.color).frame(width: 7, height: 7)
-            Text(entry.displayMessage).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
+            Circle().fill(entry.tone.color(in: palette)).frame(width: 7, height: 7)
+            Text(entry.displayMessage).font(.caption).foregroundStyle(Color(palette.text).opacity(0.9)).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 4)
-            Text(caption).font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+            Text(caption).font(.caption2).foregroundStyle(Color(palette.textSecondary)).monospacedDigit()
         }
         .frame(height: IslandLayout.alertsRow)
         .contentShape(Rectangle())

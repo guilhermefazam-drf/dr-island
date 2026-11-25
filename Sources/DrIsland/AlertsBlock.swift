@@ -5,6 +5,7 @@ import DrIslandCore
 struct AlertsBlock: View {
     let entries: [AlertEntry]
     let openAll: () -> Void
+    @Environment(\.islandPalette) private var palette
 
     static let maxRows = 4
 
@@ -16,10 +17,10 @@ struct AlertsBlock: View {
         let shown = Array(entries.prefix(Self.maxRows))
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Label("Avisos recentes", systemImage: "bell").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                Label("Avisos recentes", systemImage: "bell").font(.caption.weight(.medium)).foregroundStyle(Color(palette.textSecondary))
                 Spacer()
                 Button(action: openAll) {
-                    Text("ver tudo").font(.caption2).foregroundStyle(Color(red: 0.45, green: 0.68, blue: 1.0))
+                    Text("ver tudo").font(.caption2).foregroundStyle(Color(palette.info))
                 }
                 .buttonStyle(.plain).pointingHandCursor()
             }
@@ -36,10 +37,10 @@ struct AlertsBlock: View {
 
     private func row(_ entry: AlertEntry, now: Date) -> some View {
         let content = HStack(spacing: 8) {
-            Circle().fill(entry.tone.color).frame(width: 7, height: 7)
-            Text(entry.displayMessage).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
+            Circle().fill(entry.tone.color(in: palette)).frame(width: 7, height: 7)
+            Text(entry.displayMessage).font(.caption).foregroundStyle(Color(palette.text).opacity(0.9)).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 4)
-            Text(Self.relative(entry.date, now: now)).font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+            Text(Self.relative(entry.date, now: now)).font(.caption2).foregroundStyle(Color(palette.textSecondary)).monospacedDigit()
         }
         .frame(height: IslandLayout.alertsRow)
         .contentShape(Rectangle())

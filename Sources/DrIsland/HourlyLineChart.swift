@@ -11,6 +11,7 @@ struct HourlyLineChart: View {
     var nowHour: Int?
     var height: CGFloat
     var labelStride = 3
+    @Environment(\.islandPalette) private var palette
 
     private static let axisHeight: CGFloat = 12
 
@@ -27,19 +28,19 @@ struct HourlyLineChart: View {
             }
             ZStack(alignment: .topLeading) {
                 Path { p in p.move(to: CGPoint(x: 0, y: plotH)); p.addLine(to: CGPoint(x: width, y: plotH)) }
-                    .stroke(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
-                Self.area(points, base: plotH).fill(LinearGradient(colors: [Brand.blue.opacity(0.35), Brand.blue.opacity(0)], startPoint: .top, endPoint: .bottom))
-                Self.line(points).stroke(Brand.blue, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                    .stroke(Color(palette.textSecondary).opacity(0.3), style: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
+                Self.area(points, base: plotH).fill(LinearGradient(colors: [Color(palette.accent).opacity(0.35), Color(palette.accent).opacity(0)], startPoint: .top, endPoint: .bottom))
+                Self.line(points).stroke(Color(palette.accent), style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
                 ForEach(hours.indices, id: \.self) { i in
                     let isNow = hours[i] == nowHour
                     if values[i] > 0 || isNow {
-                        Circle().fill(isNow ? Brand.green : Brand.blue).frame(width: isNow ? 6 : 4, height: isNow ? 6 : 4)
+                        Circle().fill(isNow ? Color(palette.green) : Color(palette.accent)).frame(width: isNow ? 6 : 4, height: isNow ? 6 : 4)
                             .position(points[i])
                     }
                 }
                 ForEach(labelHours(hours), id: \.self) { hour in
                     if let i = hours.firstIndex(of: hour) {
-                        Text(hour.formatted(.number.precision(.integerLength(2))) + "h").font(.system(size: 9)).foregroundStyle(.secondary).monospacedDigit()
+                        Text(hour.formatted(.number.precision(.integerLength(2))) + "h").font(.system(size: 9)).foregroundStyle(Color(palette.textSecondary)).monospacedDigit()
                             .position(x: min(max(points[i].x, 10), width - 10), y: plotH + 4 + Self.axisHeight / 2)
                     }
                 }

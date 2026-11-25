@@ -14,30 +14,25 @@ enum IslandLayout {
     static let splashRowHeight: CGFloat = 40
     /// Rows shown per section after "+N mais" (anything beyond is summarised).
     static let expandedRowLimit = 8
-    static let prRowHeight: CGFloat = 25
     static let prHeaderHeight: CGFloat = 26
-    /// A list inside a card: its title row (shorter, the card already pads the top) and the rule between two lists.
-    static let cardListHeader: CGFloat = 20
-    static let listRule: CGFloat = 13
-    /// The title row of a Git / Jira card (a 16 pt label and the gap under it).
-    static let cardTitle: CGFloat = 20
 
     // The «Gestão» page: header strip, the burndown card (title, chart, legend, summary) and the gaps between.
     static let managementHeader: CGFloat = 24
     static let managementChart: CGFloat = 110
     static let managementSummary: CGFloat = 18
     static let managementFlowRow: CGFloat = 14
-    static let managementCardContent: CGFloat = cardTitle + 6 + managementChart + 6 + 14 + 6 + managementSummary
+    /// A «Gestão» card's content: its title row, the chart, the legend and the summary.
+    static func managementCardContent(_ m: IslandMetrics) -> CGFloat {
+        CGFloat(m.cardHeader) + 6 + managementChart + 6 + 14 + 6 + managementSummary
+    }
     static let managementCardGap: CGFloat = 8
     /// The cards of the «Gestão» page: four in a column, or two rows of two when the island is wide.
-    static func managementGrid(columns: Int) -> CGFloat {
+    static func managementGrid(columns: Int, metrics m: IslandMetrics) -> CGFloat {
         let rows: CGFloat = columns >= 2 ? 2 : 4
-        return rows * card(managementCardContent) + (rows - 1) * managementCardGap
+        return rows * CGFloat(m.card(Double(managementCardContent(m)))) + (rows - 1) * managementCardGap
     }
 
-    static let sectionSpacing: CGFloat = 16
-    static let cardPadding: CGFloat = 10
-    // Content heights of the blocks; a block drawn on a card adds `cardPadding` on each side.
+    // Content heights of the blocks; a block drawn on a card adds the density's card padding on each side.
     static let claudeHeight: CGFloat = 100
     static let claudeRingHeight: CGFloat = 108   // header + a 84 pt ring; the forecast fits beside it
     static let forecastExtra: CGFloat = 27        // the "esgota às" chip and its spacing
@@ -50,15 +45,18 @@ enum IslandLayout {
     static let shortcutsContent: CGFloat = 34
     static let alertsHeader: CGFloat = 16
     static let alertsRow: CGFloat = 22
-    static func card(_ content: CGFloat) -> CGFloat { content + 2 * cardPadding }
 
     static func baseHeight(_ metrics: NotchMetrics) -> CGFloat { metrics.height + 116 }
     static func panelSize(_ metrics: NotchMetrics) -> CGSize {
         CGSize(width: CGFloat(IslandLayoutConfig.maxWidth) + 2 * overshootX, height: maxHeight(metrics) + overshootY)
     }
 
-    /// The tallest island possible: every block in a single column, the lists fully expanded.
+    /// The tallest island possible: every block in a single column, the lists fully expanded. Uses the roomiest
+    /// density, so the panel is big enough for any.
     static func maxHeight(_ metrics: NotchMetrics) -> CGFloat {
+        let m = IslandMetrics.forDensity(.regular)
+        func card(_ content: CGFloat) -> CGFloat { CGFloat(m.card(Double(content))) }
+        let prRowHeight = CGFloat(m.rowHeight), sectionSpacing = CGFloat(m.sectionSpacing)
         let blocks = max(claudeHeight + forecastExtra, claudeRingHeight) + costExtra + card(focusContent) + card(musicContentWithProgress) + card(historyContent) + card(shortcutsContent)
             + card(16 + 6 + 4 * alertsRow) + card(BriefingBlock.contentHeight(rows: BriefingBlock.maxRows)) + card(TimelineBlock.contentHeight)
         let lists = 4 * (prHeaderHeight + CGFloat(expandedRowLimit + 2) * prRowHeight)

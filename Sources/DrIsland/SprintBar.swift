@@ -6,8 +6,8 @@ import DrIslandCore
 /// left) are in the tooltip, which `tooltip` builds.
 struct SprintBar: View {
     let sprint: SprintInfo
-    let amber: Color
-    let red: Color
+    @Environment(\.islandPalette) private var palette
+    @Environment(\.islandMetrics) private var metrics
 
     static let width: CGFloat = 72
 
@@ -33,12 +33,12 @@ struct SprintBar: View {
             let progress = sprint.progress(now: context.date)
             let tint = color(sprint.level(now: context.date))
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.14))
+                Capsule().fill(Color(palette.text).opacity(0.14))
                 Capsule().fill(tint).frame(width: max(Self.width * progress, progress > 0 ? 5 : 0))
             }
             .frame(width: Self.width, height: 6)
             // A 6 pt bar is hard to hover: the hit area (and so the tooltip) is a taller strip around it.
-            .frame(width: Self.width + 8, height: IslandLayout.cardTitle - 4)   // as tall as the title row
+            .frame(width: Self.width + 8, height: CGFloat(metrics.cardHeader) - 4)   // as tall as the title row
             .contentShape(Rectangle())
             .islandTip(Self.tooltip(sprint, now: context.date))
         }
@@ -46,9 +46,9 @@ struct SprintBar: View {
 
     private func color(_ level: SprintInfo.Level) -> Color {
         switch level {
-        case .normal: return Brand.blue
-        case .warning: return amber
-        case .critical: return red
+        case .normal: return Color(palette.accent)
+        case .warning: return Color(palette.amber)
+        case .critical: return Color(palette.red)
         }
     }
 }

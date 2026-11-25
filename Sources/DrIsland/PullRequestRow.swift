@@ -9,41 +9,43 @@ struct PullRequestRow: View {
     /// The unseen change on this PR, shown as a tag and a tinted row (nil with row alerts off).
     let change: PRChange?
     @AppStorage(SettingsKey.prMutes) private var mutesJSON = "[]"
+    @Environment(\.islandPalette) private var palette
+    @Environment(\.islandMetrics) private var metrics
 
     var body: some View {
         Button { NSWorkspace.shared.open(pr.url) } label: {
             HStack(spacing: 8) {
-                Image(systemName: Self.ciSymbol(pr.ci)).foregroundStyle(Self.ciColor(pr.ci)).frame(width: 14)
+                Image(systemName: Self.ciSymbol(pr.ci)).foregroundStyle(Self.ciColor(pr.ci, palette)).frame(width: 14)
                     .islandTip(Self.ciText(pr.ci))
-                if pr.hasConflicts { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).islandTip("Conflitos com a branch base") }
+                if pr.hasConflicts { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color(palette.amber)).islandTip("Conflitos com a branch base") }
                 ReviewIcon(pr: pr)
                 Text("#\(pr.number)")
-                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                Text(pr.title).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
+                    .font(.caption2.monospacedDigit()).foregroundStyle(Color(palette.textSecondary))
+                Text(pr.title).font(.caption).foregroundStyle(Color(palette.text).opacity(0.9)).lineLimit(1).truncationMode(.tail)
                 Spacer(minLength: 4)
                 if let change {
-                    RowTag(change.label, change.tone.color)
+                    RowTag(change.label, change.tone.color(in: palette))
                 } else if let reason = attentionReason {
-                    RowTag(reason.text, reason.tone.color)
+                    RowTag(reason.text, reason.tone.color(in: palette))
                 }
                 if pr.role == .authored, let comments = pr.unresolvedThreadCount, comments > 0 {
                     HStack(spacing: 2) {
                         Image(systemName: "bubble.left.fill").font(.system(size: 8))
                         Text("\(comments)").font(.system(size: 9, weight: .semibold).monospacedDigit())
                     }
-                    .foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 5).padding(.vertical, 1).background(Capsule().fill(Color.white.opacity(0.14)))
+                    .foregroundStyle(Color(palette.text).opacity(0.85))
+                    .padding(.horizontal, 5).padding(.vertical, 1).background(Capsule().fill(Color(palette.text).opacity(0.14)))
                     .islandTip("\(comments) thread\(comments == 1 ? "" : "s") por resolver")
                 }
-                if pr.isDraft { RowTag("draft", .gray) }
+                if pr.isDraft { RowTag("draft", Color(palette.neutral)) }
                 OwnerTag(name: pr.author, isMine: pr.isMine)
             }
-            .frame(height: IslandLayout.prRowHeight)
+            .frame(height: CGFloat(metrics.rowHeight))
             .background {
                 if let change {
-                    RoundedRectangle(cornerRadius: 5).fill(change.tone.color.opacity(0.16)).padding(.horizontal, -6)
+                    RoundedRectangle(cornerRadius: 5).fill(change.tone.color(in: palette).opacity(0.16)).padding(.horizontal, -6)
                 } else if pr.role == .reviewRequested, let reason = attentionReason, reason.tone != .info {
-                    RoundedRectangle(cornerRadius: 5).fill(reason.tone.color.opacity(0.12)).padding(.horizontal, -6)
+                    RoundedRectangle(cornerRadius: 5).fill(reason.tone.color(in: palette).opacity(0.12)).padding(.horizontal, -6)
                 }
             }
             .contentShape(Rectangle())
@@ -120,12 +122,12 @@ struct PullRequestRow: View {
         }
     }
 
-    private static func ciColor(_ ci: CIState) -> Color {
+    private static func ciColor(_ ci: CIState, _ palette: IslandPalette) -> Color {
         switch ci {
-        case .passing: return .green
-        case .failing: return .red
-        case .pending: return .yellow
-        case .none: return .gray
+        case .passing: return Color(palette.green)
+        case .failing: return Color(palette.red)
+        case .pending: return Color(palette.amber)
+        case .none: return Color(palette.neutral)
         }
     }
 }

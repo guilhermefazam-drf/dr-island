@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import DrIslandCore
 
 /// The bubble sits under the hovered view (above it near the bottom) and is kept inside the visible island, so it is
 /// never cut at the edges.
@@ -8,6 +9,7 @@ struct IslandTipLayer: View {
     let state: IslandState
     let expandedSize: CGSize
     @State private var size: CGSize = .zero
+    @Environment(\.islandPalette) private var palette
 
     var body: some View {
         if let tip = tips.tip, state.expanded {
@@ -20,13 +22,13 @@ struct IslandTipLayer: View {
                 .frame(width: expandedSize.width, height: expandedSize.height)
                 .overlay(alignment: .topLeading) {
                     Text(tip.text)
-                        .font(.caption2).foregroundStyle(.white)
+                        .font(.caption2).foregroundStyle(Color(palette.text))
                         .multilineTextAlignment(.leading)
                         .frame(width: Self.textWidth(tip.text), alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 8).padding(.vertical, 5)
-                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(white: 0.17)))
-                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1))
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(palette.isLight ? Color.white : Color(white: 0.17)))
+                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color(palette.text).opacity(0.14), lineWidth: 1))
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
                         .opacity(size == .zero ? 0 : 1)
                         .offset(x: x, y: y)

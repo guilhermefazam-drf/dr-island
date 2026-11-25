@@ -4,27 +4,28 @@ import DrIslandCore
 
 /// Bugs created and resolved, week by week.
 struct BugsChart: View {
+    @Environment(\.islandPalette) private var palette
     let weeks: [BugWeek]
 
     var body: some View {
         Chart {
             ForEach(weeks) { week in
                 BarMark(x: .value("Semana", week.start, unit: .weekOfYear), y: .value("Criados", week.created), width: .ratio(0.7))
-                    .foregroundStyle(Brand.red).position(by: .value("Tipo", "Criados"))
+                    .foregroundStyle(Color(palette.red)).position(by: .value("Tipo", "Criados"))
                 BarMark(x: .value("Semana", week.start, unit: .weekOfYear), y: .value("Resolvidos", week.resolved), width: .ratio(0.7))
-                    .foregroundStyle(Brand.green).position(by: .value("Tipo", "Resolvidos"))
+                    .foregroundStyle(Color(palette.green)).position(by: .value("Tipo", "Resolvidos"))
             }
         }
         .chartLegend(.hidden)
         .chartXAxis {
             AxisMarks(values: .stride(by: .weekOfYear, count: 2)) {
-                AxisValueLabel(format: .dateTime.day().month(.abbreviated)).font(.caption2).foregroundStyle(Color.secondary)
+                AxisValueLabel(format: .dateTime.day().month(.abbreviated)).font(.caption2).foregroundStyle(Color(palette.textSecondary))
             }
         }
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) {
-                AxisGridLine().foregroundStyle(Color.white.opacity(0.08))
-                AxisValueLabel().font(.caption2).foregroundStyle(Color.secondary)
+                AxisGridLine().foregroundStyle(Color(palette.text).opacity(0.08))
+                AxisValueLabel().font(.caption2).foregroundStyle(Color(palette.textSecondary))
             }
         }
         .accessibilityElement()

@@ -1,10 +1,12 @@
 import SwiftUI
+import DrIslandCore
 
 /// ‹ or › next to the sprint's name.
 struct SprintStepButton: View {
     let systemImage: String
     let label: String
     let action: () -> Void
+    @Environment(\.islandPalette) private var palette
 
     var body: some View {
         Button(action: action) {
@@ -14,7 +16,7 @@ struct SprintStepButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color(palette.textSecondary))
         .accessibilityLabel(label)
     }
 }

@@ -21,6 +21,10 @@ public struct IslandPalette: Equatable, Sendable {
     public var purple: ThemeColor
     public var pink: ThemeColor
     public var orange: ThemeColor
+    /// Informational alerts (a new comment, a status change).
+    public var info: ThemeColor
+    /// Alerts and tags with no tone of their own.
+    public var neutral: ThemeColor
     public var isLight: Bool
 
     /// The colour that identifies where a block's data comes from (its tile, alert dot and pulse).

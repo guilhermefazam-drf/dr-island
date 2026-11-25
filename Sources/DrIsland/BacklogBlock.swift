@@ -32,9 +32,10 @@ struct BacklogBlock: View {
         .blockCard()
     }
 
-    static func contentHeight(groups: [Group], message: String?, truncated: Bool) -> CGFloat {
-        let lists = groups.map { IslandLayout.cardListHeader + 2 + CGFloat($0.rows.count) * IslandLayout.prRowHeight }
-        return IslandLayout.cardTitle + lists.reduce(0, +) + CGFloat(max(groups.count - 1, 0)) * IslandLayout.listRule
-            + (message == nil ? 0 : IslandLayout.prRowHeight) + (truncated && !groups.isEmpty ? IslandLayout.prRowHeight : 0)
+    static func contentHeight(groups: [Group], message: String?, truncated: Bool, metrics m: IslandMetrics) -> CGFloat {
+        let row = CGFloat(m.rowHeight)
+        let lists = groups.map { CGFloat(m.listHeader) + 2 + CGFloat($0.rows.count) * row }
+        return CGFloat(m.cardHeader) + lists.reduce(0, +) + CGFloat(max(groups.count - 1, 0)) * CGFloat(m.listRule)
+            + (message == nil ? 0 : row) + (truncated && !groups.isEmpty ? row : 0)
     }
 }

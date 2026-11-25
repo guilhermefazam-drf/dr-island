@@ -7,6 +7,7 @@ struct UsageHistoryChart: View {
     /// The amber and red limits (percentages), so each bar has the colour it had that day.
     let amber: Double
     let red: Double
+    @Environment(\.islandPalette) private var palette
 
     var body: some View {
         let days = UsageHistory.lastDays(14, from: history)
@@ -17,7 +18,7 @@ struct UsageHistoryChart: View {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         Capsule()
-                            .fill(peak.map { Brand.color(forFraction: $0, amber: amber, red: red) } ?? Color.white.opacity(0.12))
+                            .fill(peak.map { Brand.color(forFraction: $0, amber: amber, red: red, palette: palette) } ?? Color(palette.text).opacity(0.12))
                             .opacity(index < 7 ? 0.5 : 1)
                             .frame(height: max(3, 28 * (peak ?? 0)))
                             .frame(maxWidth: 16)
@@ -29,7 +30,7 @@ struct UsageHistoryChart: View {
             HStack(spacing: 3) {
                 ForEach(days, id: \.date) { entry in
                     Text(entry.date.formatted(.dateTime.weekday(.narrow)))
-                        .font(.system(size: 8)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                        .font(.system(size: 8)).foregroundStyle(Color(palette.textSecondary)).frame(maxWidth: .infinity)
                 }
             }
         }

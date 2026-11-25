@@ -5,16 +5,17 @@ import DrIslandCore
 struct FocusBlock: View {
     let store: FocusStore
     @Environment(\.islandColumnWidth) private var columnWidth
+    @Environment(\.islandPalette) private var palette
 
     var body: some View {
         let timer = store.timer
         let config = store.config
-        let tint = timer.phase == .focus ? Brand.blue : Brand.green
+        let tint = timer.phase == .focus ? Color(palette.accent) : Color(palette.green)
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let remaining = Int(timer.remaining(now: context.date, config).rounded(.up))
             HStack(spacing: 14) {
                 ZStack {
-                    Circle().stroke(Color.white.opacity(0.12), lineWidth: 5)
+                    Circle().stroke(Color(palette.text).opacity(0.12), lineWidth: 5)
                     Circle().trim(from: 0, to: timer.progress(now: context.date, config))
                         .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
@@ -38,7 +39,7 @@ struct FocusBlock: View {
                     controls
                 } else {
                     VStack(alignment: .leading, spacing: 7) {
-                        Text(label(timer, config)).font(.caption).foregroundStyle(.secondary)
+                        Text(label(timer, config)).font(.caption).foregroundStyle(Color(palette.textSecondary))
                         dots(timer, config, tint: tint)
                         controls
                     }
@@ -61,7 +62,7 @@ struct FocusBlock: View {
         let done = timer.phase == .longBreak ? total : timer.completedRounds % total
         return HStack(spacing: 5) {
             ForEach(0..<total, id: \.self) { index in
-                Circle().fill(index < done ? tint : Color.white.opacity(0.18)).frame(width: 7, height: 7)
+                Circle().fill(index < done ? tint : Color(palette.text).opacity(0.18)).frame(width: 7, height: 7)
             }
         }
     }

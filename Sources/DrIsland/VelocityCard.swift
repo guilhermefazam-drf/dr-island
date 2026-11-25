@@ -3,6 +3,8 @@ import DrIslandCore
 
 /// Planned against finished over the last closed sprints of the board.
 struct VelocityCard: View {
+    @Environment(\.islandPalette) private var palette
+    @Environment(\.islandMetrics) private var metrics
     let store: ManagementStore
 
     var body: some View {
@@ -15,15 +17,15 @@ struct VelocityCard: View {
                 VelocityChart(result: result).frame(height: IslandLayout.managementChart)
                 VelocityLegend()
                 HStack(spacing: 6) {
-                    RowTag("média \(result.averageCompleted.formatted(.number.precision(.fractionLength(0...1)))) \(store.effectiveUnit == .points ? "pontos" : "tasks")", Brand.green)
-                    RowTag("\(result.sprints.count) sprints", .gray)
-                    if store.side.velocityPhase == .loading { RowTag("a ler mais…", .gray) }
+                    RowTag("média \(result.averageCompleted.formatted(.number.precision(.fractionLength(0...1)))) \(store.effectiveUnit == .points ? "pontos" : "tasks")", Color(palette.green))
+                    RowTag("\(result.sprints.count) sprints", Color(palette.neutral))
+                    if store.side.velocityPhase == .loading { RowTag("a ler mais…", Color(palette.neutral)) }
                     Spacer(minLength: 0)
                 }
                 .frame(height: IslandLayout.managementSummary)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: IslandLayout.managementCardContent, maxHeight: IslandLayout.managementCardContent, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: IslandLayout.managementCardContent(metrics), maxHeight: IslandLayout.managementCardContent(metrics), alignment: .topLeading)
         .blockCard()
     }
 

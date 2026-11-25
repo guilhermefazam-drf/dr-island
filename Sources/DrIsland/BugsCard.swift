@@ -3,6 +3,7 @@ import DrIslandCore
 
 /// Bugs created against bugs resolved, week by week, with how many are open and how long they take.
 struct BugsCard: View {
+    @Environment(\.islandMetrics) private var metrics
     let side: ManagementSideData
 
     var body: some View {
@@ -14,7 +15,7 @@ struct BugsCard: View {
                 ListNote(text: message)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: IslandLayout.managementCardContent, maxHeight: IslandLayout.managementCardContent, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: IslandLayout.managementCardContent(metrics), maxHeight: IslandLayout.managementCardContent(metrics), alignment: .topLeading)
         .blockCard()
     }
 

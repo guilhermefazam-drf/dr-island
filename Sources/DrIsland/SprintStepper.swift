@@ -1,8 +1,10 @@
 import SwiftUI
+import DrIslandCore
 
 /// ‹ name › to move through the board's sprints (the list is newest first, so ‹ goes to the older one).
 struct SprintStepper: View {
     let store: ManagementStore
+    @Environment(\.islandPalette) private var palette
 
     var body: some View {
         let sprints = store.sprints
@@ -12,7 +14,7 @@ struct SprintStepper: View {
                 .disabled(index.map { $0 + 1 >= sprints.count } ?? true)
             Text(index.map { sprints[$0].name } ?? "—")
                 .font(.caption2.weight(.medium))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(Color(palette.text).opacity(0.85))
                 .lineLimit(1).truncationMode(.tail)
                 .frame(maxWidth: 110)
             SprintStepButton(systemImage: "chevron.right", label: "Sprint seguinte") { step(to: index.map { $0 - 1 }) }

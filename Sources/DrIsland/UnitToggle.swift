@@ -4,6 +4,7 @@ import DrIslandCore
 /// Pontos | Tasks. Without a story-points field only «Tasks» can be chosen.
 struct UnitToggle: View {
     let store: ManagementStore
+    @Environment(\.islandPalette) private var palette
     private static let units: [(unit: MetricUnit, title: String)] = [(.points, "Pontos"), (.tasks, "Tasks")]
 
     var body: some View {
@@ -13,9 +14,9 @@ struct UnitToggle: View {
                 Button { store.unit = item.unit } label: {
                     Text(item.title)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                        .foregroundStyle(isSelected ? Color.white : Color(palette.textSecondary))
                         .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(Capsule().fill(isSelected ? Brand.blue : Color.clear))
+                        .background(Capsule().fill(isSelected ? Color(palette.accent) : Color.clear))
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -25,6 +26,6 @@ struct UnitToggle: View {
             }
         }
         .padding(2)
-        .background(Capsule().fill(Color.white.opacity(0.08)))
+        .background(Capsule().fill(Color(palette.text).opacity(0.08)))
     }
 }
