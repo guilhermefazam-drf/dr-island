@@ -38,7 +38,10 @@ struct ClaudeBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             CardHeader(title: "Claude", icon: "sparkle", source: .claude) { statusChip }
-            if gauge == "ring" { ringBody } else { barBody }
+            if gauge == "ring" { ringBody } else {
+                // Pinned to the height `height(...)` assumes, so the card never clips or leaves a gap.
+                barBody.frame(height: IslandLayout.claudeBarBody + (showsForecast ? IslandLayout.forecastExtra : 0), alignment: .top)
+            }
             if showCost { costTiles }
         }
         .blockCard()
@@ -58,7 +61,7 @@ struct ClaudeBlock: View {
                     .contentTransition(.numericText())
             }
             .frame(width: CGFloat(metrics.ringSize), height: CGFloat(metrics.ringSize))
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: metrics.rowHasMeta ? 7 : 3) {
                 Text("Sessão · 5 h").font(.caption2).foregroundStyle(Color(palette.textSecondary))
                 resetLabel(store.sessionResetsAt, prefix: "reinicia em")
                 if showsForecast, let eta = store.sessionExhaustsAt {

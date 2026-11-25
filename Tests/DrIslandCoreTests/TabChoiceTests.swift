@@ -18,4 +18,13 @@ import Testing
         #expect(TabChoice.onOpen(current: .first, firstUnseen: 1, secondUnseen: 2) == .first)
         #expect(TabChoice.onOpen(current: .second, firstUnseen: 0, secondUnseen: 0) == .second)
     }
+
+    @Test func opensOnTheTabWithItemsWhenCurrentIsEmpty() {
+        #expect(TabChoice.onOpen(current: .first, firstUnseen: 0, secondUnseen: 0, firstItems: 0, secondItems: 3) == .second)
+        #expect(TabChoice.onOpen(current: .second, firstUnseen: 0, secondUnseen: 0, firstItems: 2, secondItems: 0) == .first)
+    }
+
+    @Test func neverMovesToAnEmptyTab() {
+        #expect(TabChoice.onOpen(current: .first, firstUnseen: 0, secondUnseen: 2, firstItems: 2, secondItems: 0) == .first)
+    }
 }

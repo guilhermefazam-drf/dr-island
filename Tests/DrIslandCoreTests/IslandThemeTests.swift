@@ -25,6 +25,7 @@ import Testing
             let card = p.surface.over(p.base.last!)
             #expect(p.text.contrast(with: card) >= 4.5, "\(theme) text")
             #expect(p.textSecondary.contrast(with: card) >= 3, "\(theme) secondary")
+            #expect(p.textTertiary.contrast(with: card) >= 3, "\(theme) tertiary")
         }
     }
 

@@ -26,6 +26,7 @@ struct Avatar: View {
                 .frame(width: size, height: size)
                 .background(Circle().fill(Self.hues[AvatarColor.index(for: name ?? "", count: Self.hues.count)]))
                 .islandTip(name ?? "")
+                .accessibilityLabel(name ?? label)
         }
     }
 }

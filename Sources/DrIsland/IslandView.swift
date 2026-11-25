@@ -69,7 +69,7 @@ struct IslandView: View {
     @AppStorage(SettingsKey.alertBanner) private var alertBanner = false
     @State private var alertOpacity: Double = 0
     @State private var alertTone: PRChange.Tone = .info
-    private var alertColor: Color { alertTone.color(in: islandPalette) }
+    private var alertColor: Color { alertTone.color(in: notchPalette) }
     /// Silhouette progress (0 = notch, 1 = expanded); width and height are staged separately per effect.
     @State private var widthProgress: CGFloat = 0
     @State private var heightProgress: CGFloat = 0
@@ -250,6 +250,9 @@ struct IslandView: View {
         let sprint: SprintInfo
         let rows: [JiraRow]
         let approvalRows: [JiraRow]
+        /// Real totals, not the visible rows (those stop at the row limit, with «+N mais»).
+        let mineCount: Int
+        let approvalCount: Int
         var id: Int { sprint.id ?? sprint.name.hashValue }
     }
 
@@ -261,7 +264,8 @@ struct IslandView: View {
                 : jiraTaskRows(JiraOrder.sprintSorted(mine, me: jiraStore.myName), expanded: state.expandedSprintLists.contains("t" + key))
             let approvals = jiraStore.approvals.filter { $0.sprintIDs.contains(sprint.id ?? -1) }
             return SprintSection(sprint: sprint, rows: rows,
-                                 approvalRows: Settings.jiraApproverEnabled ? jiraTaskRows(approvals, expanded: state.expandedSprintLists.contains("a" + key)) : [])
+                                 approvalRows: Settings.jiraApproverEnabled ? jiraTaskRows(approvals, expanded: state.expandedSprintLists.contains("a" + key)) : [],
+                                 mineCount: mine.count, approvalCount: Settings.jiraApproverEnabled ? approvals.count : 0)
         }
     }
 
@@ -366,11 +370,13 @@ struct IslandView: View {
     /// Opening the island turns a card to the tab that has news when the open one has none.
     private func chooseTabsOnOpen() {
         if !gitTabs.isEmpty {
-            state.gitTab = TabChoice.onOpen(current: state.gitTab, firstUnseen: prChanges(.authored).count, secondUnseen: prChanges(.review).count)
+            state.gitTab = TabChoice.onOpen(current: state.gitTab, firstUnseen: prChanges(.authored).count, secondUnseen: prChanges(.review).count,
+                                            firstItems: prCount(.authored), secondItems: prCount(.review))
         }
         if !jiraTabs.isEmpty {
             state.jiraTab = TabChoice.onOpen(current: state.jiraTab, firstUnseen: jiraChanges(jiraStore.tasks).count,
-                                             secondUnseen: jiraChanges(outOfSprintApprovals).count)
+                                             secondUnseen: jiraChanges(outOfSprintApprovals).count,
+                                             firstItems: jiraStore.tasks.count, secondItems: approvalCount)
         }
     }
 
@@ -390,6 +396,13 @@ struct IslandView: View {
     private var islandDensity: IslandDensity { IslandOverrides.density ?? IslandDensity(stored: densityName) }
     private var islandPalette: IslandPalette {
         islandTheme.palette.adjusted(increaseContrast: contrast == .increased, reduceTransparency: reduceTransparency)
+    }
+    /// Colours for what is drawn on the black notch and mini island: a light theme's tokens are tuned for a light
+    /// background, so those keep Grafite's (with the same accessibility adjustments).
+    private var notchPalette: IslandPalette {
+        islandPalette.isLight
+            ? IslandTheme.grafite.palette.adjusted(increaseContrast: contrast == .increased, reduceTransparency: reduceTransparency)
+            : islandPalette
     }
     /// Ink for the header strip (logo, greeting, buttons): it sits on the collar, which stays black on light themes.
     private var headerInk: Color { islandPalette.isLight ? Color.white : Color(islandPalette.text) }
@@ -495,7 +508,7 @@ struct IslandView: View {
     @ViewBuilder private var attentionDot: some View {
         if !state.expanded, !state.fullscreen, !state.splashPending, prStore.attention != .none {
             Circle()
-                .fill(prStore.attention == .critical ? Color(islandPalette.red) : Color(islandPalette.amber))
+                .fill(prStore.attention == .critical ? Color(notchPalette.red) : Color(notchPalette.amber))
                 .frame(width: 7, height: 7)
                 .offset(x: metrics.width / 2 + CGFloat(thickness) + 9, y: metrics.height / 2 - 3.5)
                 .transition(.opacity)
@@ -554,12 +567,12 @@ struct IslandView: View {
             ForEach(segments.indices, id: \.self) { i in
                 let s = segments[i]
                 outline.trim(from: min(max(newSessionLap - s.from, 0), 1), to: min(max(newSessionLap - s.to, 0), 1))
-                    .stroke(i == segments.count - 1 ? Color.white : Color(islandPalette.green), style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
-                    .shadow(color: Color(islandPalette.green).opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
+                    .stroke(i == segments.count - 1 ? Color.white : Color(notchPalette.green), style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
+                    .shadow(color: Color(notchPalette.green).opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
                     .opacity(s.opacity)
             }
-            outline.stroke(Color(islandPalette.green), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
-                .shadow(color: Color(islandPalette.green).opacity(0.9), radius: 7)
+            outline.stroke(Color(notchPalette.green), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
+                .shadow(color: Color(notchPalette.green).opacity(0.9), radius: 7)
                 .opacity(newSessionFlash)
         }
         .frame(width: IslandLayout.peekWidth, height: miniHeight, alignment: .top)
@@ -581,12 +594,12 @@ struct IslandView: View {
 
     private func alertRow(_ change: PRChange) -> some View {
         HStack(spacing: 6) {
-            Circle().fill(change.tone.color(in: islandPalette)).frame(width: 7, height: 7).frame(width: 14)
-            Text(change.kind.origin).font(.system(size: 9, weight: .bold)).foregroundStyle(Color(islandPalette.textTertiary))
-            Text(change.ref).font(.caption2.monospacedDigit()).foregroundStyle(Color(islandPalette.textSecondary))
-            Text(change.title).font(.caption).foregroundStyle(Color(islandPalette.text).opacity(0.9)).lineLimit(1).truncationMode(.tail)
+            Circle().fill(change.tone.color(in: notchPalette)).frame(width: 7, height: 7).frame(width: 14)
+            Text(change.kind.origin).font(.system(size: 9, weight: .bold)).foregroundStyle(Color(notchPalette.textTertiary))
+            Text(change.ref).font(.caption2.monospacedDigit()).foregroundStyle(Color(notchPalette.textSecondary))
+            Text(change.title).font(.caption).foregroundStyle(Color(notchPalette.text).opacity(0.9)).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 4)
-            RowTag(change.label, change.tone.color(in: islandPalette))
+            RowTag(change.label, change.tone.color(in: notchPalette))
         }
         .frame(height: IslandLayout.peekRowHeight)
     }
@@ -595,7 +608,7 @@ struct IslandView: View {
     @ViewBuilder private var newsDot: some View {
         if alertDot, !state.expanded, !state.fullscreen, !state.splashPending, !prStore.unseen.isEmpty {
             Circle()
-                .fill(PRChange.Tone.info.color(in: islandPalette))
+                .fill(PRChange.Tone.info.color(in: notchPalette))
                 .frame(width: 7, height: 7)
                 .offset(x: metrics.width / 2 + CGFloat(thickness) + 9 + (prStore.attention != .none ? 11 : 0), y: metrics.height / 2 - 3.5)
                 .transition(.scale.combined(with: .opacity))
@@ -642,7 +655,7 @@ struct IslandView: View {
     }
 
     private func color(forFraction fraction: Double) -> Color {
-        Brand.color(forFraction: fraction, amber: amber, red: red, palette: islandPalette)
+        Brand.color(forFraction: fraction, amber: amber, red: red, palette: notchPalette)
     }
 
     private var ringOpacity: Double {
@@ -651,7 +664,7 @@ struct IslandView: View {
     }
 
     private var statusColor: Color {
-        store.hasValue ? color(forFraction: store.sessionFraction) : Color(islandPalette.neutral)
+        store.hasValue ? color(forFraction: store.sessionFraction) : Color(notchPalette.neutral)
     }
 
     // MARK: Collapsed ring
@@ -671,16 +684,16 @@ struct IslandView: View {
                         .stroke(statusColor.opacity(ringOpacity), style: StrokeStyle(lineWidth: t + 1.5 * glow, lineCap: .round))
                         .shadow(color: statusColor.opacity((0.45 + 0.5 * glow) * ringOpacity), radius: 2.5 + 5 * glow)
                 } else if !store.hasValue && store.status != .loading {
-                    shape.stroke(Color(islandPalette.neutral).opacity(0.6), style: StrokeStyle(lineWidth: t, dash: [3, 4]))
+                    shape.stroke(Color(notchPalette.neutral).opacity(0.6), style: StrokeStyle(lineWidth: t, dash: [3, 4]))
                 }
                 focusRing(shape, thickness: t)
                 if isOffline {
-                    shape.stroke(Color(islandPalette.red), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
-                        .shadow(color: Color(islandPalette.red).opacity(0.8), radius: 5)
+                    shape.stroke(Color(notchPalette.red), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
+                        .shadow(color: Color(notchPalette.red).opacity(0.8), radius: 5)
                 }
                 newSessionComet(shape, thickness: t)
-                shape.stroke(Color(islandPalette.green), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
-                    .shadow(color: Color(islandPalette.green).opacity(0.9), radius: 7)
+                shape.stroke(Color(notchPalette.green), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
+                    .shadow(color: Color(notchPalette.green).opacity(0.9), radius: 7)
                     .opacity(newSessionFlash)
             }
             .overlay {
@@ -702,7 +715,7 @@ struct IslandView: View {
     /// ring, which stays visible dimmed underneath. Hidden when the timer is stopped.
     @ViewBuilder private func focusRing(_ shape: NotchRing, thickness t: CGFloat) -> some View {
         if focusStore.timer.isRunning {
-            let tint = focusStore.timer.phase == .focus ? Color(islandPalette.accent) : Color(islandPalette.green)
+            let tint = focusStore.timer.phase == .focus ? Color(notchPalette.accent) : Color(notchPalette.green)
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let progress = max(focusStore.timer.progress(now: context.date, focusStore.config), 0.004)
                 ZStack {
@@ -726,8 +739,8 @@ struct IslandView: View {
         ForEach(segments.indices, id: \.self) { i in
             let s = segments[i]
             shape.trim(from: min(max(newSessionLap - s.from, 0), 1), to: min(max(newSessionLap - s.to, 0), 1))
-                .stroke(i == segments.count - 1 ? Color.white : Color(islandPalette.green), style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
-                .shadow(color: Color(islandPalette.green).opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
+                .stroke(i == segments.count - 1 ? Color.white : Color(notchPalette.green), style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
+                .shadow(color: Color(notchPalette.green).opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
                 .opacity(s.opacity)
         }
     }
@@ -738,8 +751,8 @@ struct IslandView: View {
             ForEach([-1.0, 1.0], id: \.self) { side in
                 Image(systemName: "sparkle")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(side < 0 ? Color(islandPalette.green) : Color.white)
-                    .shadow(color: Color(islandPalette.green).opacity(0.9), radius: 4)
+                    .foregroundStyle(side < 0 ? Color(notchPalette.green) : Color.white)
+                    .shadow(color: Color(notchPalette.green).opacity(0.9), radius: 4)
                     .scaleEffect(0.3 + 0.9 * newSessionSparkle)
                     .rotationEffect(.degrees(side * 90 * (1 - newSessionSparkle)))
                     .opacity(newSessionSparkle)
@@ -962,8 +975,8 @@ struct IslandView: View {
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                     let key = section.sprint.id.map(String.init) ?? section.sprint.name
                     let label = single ? "" : section.sprint.name + " · "
-                    let mine = section.rows.filter { if case .task = $0 { true } else { false } }.count
-                    let approvals = section.approvalRows.filter { if case .task = $0 { true } else { false } }.count
+                    let mine = section.mineCount
+                    let approvals = section.approvalCount
                     if index > 0 { ListRule() }
                     JiraSection(title: single ? "As minhas · \(mine)" : label + SprintInfo.remainingLabel(section.sprint.remaining(now: Date())),
                                 rows: section.rows, changes: rowChanges, myName: jiraStore.myName) { setSprintList("t" + key, $0) }
@@ -1016,6 +1029,8 @@ struct IslandView: View {
                             }
                         }
                         .frame(width: columnWidth, alignment: .topLeading)
+                        // Room to scroll the last card above the fade (only when the column overflows).
+                        .padding(.bottom, naturalHeight(of: column) > maxColumnHeight ? ColumnFade.height : 0)
                     }
                     .defaultScrollAnchor(.top)   // a column that grows while open keeps its top in view
                     .frame(width: columnWidth, height: min(naturalHeight(of: column), maxColumnHeight), alignment: .top)
