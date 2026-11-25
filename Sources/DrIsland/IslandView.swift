@@ -483,7 +483,7 @@ struct IslandView: View {
     private var maxColumnHeight: CGFloat { screenHeight * 0.5 }
 
     /// The shortcuts dock sits under the columns, centred and always last, so it adds to the height on its own.
-    private var dockExtra: CGFloat { shortcuts.isEmpty ? 0 : CGFloat(islandMetrics.card(Double(ShortcutsDock.contentHeight(islandMetrics))) + islandMetrics.sectionSpacing) }
+    private var dockExtra: CGFloat { shortcuts.isEmpty ? 0 : ShortcutsDock.height(islandMetrics) + CGFloat(islandMetrics.sectionSpacing) }
 
     /// The tallest column (capped) plus the dock sets the island's height.
     private var columnsHeight: CGFloat { min(visibleColumns.map(naturalHeight(of:)).max() ?? 0, maxColumnHeight) }
@@ -938,6 +938,19 @@ struct IslandView: View {
         .allowsHitTesting(showContent)
     }
 
+    /// The longest key a card can show, so its rows' titles line up. Jira cards share one width (every task the
+    /// island knows), so the Sprint, Jira and Backlog cards line up with each other too.
+    private func keyCharacters(for block: IslandBlock) -> Int? {
+        switch block {
+        case .pullRequests:
+            ListKeyColumn.longest((prStore.snapshot.authored + prStore.snapshot.reviewRequested).map { "#\($0.number)" })
+        case .sprint, .jira, .backlog:
+            ListKeyColumn.longest((jiraStore.tasks + jiraStore.approvals + jiraStore.sprintTasks + jiraStore.backlog.flatMap(\.tasks)).map(\.key))
+        default:
+            nil
+        }
+    }
+
     @ViewBuilder private func blockView(_ block: IslandBlock) -> some View {
         switch block {
         case .claude: ClaudeBlock(store: store, costStore: costStore, showCost: showCost)
@@ -1026,6 +1039,7 @@ struct IslandView: View {
                         VStack(alignment: .leading, spacing: CGFloat(islandMetrics.sectionSpacing)) {
                             ForEach(column, id: \.self) { block in
                                 blockView(block)
+                                    .environment(\.listKeyCharacters, keyCharacters(for: block))
                             }
                         }
                         .frame(width: columnWidth, alignment: .topLeading)

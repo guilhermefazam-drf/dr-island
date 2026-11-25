@@ -14,10 +14,16 @@ struct JiraTaskRow: View {
     var body: some View {
         Button { NSWorkspace.shared.open(task.url) } label: {
             ListRow(key: task.key, title: task.summary, meta: meta, tint: tint) {
-                if let symbol = Self.kindSymbol(task.kind, palette) {
-                    Image(systemName: symbol.name).font(.system(size: CGFloat(metrics.metaSize))).foregroundStyle(symbol.color)
-                        .frame(width: 14).islandTip(task.issueType ?? "")
+                // Always the same width, so a type with no icon does not shift the key and title.
+                Group {
+                    if let symbol = Self.kindSymbol(task.kind, palette) {
+                        Image(systemName: symbol.name).font(.system(size: CGFloat(metrics.metaSize))).foregroundStyle(symbol.color)
+                            .islandTip(task.issueType ?? "")
+                    } else {
+                        Color.clear
+                    }
                 }
+                .frame(width: 14)
             } trailing: {
                 if let symbol = Self.prioritySymbol(task.priority, palette) {
                     Image(systemName: symbol.name).font(.system(size: CGFloat(metrics.metaSize))).foregroundStyle(symbol.color)

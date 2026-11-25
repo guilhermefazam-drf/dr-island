@@ -17,9 +17,10 @@ struct PullRequestRow: View {
             ListRow(key: "#\(pr.number)", title: pr.title, meta: meta, tint: tint) {
                 Image(systemName: Self.ciSymbol(pr.ci)).foregroundStyle(Self.ciColor(pr.ci, palette)).frame(width: 14)
                     .islandTip(Self.ciText(pr.ci))
-                if pr.hasConflicts { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color(palette.amber)).islandTip("Conflitos com a branch base") }
-                ReviewIcon(pr: pr)
+                ReviewIcon(pr: pr).frame(width: 18)
             } trailing: {
+                // At the right end, so a conflict does not push this row's key and title out of line with the others.
+                if pr.hasConflicts { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color(palette.amber)).islandTip("Conflitos com a branch base") }
                 if let change {
                     Pill(change.label, change.tone.color(in: palette))
                 } else if let reason = attentionReason {

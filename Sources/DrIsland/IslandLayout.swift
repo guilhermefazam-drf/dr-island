@@ -52,7 +52,7 @@ enum IslandLayout {
         func card(_ content: CGFloat) -> CGFloat { CGFloat(m.card(Double(content))) }
         let prRowHeight = CGFloat(m.rowHeight), sectionSpacing = CGFloat(m.sectionSpacing)
         let claude = card(CGFloat(m.cardHeader) + 8 + max(claudeBarBody + forecastExtra, CGFloat(m.ringSize)) + costExtra)
-        let blocks = claude + card(FocusBlock.contentHeight(m)) + card(MusicBlock.maxContentHeight(m)) + card(UsageHistoryChart.contentHeight(m)) + card(ShortcutsDock.contentHeight(m))
+        let blocks = claude + card(FocusBlock.contentHeight(m)) + card(MusicBlock.maxContentHeight(m)) + card(UsageHistoryChart.contentHeight(m)) + ShortcutsDock.height(m)
             + card(AlertsBlock.contentHeight(rows: AlertsBlock.maxRows, metrics: m)) + card(BriefingBlock.contentHeight(rows: BriefingBlock.maxRows, metrics: m)) + card(TimelineBlock.contentHeight(m))
         let lists = 4 * (prHeaderHeight + CGFloat(expandedRowLimit + 2) * prRowHeight)
         return metrics.height + 6 + 10 + blocks + lists + 12 * sectionSpacing

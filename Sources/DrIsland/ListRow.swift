@@ -12,6 +12,7 @@ struct ListRow<Leading: View, Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
     @Environment(\.islandPalette) private var palette
     @Environment(\.islandMetrics) private var metrics
+    @Environment(\.listKeyCharacters) private var keyCharacters
 
     init(key: String?, title: String, meta: String? = nil, tint: Color? = nil,
          @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
@@ -32,6 +33,8 @@ struct ListRow<Leading: View, Trailing: View>: View {
                     .foregroundStyle(Color(palette.textTertiary))
                     .lineLimit(1)
                     .fixedSize()
+                    // One width for every key in the card, so the titles start in the same column.
+                    .frame(width: keyCharacters.map { max(ListKeyColumn.width(characters: $0, metrics: metrics), 1) }, alignment: .leading)
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
