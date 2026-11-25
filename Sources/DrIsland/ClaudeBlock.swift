@@ -14,11 +14,22 @@ struct ClaudeBlock: View {
     @AppStorage(SettingsKey.workStart) private var workStart = WeeklyPace.defaultWorkStartMinute
     @AppStorage(SettingsKey.claudeGauge) private var gauge = "bar"
     @Environment(\.islandPalette) private var palette
+    @Environment(\.islandMetrics) private var metrics
 
-    /// Whether the "esgota às" chip is shown (it adds a row, so the island's height depends on it).
-    static func showsForecast(_ store: UsageStore, enabled: Bool) -> Bool {
-        enabled && !store.isEstimate && store.sessionExhaustsAt != nil
+    /// Whether the "esgota às" chip is shown (it adds a row, so the island's height depends on it). Compacto leaves it out.
+    static func showsForecast(_ store: UsageStore, enabled: Bool, metrics: IslandMetrics) -> Bool {
+        enabled && metrics.rowHasMeta && !store.isEstimate && store.sessionExhaustsAt != nil
     }
+
+    /// The card's height: header, the gauge (bar or ring), the forecast chip and the cost tiles.
+    static func height(_ store: UsageStore, ring: Bool, showForecast: Bool, showCost: Bool, metrics: IslandMetrics) -> CGFloat {
+        let gauge = ring ? CGFloat(metrics.ringSize)
+            : IslandLayout.claudeBarBody + (showsForecast(store, enabled: showForecast, metrics: metrics) ? IslandLayout.forecastExtra : 0)
+        let content = CGFloat(metrics.cardHeader) + 8 + gauge + (showCost ? IslandLayout.costExtra : 0)
+        return CGFloat(metrics.card(Double(content)))
+    }
+
+    private var showsForecast: Bool { Self.showsForecast(store, enabled: showForecast, metrics: metrics) }
 
     private func color(_ fraction: Double) -> Color {
         Brand.color(forFraction: fraction, amber: amber, red: red, palette: palette)
@@ -26,14 +37,11 @@ struct ClaudeBlock: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Claude").font(.caption.weight(.medium)).foregroundStyle(Color(palette.textSecondary))
-                Spacer()
-                statusChip
-            }
+            CardHeader(title: "Claude", icon: "sparkle", source: .claude) { statusChip }
             if gauge == "ring" { ringBody } else { barBody }
             if showCost { costTiles }
         }
+        .blockCard()
     }
 
     /// The session as a ring with the percentage inside; the details sit beside it.
@@ -46,14 +54,14 @@ struct ClaudeBlock: View {
                     .rotationEffect(.degrees(-90))
                     .animation(.easeOut(duration: 0.5), value: store.sessionFraction)
                 Text("\(store.isEstimate ? "≈" : "")\(Int((store.sessionFraction * 100).rounded()))%")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded)).foregroundStyle(color(store.sessionFraction))
+                    .font(.system(size: CGFloat(metrics.ringSize) * 0.26, weight: .semibold, design: .rounded)).foregroundStyle(color(store.sessionFraction))
                     .contentTransition(.numericText())
             }
-            .frame(width: 84, height: 84)
+            .frame(width: CGFloat(metrics.ringSize), height: CGFloat(metrics.ringSize))
             VStack(alignment: .leading, spacing: 7) {
                 Text("Sessão · 5 h").font(.caption2).foregroundStyle(Color(palette.textSecondary))
                 resetLabel(store.sessionResetsAt, prefix: "reinicia em")
-                if Self.showsForecast(store, enabled: showForecast), let eta = store.sessionExhaustsAt {
+                if showsForecast, let eta = store.sessionExhaustsAt {
                     Label("esgota às \(eta.formatted(date: .omitted, time: .shortened))", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption2.weight(.medium)).foregroundStyle(Color(palette.amber))
                         .padding(.horizontal, 8).padding(.vertical, 3)
@@ -70,7 +78,7 @@ struct ClaudeBlock: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(height: 84)
+        .frame(height: CGFloat(metrics.ringSize))
     }
 
     private var barBody: some View {
@@ -85,7 +93,7 @@ struct ClaudeBlock: View {
             }
             UsageBar(fraction: store.sessionFraction, color: color(store.sessionFraction), height: 8,
                      ticks: [min(amber, 100) / 100, min(max(red, amber), 100) / 100])
-            if Self.showsForecast(store, enabled: showForecast), let eta = store.sessionExhaustsAt {
+            if showsForecast, let eta = store.sessionExhaustsAt {
                 Label("Ao ritmo atual, esgota às \(eta.formatted(date: .omitted, time: .shortened))", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2.weight(.medium)).foregroundStyle(Color(palette.amber))
                     .padding(.horizontal, 8).padding(.vertical, 3)
@@ -140,7 +148,7 @@ struct ClaudeBlock: View {
         let (text, tint) = status
         return HStack(spacing: 5) {
             Circle().fill(tint).frame(width: 6, height: 6)
-            Text(text).font(.caption2).foregroundStyle(Color(palette.textSecondary))
+            Text(text).foregroundStyle(Color(palette.textSecondary))
         }
     }
 

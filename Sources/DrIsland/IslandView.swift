@@ -373,9 +373,7 @@ struct IslandView: View {
         let (authored, review) = (prRows(for: .authored).count, prRows(for: .review).count)
         switch block {
         case .claude:
-            let core = gaugeIsRing ? IslandLayout.claudeRingHeight
-                : IslandLayout.claudeHeight + (ClaudeBlock.showsForecast(store, enabled: showForecast) ? IslandLayout.forecastExtra : 0)
-            return core + (showCost ? IslandLayout.costExtra : 0)
+            return ClaudeBlock.height(store, ring: gaugeIsRing, showForecast: showForecast, showCost: showCost, metrics: m)
         case .pullRequests:
             return CGFloat(m.listCard(sections: [authored, review]))
         case .sprint:
@@ -385,9 +383,9 @@ struct IslandView: View {
         case .jira:
             return CGFloat(m.listCard(sections: [jiraRows.count, approvalRows.count]))
         case .backlog: return card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated, metrics: m))
-        case .focus: return card(IslandLayout.focusContent)
+        case .focus: return card(FocusBlock.contentHeight(m))
         case .history: return card(IslandLayout.historyContent)
-        case .music: return card(musicStore.nowPlaying.map(MusicBlock.contentHeight) ?? IslandLayout.musicContent)
+        case .music: return card(MusicBlock.contentHeight(musicStore.nowPlaying, m))
         case .alerts: return card(AlertsBlock.contentHeight(rows: min(recentAlerts.count, AlertsBlock.maxRows)))
         case .briefing: return card(BriefingBlock.contentHeight(rows: min(briefingEntries.count, BriefingBlock.maxRows)))
         case .timeline: return card(TimelineBlock.contentHeight)
@@ -954,17 +952,32 @@ struct IslandView: View {
     }
 
     /// The Doutor Finanças logo, small, white and translucent in the top-left corner of the island (level with the notch), like a watermark.
+    /// The island's header, level with the notch: the Doutor Finanças logo and, with room (2+ columns at Normal),
+    /// the greeting and today's date. It sits on the theme's collar, which stays black on the light theme.
     @ViewBuilder private var watermark: some View {
-        if let logo = Brand.logo {
-            Image(nsImage: logo).renderingMode(.template).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
-                .foregroundStyle(Color(islandPalette.text))
-                .frame(height: 16)
-                .opacity(0.6)
-                .frame(height: metrics.height)
-                .padding(.leading, Self.sidePadding)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+        let ink = islandPalette.isLight ? Color.white : Color(islandPalette.text)
+        HStack(spacing: 10) {
+            if let logo = Brand.logo {
+                Image(nsImage: logo).renderingMode(.template).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                    .foregroundStyle(ink)
+                    .frame(height: 16)
+                    .opacity(0.6)
+                    .accessibilityHidden(true)
+            }
+            if layout.columnCount >= 2 && islandMetrics.rowHasMeta {
+                TimelineView(.everyMinute) { context in
+                    (Text(Greeting.text(for: context.date)).fontWeight(.semibold)
+                     + Text(" · " + context.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Locale(identifier: "pt_PT"))))
+                        .foregroundColor(ink.opacity(0.55)))
+                        .font(.system(size: CGFloat(islandMetrics.bodySize)))
+                        .foregroundStyle(ink)
+                        .lineLimit(1)
+                }
+            }
         }
+        .frame(height: metrics.height)
+        .padding(.leading, Self.sidePadding)
+        .allowsHitTesting(false)
     }
 
     private var statusMessage: String? {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The island's colour themes. Grafite reproduces the island's original colours.
+/// The island's colour themes. Grafite keeps the island's original colours.
 public enum IslandTheme: String, CaseIterable, Codable, Sendable {
     case grafite
     case meiaNoite = "meia-noite"
@@ -27,7 +27,7 @@ public enum IslandTheme: String, CaseIterable, Codable, Sendable {
             IslandPalette(
                 base: [ThemeColor(0x000000)], collar: ThemeColor(0x000000),
                 surface: ThemeColor(0xFFFFFF, alpha: 0.055), surfaceRaised: ThemeColor(0xFFFFFF, alpha: 0.09),
-                border: ThemeColor(0xFFFFFF, alpha: 0), highlight: ThemeColor(0xFFFFFF, alpha: 0),
+                border: ThemeColor(0xFFFFFF, alpha: 0.07), highlight: ThemeColor(0xFFFFFF, alpha: 0.06),
                 text: ThemeColor(0xF3F3F5), textSecondary: ThemeColor(0xA1A1AA), textTertiary: ThemeColor(0x6C6C75),
                 accent: ThemeColor(0x00A6E5), green: ThemeColor(0x28C840), amber: ThemeColor(0xFEBC2E), red: ThemeColor(0xFF5F57),
                 purple: ThemeColor(0xBF8BFF), pink: ThemeColor(0xFF6B9A), orange: ThemeColor(0xFF9F5A), info: ThemeColor(0x5C9EFF), neutral: ThemeColor(0x8E8E93), isLight: false)

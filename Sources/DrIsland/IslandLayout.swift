@@ -33,14 +33,11 @@ enum IslandLayout {
     }
 
     // Content heights of the blocks; a block drawn on a card adds the density's card padding on each side.
-    static let claudeHeight: CGFloat = 100
-    static let claudeRingHeight: CGFloat = 108   // header + a 84 pt ring; the forecast fits beside it
+    /// The Claude card's bar gauge under its header: the big percentage, the bar and the week row.
+    static let claudeBarBody: CGFloat = 76
     static let forecastExtra: CGFloat = 27        // the "esgota às" chip and its spacing
     static let costTileHeight: CGFloat = 38
     static let costExtra: CGFloat = 8 + costTileHeight
-    static let focusContent: CGFloat = 56
-    static let musicContent: CGFloat = 70
-    static let musicContentWithProgress: CGFloat = 84
     static let historyContent: CGFloat = 42
     static let shortcutsContent: CGFloat = 34
     static let alertsHeader: CGFloat = 16
@@ -57,7 +54,8 @@ enum IslandLayout {
         let m = IslandMetrics.forDensity(.regular)
         func card(_ content: CGFloat) -> CGFloat { CGFloat(m.card(Double(content))) }
         let prRowHeight = CGFloat(m.rowHeight), sectionSpacing = CGFloat(m.sectionSpacing)
-        let blocks = max(claudeHeight + forecastExtra, claudeRingHeight) + costExtra + card(focusContent) + card(musicContentWithProgress) + card(historyContent) + card(shortcutsContent)
+        let claude = card(CGFloat(m.cardHeader) + 8 + max(claudeBarBody + forecastExtra, CGFloat(m.ringSize)) + costExtra)
+        let blocks = claude + card(FocusBlock.contentHeight(m)) + card(MusicBlock.maxContentHeight(m)) + card(historyContent) + card(shortcutsContent)
             + card(16 + 6 + 4 * alertsRow) + card(BriefingBlock.contentHeight(rows: BriefingBlock.maxRows)) + card(TimelineBlock.contentHeight)
         let lists = 4 * (prHeaderHeight + CGFloat(expandedRowLimit + 2) * prRowHeight)
         return metrics.height + 6 + 10 + blocks + lists + 12 * sectionSpacing

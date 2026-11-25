@@ -27,15 +27,16 @@ public struct IslandMetrics: Equatable, Sendable {
 
     public static func forDensity(_ density: IslandDensity) -> IslandMetrics {
         switch density {
-        // Starts with the island's original sizes; the «Camadas» values replace them when the new look lands.
+        // Compacto gets its own values with the compact mode; until then it shares Normal's.
         case .regular, .compact: regular
         }
     }
 
+    /// Normal («Camadas»): roomier cards and two-line rows.
     public static let regular = IslandMetrics(
-        cardPadding: 10, cardGap: 16, cardRadius: 12, rowHeight: 25, rowHasMeta: false,
-        listHeader: 20, listRule: 13, cardHeader: 20, tile: 16,
-        titleSize: 11, bodySize: 11, metaSize: 10, ringSize: 84, dockIcon: 30, sectionSpacing: 16)
+        cardPadding: 14, cardGap: 12, cardRadius: 18, rowHeight: 34, rowHasMeta: true,
+        listHeader: 20, listRule: 13, cardHeader: 26, tile: 24,
+        titleSize: 13, bodySize: 13, metaSize: 11.5, ringSize: 84, dockIcon: 30, sectionSpacing: 12)
 
     /// A card's height for content of the given height.
     public func card(_ content: Double) -> Double { content + 2 * cardPadding }
