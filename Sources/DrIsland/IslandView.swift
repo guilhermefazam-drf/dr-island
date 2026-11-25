@@ -167,6 +167,7 @@ struct IslandView: View {
             withAnimation(motion.width) { widthProgress = expanded ? 1 : 0 }
             withAnimation(motion.height) { heightProgress = expanded ? 1 : 0 }
             if expanded {
+                chooseTabsOnOpen()
                 // The content "arrives" slightly after the bubble starts growing, then settles with a spring.
                 Task {
                     try? await Task.sleep(for: .seconds(motion.contentDelay))
@@ -312,6 +313,65 @@ struct IslandView: View {
         ShortcutList.decode(shortcutsJSON).filter { FileManager.default.fileExists(atPath: $0.appPath) }
     }
 
+    // MARK: Tabs (Git and Jira cards)
+
+    /// Tabs on the Git card only when there are reviews to show and both lists have something.
+    private var gitTabs: [TwoListTab] {
+        TabChoice.tabs(firstCount: prRows(for: .authored).count, secondCount: includeReviews ? prStore.snapshot.reviewRequested.count : 0,
+                       secondEnabled: includeReviews)
+    }
+
+    /// The list the Git card shows: the chosen tab, or the only list with something.
+    private var gitList: PRList {
+        if gitTabs.isEmpty { return prRows(for: .authored).isEmpty ? .review : .authored }
+        return state.gitTab == .first ? .authored : .review
+    }
+
+    private func prCount(_ list: PRList) -> Int {
+        list == .authored ? prStore.snapshot.authored.count : prStore.snapshot.reviewRequested.count
+    }
+
+    private func prChanges(_ list: PRList) -> [PRChange] {
+        let ids = Set((list == .authored ? prStore.snapshot.authored : prStore.snapshot.reviewRequested).map(\.id))
+        return rowChanges.filter { ids.contains($0.prID) }
+    }
+
+    private var outOfSprintApprovals: [JiraTask] {
+        Settings.jiraApproverEnabled ? jiraStore.approvals.filter { !sprintApprovals.contains($0) } : []
+    }
+
+    private var approvalCount: Int { outOfSprintApprovals.count }
+
+    private var jiraTabs: [TwoListTab] {
+        TabChoice.tabs(firstCount: jiraRows.count, secondCount: approvalCount, secondEnabled: Settings.jiraApproverEnabled)
+    }
+
+    /// The Jira card shows the approvals when that tab is chosen, or when they are its only content.
+    private var jiraShowsApprovals: Bool {
+        jiraTabs.isEmpty ? jiraRows.isEmpty : state.jiraTab == .second
+    }
+
+    private func jiraChanges(_ tasks: [JiraTask]) -> [PRChange] {
+        let ids = Set(tasks.map { "jira-" + $0.key })
+        return rowChanges.filter { ids.contains($0.prID) }
+    }
+
+    /// The dot on a tab: the loudest unseen change among its rows.
+    private func badge(_ changes: [PRChange]) -> Color? {
+        changes.map(\.tone).max().map { $0.color(in: islandPalette) }
+    }
+
+    /// Opening the island turns a card to the tab that has news when the open one has none.
+    private func chooseTabsOnOpen() {
+        if !gitTabs.isEmpty {
+            state.gitTab = TabChoice.onOpen(current: state.gitTab, firstUnseen: prChanges(.authored).count, secondUnseen: prChanges(.review).count)
+        }
+        if !jiraTabs.isEmpty {
+            state.jiraTab = TabChoice.onOpen(current: state.jiraTab, firstUnseen: jiraChanges(jiraStore.tasks).count,
+                                             secondUnseen: jiraChanges(outOfSprintApprovals).count)
+        }
+    }
+
     // MARK: Layout (columns of blocks)
 
     private var layout: IslandLayoutConfig {
@@ -370,18 +430,17 @@ struct IslandView: View {
     private func height(of block: IslandBlock) -> CGFloat {
         let m = islandMetrics
         func card(_ content: CGFloat) -> CGFloat { CGFloat(m.card(Double(content))) }
-        let (authored, review) = (prRows(for: .authored).count, prRows(for: .review).count)
         switch block {
         case .claude:
             return ClaudeBlock.height(store, ring: gaugeIsRing, showForecast: showForecast, showCost: showCost, metrics: m)
         case .pullRequests:
-            return CGFloat(m.listCard(sections: [authored, review]))
+            return CGFloat(m.listCard(rows: prRows(for: gitList).count))
         case .sprint:
             let sections = sprintSections
             let counts = sections.isEmpty ? [sprintEmptyRows.count] : sections.flatMap { [$0.rows.count, $0.approvalRows.count] }
             return CGFloat(m.listCard(sections: counts))
         case .jira:
-            return CGFloat(m.listCard(sections: [jiraRows.count, approvalRows.count]))
+            return CGFloat(m.listCard(rows: jiraShowsApprovals ? approvalRows.count : jiraRows.count))
         case .backlog: return card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated, metrics: m))
         case .focus: return card(FocusBlock.contentHeight(m))
         case .history: return card(IslandLayout.historyContent)
@@ -859,11 +918,18 @@ struct IslandView: View {
         switch block {
         case .claude: ClaudeBlock(store: store, costStore: costStore, showCost: showCost)
         case .pullRequests:
+            let list = gitList
             VStack(alignment: .leading, spacing: 0) {
-                CardTitle(title: "Git", icon: "arrow.triangle.pull")
-                PullRequestSection(list: .authored, rows: prRows(for: .authored), changes: rowChanges) { setShowAll(.authored, $0) }
-                if !prRows(for: .authored).isEmpty && !prRows(for: .review).isEmpty { ListRule() }
-                PullRequestSection(list: .review, rows: prRows(for: .review), changes: rowChanges) { setShowAll(.review, $0) }
+                CardHeader(title: "Pull requests", icon: "arrow.triangle.pull", source: .pullRequests,
+                           count: gitTabs.isEmpty ? prCount(list).nonZero : nil) {
+                    if !gitTabs.isEmpty {
+                        SegmentedTabs(tabs: [
+                            .init(id: TwoListTab.first.rawValue, title: "Meus", count: prCount(.authored), badge: badge(prChanges(.authored))),
+                            .init(id: TwoListTab.second.rawValue, title: "A rever", count: prCount(.review), badge: badge(prChanges(.review))),
+                        ], selection: Binding(get: { state.gitTab.rawValue }, set: { state.gitTab = TwoListTab(rawValue: $0) ?? .first }))
+                    }
+                }
+                PullRequestSection(list: list, rows: prRows(for: list), changes: rowChanges, showsHeader: false) { setShowAll(list, $0) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()
@@ -871,30 +937,48 @@ struct IslandView: View {
             let sections = sprintSections
             let single = sections.count == 1
             VStack(alignment: .leading, spacing: 0) {
-                CardTitle(title: single ? "SPRINT - \(sections[0].sprint.name)" : sections.isEmpty ? "Sprint atual" : "Sprints atuais",
-                          icon: "flag.checkered", sprint: single ? sections[0].sprint : nil,
-                          onManagement: showManagement ? { state.go(to: .management) } : nil)
+                CardHeader(title: single ? sections[0].sprint.name : sections.isEmpty ? "Sprint atual" : "Sprints atuais",
+                           icon: "flag.checkered", source: .sprint) {
+                    if showManagement {
+                        Button { state.go(to: .management) } label: { Image(systemName: "chart.xyaxis.line") }
+                            .buttonStyle(.plain).islandTip("Gestão")
+                    }
+                    if single { SprintBar(sprint: sections[0].sprint).islandTip(SprintBar.tooltip(sections[0].sprint)) }
+                }
                 if sections.isEmpty {
                     JiraSection(title: "As minhas até ao fim", rows: sprintEmptyRows, changes: rowChanges, myName: jiraStore.myName) { _ in }
                 }
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                     let key = section.sprint.id.map(String.init) ?? section.sprint.name
                     let label = single ? "" : section.sprint.name + " · "
+                    let mine = section.rows.filter { if case .task = $0 { true } else { false } }.count
+                    let approvals = section.approvalRows.filter { if case .task = $0 { true } else { false } }.count
                     if index > 0 { ListRule() }
-                    JiraSection(title: single ? "As minhas até ao fim" : label + SprintInfo.remainingLabel(section.sprint.remaining(now: Date())),
+                    JiraSection(title: single ? "As minhas · \(mine)" : label + SprintInfo.remainingLabel(section.sprint.remaining(now: Date())),
                                 rows: section.rows, changes: rowChanges, myName: jiraStore.myName) { setSprintList("t" + key, $0) }
                     if !section.approvalRows.isEmpty { ListRule() }
-                    JiraSection(title: label + "Aprovações", rows: section.approvalRows, changes: rowChanges, myName: jiraStore.myName) { setSprintList("a" + key, $0) }
+                    JiraSection(title: label + "Aprovações · \(approvals)", rows: section.approvalRows, changes: rowChanges, myName: jiraStore.myName) { setSprintList("a" + key, $0) }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard(active: !sections.isEmpty)
         case .jira:
+            let showsApprovals = jiraShowsApprovals
             VStack(alignment: .leading, spacing: 0) {
-                CardTitle(title: "Jira", icon: "checklist")
-                JiraSection(title: "As minhas tasks", rows: jiraRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllJira = $0 }
-                if !jiraRows.isEmpty && !approvalRows.isEmpty { ListRule() }
-                JiraSection(title: "Aprovações", rows: approvalRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllApprovals = $0 }
+                CardHeader(title: "Jira", icon: "checklist", source: .jira,
+                           count: jiraTabs.isEmpty ? (showsApprovals ? approvalCount : jiraStore.tasks.count).nonZero : nil) {
+                    if !jiraTabs.isEmpty {
+                        SegmentedTabs(tabs: [
+                            .init(id: TwoListTab.first.rawValue, title: "Tasks", count: jiraStore.tasks.count, badge: badge(jiraChanges(jiraStore.tasks))),
+                            .init(id: TwoListTab.second.rawValue, title: "Aprovações", count: approvalCount, badge: badge(jiraChanges(outOfSprintApprovals))),
+                        ], selection: Binding(get: { state.jiraTab.rawValue }, set: { state.jiraTab = TwoListTab(rawValue: $0) ?? .first }))
+                    }
+                }
+                if showsApprovals {
+                    JiraSection(title: "Aprovações", rows: approvalRows, changes: rowChanges, myName: jiraStore.myName, showsHeader: false) { state.showAllApprovals = $0 }
+                } else {
+                    JiraSection(title: "As minhas tasks", rows: jiraRows, changes: rowChanges, myName: jiraStore.myName, showsHeader: false) { state.showAllJira = $0 }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()

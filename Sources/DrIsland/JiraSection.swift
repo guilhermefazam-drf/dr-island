@@ -9,13 +9,15 @@ struct JiraSection: View {
     let changes: [PRChange]
     /// The user's Jira name, to mark their own tasks.
     let myName: String?
+    /// False inside a tabbed or single-list card, whose header already names the list.
+    var showsHeader = true
     /// "+N mais" / "mostrar menos".
     let showAll: (Bool) -> Void
 
     var body: some View {
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                ListSectionHeader(title: title)
+                if showsHeader { ListSectionHeader(title: title) }
                 ForEach(rows) { row in
                     switch row {
                     case .task(let task):

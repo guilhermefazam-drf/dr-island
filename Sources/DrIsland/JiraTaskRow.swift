@@ -13,33 +13,49 @@ struct JiraTaskRow: View {
 
     var body: some View {
         Button { NSWorkspace.shared.open(task.url) } label: {
-            HStack(spacing: 8) {
+            ListRow(key: task.key, title: task.summary, meta: meta, tint: tint) {
                 if let symbol = Self.kindSymbol(task.kind, palette) {
-                    Image(systemName: symbol.name).font(.caption2).foregroundStyle(symbol.color).islandTip(task.issueType ?? "")
+                    Image(systemName: symbol.name).font(.system(size: CGFloat(metrics.metaSize))).foregroundStyle(symbol.color)
+                        .frame(width: 14).islandTip(task.issueType ?? "")
                 }
-                Text(task.key).font(.caption2.monospacedDigit()).foregroundStyle(Color(palette.textSecondary))
-                Text(task.summary).font(.caption).foregroundStyle(Color(palette.text).opacity(0.9)).lineLimit(1).truncationMode(.tail)
-                Spacer(minLength: 4)
+            } trailing: {
                 if let symbol = Self.prioritySymbol(task.priority, palette) {
-                    Image(systemName: symbol.name).font(.caption2).foregroundStyle(symbol.color).islandTip("Prioridade: " + (task.priority ?? ""))
+                    Image(systemName: symbol.name).font(.system(size: CGFloat(metrics.metaSize))).foregroundStyle(symbol.color)
+                        .islandTip("Prioridade: " + (task.priority ?? ""))
                 }
-                if let change { RowTag(change.kind == .jiraStatus ? "novo estado" : change.label, change.tone.color(in: palette)) }
-                if task.isSprintGoal { RowTag("★ sprint goal", Color(palette.amber)) }
-                RowTag(task.status, task.category == .inProgress ? Color(palette.info) : Color(palette.neutral))
-                OwnerTag(name: task.assignee, isMine: isMine)
+                if let change { Pill(change.kind == .jiraStatus ? "novo estado" : change.label, change.tone.color(in: palette)) }
+                if task.isSprintGoal { Pill("★ sprint goal", Color(palette.amber)) }
+                Pill(task.status, statusColor)
+                Avatar(name: task.assignee, isMine: isMine)
             }
-            .frame(height: CGFloat(metrics.rowHeight))
-            .background {
-                if let change {
-                    RoundedRectangle(cornerRadius: 5).fill(change.tone.color(in: palette).opacity(0.16)).padding(.horizontal, -6)
-                }
-                else if task.isSprintGoal { RoundedRectangle(cornerRadius: 5).fill(Color(palette.amber).opacity(0.13)).padding(.horizontal, -6) }
-                else if task.isFlagged { RoundedRectangle(cornerRadius: 5).fill(Color(palette.red).opacity(0.10)).padding(.horizontal, -6) }
-            }
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .islandTip((task.isSprintGoal ? "Sprint goal · " : "") + (task.issueType.map { "\($0) · " } ?? "") + task.summary)
+    }
+
+    /// The details line: the issue type, then the priority, or whose task it is when it is not the user's.
+    private var meta: String {
+        var parts: [String] = []
+        if let type = task.issueType, !type.isEmpty { parts.append(type) }
+        if !isMine, let assignee = task.assignee, !assignee.isEmpty { parts.append(assignee) }
+        else if let priority = task.priority, !priority.isEmpty { parts.append(priority) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// The status by workflow category: in progress in the info colour, done in green, the rest neutral.
+    private var statusColor: Color {
+        switch task.category {
+        case .inProgress: Color(palette.info)
+        case .done: Color(palette.green)
+        default: Color(palette.neutral)
+        }
+    }
+
+    private var tint: Color? {
+        if let change { return change.tone.color(in: palette).opacity(0.16) }
+        if task.isSprintGoal { return Color(palette.amber).opacity(0.13) }
+        if task.isFlagged { return Color(palette.red).opacity(0.10) }
+        return nil
     }
 
     /// A bug gets the bug icon in red; the other types a quiet icon so the list stays scannable.

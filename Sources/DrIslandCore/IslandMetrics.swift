@@ -46,6 +46,11 @@ public struct IslandMetrics: Equatable, Sendable {
         rows == 0 ? 0 : listHeader + 2 + Double(rows) * rowHeight
     }
 
+    /// A card with one untitled list under its header (a tabbed or single-list card).
+    public func listCard(rows: Int) -> Double {
+        card(cardHeader + Double(rows) * rowHeight)
+    }
+
     /// A card holding titled lists one under the other (empty ones take no room), separated by rules.
     public func listCard(sections: [Int]) -> Double {
         let nonEmpty = sections.filter { $0 > 0 }

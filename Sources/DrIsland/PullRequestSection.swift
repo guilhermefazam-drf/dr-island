@@ -7,13 +7,15 @@ struct PullRequestSection: View {
     let rows: [PRRow]
     /// Unseen changes to tag rows with (empty with row alerts off).
     let changes: [PRChange]
+    /// False inside a tabbed or single-list card, whose header already names the list.
+    var showsHeader = true
     /// "+N mais" / "mostrar menos".
     let showAll: (Bool) -> Void
 
     var body: some View {
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                ListSectionHeader(title: title)
+                if showsHeader { ListSectionHeader(title: title) }
                 ForEach(rows) { row in
                     switch row {
                     case .pr(let pr): PullRequestRow(pr: pr, change: changes.last { $0.prID == pr.id })

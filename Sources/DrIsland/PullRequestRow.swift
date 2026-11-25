@@ -14,46 +14,48 @@ struct PullRequestRow: View {
 
     var body: some View {
         Button { NSWorkspace.shared.open(pr.url) } label: {
-            HStack(spacing: 8) {
+            ListRow(key: "#\(pr.number)", title: pr.title, meta: meta, tint: tint) {
                 Image(systemName: Self.ciSymbol(pr.ci)).foregroundStyle(Self.ciColor(pr.ci, palette)).frame(width: 14)
                     .islandTip(Self.ciText(pr.ci))
                 if pr.hasConflicts { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color(palette.amber)).islandTip("Conflitos com a branch base") }
                 ReviewIcon(pr: pr)
-                Text("#\(pr.number)")
-                    .font(.caption2.monospacedDigit()).foregroundStyle(Color(palette.textSecondary))
-                Text(pr.title).font(.caption).foregroundStyle(Color(palette.text).opacity(0.9)).lineLimit(1).truncationMode(.tail)
-                Spacer(minLength: 4)
+            } trailing: {
                 if let change {
-                    RowTag(change.label, change.tone.color(in: palette))
+                    Pill(change.label, change.tone.color(in: palette))
                 } else if let reason = attentionReason {
-                    RowTag(reason.text, reason.tone.color(in: palette))
+                    Pill(reason.text, reason.tone.color(in: palette))
                 }
-                if pr.role == .authored, let comments = pr.unresolvedThreadCount, comments > 0 {
-                    HStack(spacing: 2) {
-                        Image(systemName: "bubble.left.fill").font(.system(size: 8))
-                        Text("\(comments)").font(.system(size: 9, weight: .semibold).monospacedDigit())
-                    }
-                    .foregroundStyle(Color(palette.text).opacity(0.85))
-                    .padding(.horizontal, 5).padding(.vertical, 1).background(Capsule().fill(Color(palette.text).opacity(0.14)))
-                    .islandTip("\(comments) thread\(comments == 1 ? "" : "s") por resolver")
+                if pr.role == .authored, let comments = pr.unresolvedThreadCount, comments > 0, !metrics.rowHasMeta {
+                    Pill("\(comments) por resolver", Color(palette.textSecondary))
+                        .islandTip("\(comments) thread\(comments == 1 ? "" : "s") por resolver")
                 }
-                if pr.isDraft { RowTag("draft", Color(palette.neutral)) }
-                OwnerTag(name: pr.author, isMine: pr.isMine)
+                if pr.isDraft { Pill("draft", Color(palette.neutral)) }
+                Avatar(name: pr.author, isMine: pr.isMine)
             }
-            .frame(height: CGFloat(metrics.rowHeight))
-            .background {
-                if let change {
-                    RoundedRectangle(cornerRadius: 5).fill(change.tone.color(in: palette).opacity(0.16)).padding(.horizontal, -6)
-                } else if pr.role == .reviewRequested, let reason = attentionReason, reason.tone != .info {
-                    RoundedRectangle(cornerRadius: 5).fill(reason.tone.color(in: palette).opacity(0.12)).padding(.horizontal, -6)
-                }
-            }
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .islandTip(pr.title)
         .opacity(PRMutes.isMuted(prID: pr.id, in: PRMutes.decode(mutesJSON)) ? 0.45 : 1)
         .contextMenu { menu }
+    }
+
+    /// The details line: repository, the author on others' PRs, and threads left to resolve on the user's own.
+    private var meta: String {
+        // The repository's name from the PR's URL (github.com/<owner>/<repo>/pull/<n>); the stored field can be the owner alone.
+        let path = pr.url.pathComponents
+        var parts = [path.count > 2 ? path[2] : pr.repository]
+        if pr.role == .reviewRequested, let author = pr.author, !author.isEmpty { parts.append(author) }
+        if pr.role == .authored, let comments = pr.unresolvedThreadCount, comments > 0 {
+            parts.append("\(comments) thread\(comments == 1 ? "" : "s") por resolver")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// An unseen change paints the row; so does a review that waits on the user for a reason other than "new".
+    private var tint: Color? {
+        if let change { return change.tone.color(in: palette).opacity(0.16) }
+        if pr.role == .reviewRequested, let reason = attentionReason, reason.tone != .info { return reason.tone.color(in: palette).opacity(0.12) }
+        return nil
     }
 
     @ViewBuilder private var menu: some View {
