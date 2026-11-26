@@ -1,0 +1,827 @@
+<title>Dr Island Redesign</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: a design review page; a sticky control bar drives one live island stage, then columns, stages and notes. */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#14161a; --muted:#5d6370; --line:#e1e4ea; --accent:#0089c0; --accent-soft:#e3f3fa;
+  --stage:#d9dde4; --chip:#eef0f4;
+  --f-display:"Manrope",system-ui,sans-serif; --f-body:"Inter",system-ui,sans-serif;
+  --f-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111317; --panel:#181b20; --fg:#eceef2; --muted:#9aa1ad; --line:#2a2e36; --accent:#3cbcf0; --accent-soft:#12303d;
+  --stage:#22262d; --chip:#22262d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111317; --panel:#181b20; --fg:#eceef2; --muted:#9aa1ad; --line:#2a2e36; --accent:#3cbcf0; --accent-soft:#12303d;
+  --stage:#22262d; --chip:#22262d; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:40px 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(28px,4vw,40px);font-weight:800}
+h2{font-size:24px;font-weight:800;margin-bottom:6px}
+h3{font-size:16px;font-weight:700}
+p{margin:0}
+.lede{color:var(--muted);max-width:66ch;margin-top:10px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:600}
+section{margin-top:56px}
+.sub{color:var(--muted);max-width:66ch;margin-bottom:20px}
+
+/* Diagnosis */
+.diag{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.issue{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;min-width:0}
+.sev{grid-row:span 2;width:8px;border-radius:4px;align-self:stretch}
+.sev.hi{background:#e5484d}.sev.md{background:#f5a524}.sev.lo{background:#8b93a1}
+.issue b{font-weight:600}
+.issue span{color:var(--muted);font-size:14px}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--muted);margin:-8px 0 14px;flex-wrap:wrap}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+/* Controls */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);padding:10px 0;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctl label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.seg{display:inline-flex;background:var(--chip);border-radius:9px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;color:var(--fg);font:500 13px var(--f-body);padding:6px 11px;border-radius:7px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.15);font-weight:600}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.stage-note{font-size:13px;color:var(--muted);margin-top:10px;max-width:80ch}
+
+.stage{background:var(--stage);border-radius:16px;overflow-x:auto;padding:0 20px 28px;position:relative}
+.stage-inner{min-width:max-content;display:flex;justify-content:center}
+.menubar{height:26px;display:flex;align-items:center;justify-content:space-between;font:500 12px var(--f-ui);color:var(--muted);padding:0 4px}
+
+/* ============ ISLAND ============ */
+.island{
+  --pad:14px; --gap:12px; --row:30px; --fs:13px; --fs-sm:11.5px; --radius:18px; --big:34px; --tile:24px; --cardgap:12px;
+  font-family:var(--f-ui); color:var(--i-text); position:relative;
+  background:var(--i-base); border-radius:0 0 34px 34px; padding:0 22px 16px;
+  box-shadow:0 20px 50px rgba(0,0,0,.35);
+}
+.island[data-density="compact"]{--pad:9px; --gap:8px; --row:22px; --fs:11.5px; --fs-sm:10.5px; --radius:12px; --big:24px; --tile:18px; --cardgap:8px; border-radius:0 0 24px 24px; padding:0 14px 12px}
+.island .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:190px;height:32px;background:#000;border-radius:0 0 12px 12px;z-index:2}
+
+/* themes (island-only tokens) */
+.island[data-itheme="grafite"]{--i-base:#0c0c0e;--i-collar:#0c0c0e;--i-surface:rgba(255,255,255,.055);--i-surface2:rgba(255,255,255,.09);--i-border:rgba(255,255,255,.07);--i-hi:rgba(255,255,255,.06);
+  --i-text:#f3f3f5;--i-muted:#a1a1aa;--i-faint:#6c6c75;--i-accent:#00a6e5;--i-green:#32d74b;--i-amber:#ffcc33;--i-red:#ff5a52;--i-purple:#bf8bff;--i-pink:#ff6b9a;--i-orange:#ff9f5a;--i-shadow:none}
+.island[data-itheme="meia-noite"]{--i-base:linear-gradient(180deg,#060a14 0,#0a1224 100%);--i-collar:#060a14;--i-surface:rgba(110,160,255,.07);--i-surface2:rgba(110,160,255,.12);--i-border:rgba(140,180,255,.12);--i-hi:rgba(160,200,255,.08);
+  --i-text:#edf2ff;--i-muted:#98a6c4;--i-faint:#64718f;--i-accent:#3fc0ff;--i-green:#3ddc84;--i-amber:#ffcf4a;--i-red:#ff6b6b;--i-purple:#a99bff;--i-pink:#ff7eb3;--i-orange:#ffa564;--i-shadow:none}
+.island[data-itheme="aurora"]{--i-base:radial-gradient(120% 70% at 15% 0%,rgba(122,92,255,.28),transparent 60%),radial-gradient(90% 60% at 95% 10%,rgba(0,190,200,.20),transparent 60%),#0a0a10;--i-collar:#0a0a10;
+  --i-surface:rgba(255,255,255,.06);--i-surface2:rgba(255,255,255,.1);--i-border:rgba(255,255,255,.10);--i-hi:rgba(255,255,255,.10);
+  --i-text:#f6f4ff;--i-muted:#aaa5c2;--i-faint:#716c8a;--i-accent:#9d8cff;--i-green:#4ce0a0;--i-amber:#ffd166;--i-red:#ff6b81;--i-purple:#c3a6ff;--i-pink:#ff8fc7;--i-orange:#ffb37a;--i-shadow:none}
+.island[data-itheme="claro"]{--i-base:linear-gradient(180deg,#000 0,#000 var(--collarH,46px),#f2f3f6 var(--collarH,46px));--i-collar:#000;--i-surface:#ffffff;--i-surface2:#f0f2f5;--i-border:rgba(15,20,30,.08);--i-hi:rgba(255,255,255,1);
+  --i-text:#15171c;--i-muted:#5b616d;--i-faint:#8d939e;--i-accent:#0088c2;--i-green:#1f9d46;--i-amber:#b7791f;--i-red:#d6322b;--i-purple:#7c4dd6;--i-pink:#d63d74;--i-orange:#d0661f;--i-shadow:0 1px 2px rgba(15,20,30,.06),0 4px 14px rgba(15,20,30,.05)}
+.island[data-itheme="claro"][data-density="compact"]{--collarH:36px}
+.island[data-itheme="claro"] .ihead{color:#f3f3f5}
+.island[data-itheme="claro"] .ihead .imuted{color:#a1a1aa}
+
+.ihead{height:46px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:relative;z-index:3}
+.island[data-density="compact"] .ihead{height:36px}
+.ihead .left,.ihead .right{display:flex;align-items:center;gap:10px;min-width:0}
+.ihead .right{justify-content:flex-end}
+.logo{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--i-muted)}
+.logo svg{width:18px;height:18px}
+.hello{font-size:var(--fs);font-weight:600;white-space:nowrap}
+.imuted{color:var(--i-muted)}
+.ibtn{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:var(--i-muted);background:transparent;border:0}
+.ibtn svg{width:15px;height:15px}
+.live{display:flex;align-items:center;gap:5px;font-size:var(--fs-sm);color:var(--i-muted)}
+.live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--i-green);box-shadow:0 0 0 3px color-mix(in srgb,var(--i-green) 25%,transparent)}
+
+.cols{display:grid;gap:var(--cardgap);align-items:start}
+.col{display:flex;flex-direction:column;gap:var(--cardgap);min-width:0}
+
+/* card v2 */
+.card{background:var(--i-surface);border-radius:var(--radius);padding:var(--pad);box-shadow:inset 0 1px 0 var(--i-hi),var(--i-shadow);border:1px solid var(--i-border);min-width:0}
+.chead{display:flex;align-items:center;gap:8px;margin-bottom:calc(var(--gap) - 2px)}
+.tile{width:var(--tile);height:var(--tile);border-radius:calc(var(--tile)*.3);display:grid;place-items:center;flex:none}
+.tile svg{width:calc(var(--tile)*.6);height:calc(var(--tile)*.6)}
+.ctitle{font-size:var(--fs);font-weight:650;white-space:nowrap}
+.count{font-size:var(--fs-sm);color:var(--i-muted);background:var(--i-surface2);border-radius:99px;padding:0 7px;line-height:18px;font-variant-numeric:tabular-nums}
+.chead .acc{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--i-muted);white-space:nowrap}
+.c-claude{background:color-mix(in srgb,var(--i-orange) 20%,transparent);color:var(--i-orange)}
+.c-git{background:color-mix(in srgb,var(--i-purple) 20%,transparent);color:var(--i-purple)}
+.c-jira{background:color-mix(in srgb,var(--i-accent) 22%,transparent);color:var(--i-accent)}
+.c-focus{background:color-mix(in srgb,var(--i-green) 20%,transparent);color:var(--i-green)}
+.c-music{background:color-mix(in srgb,var(--i-pink) 20%,transparent);color:var(--i-pink)}
+.c-bell{background:color-mix(in srgb,var(--i-amber) 20%,transparent);color:var(--i-amber)}
+
+.tabs{display:inline-flex;background:var(--i-surface2);border-radius:8px;padding:2px;margin-left:auto}
+.tabs button{border:0;background:transparent;color:var(--i-muted);font:500 var(--fs-sm) var(--f-ui);padding:3px 9px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-pressed="true"]{background:var(--i-surface);color:var(--i-text);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+
+.rows{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;column-gap:8px;min-height:var(--row);padding:3px 6px;margin:0 -6px;border-radius:8px}
+.row:hover{background:var(--i-surface2)}
+.row .st{width:16px;height:16px;display:grid;place-items:center}
+.row .st svg{width:14px;height:14px}
+.row .key{font:500 var(--fs-sm) var(--f-mono);color:var(--i-faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.row .t{min-width:0}
+.row .tt{font-size:var(--fs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{font-size:var(--fs-sm);color:var(--i-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.island[data-density="compact"] .row .meta{display:none}
+.trail{display:flex;gap:5px;align-items:center}
+.pill{font-size:calc(var(--fs-sm) - .5px);font-weight:600;padding:0 7px;border-radius:99px;line-height:18px;white-space:nowrap}
+.island[data-density="compact"] .pill{line-height:15px;padding:0 6px}
+.p-blue{background:color-mix(in srgb,var(--i-accent) 18%,transparent);color:var(--i-accent)}
+.p-green{background:color-mix(in srgb,var(--i-green) 18%,transparent);color:var(--i-green)}
+.p-amber{background:color-mix(in srgb,var(--i-amber) 18%,transparent);color:var(--i-amber)}
+.p-purple{background:color-mix(in srgb,var(--i-purple) 18%,transparent);color:var(--i-purple)}
+.p-grey{background:var(--i-surface2);color:var(--i-muted)}
+.av{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:8.5px;font-weight:700;color:#fff}
+.island[data-density="compact"] .av{width:15px;height:15px;font-size:7.5px}
+.sublabel{font-size:var(--fs-sm);color:var(--i-muted);margin:6px 0 2px;font-weight:600}
+.more{font-size:var(--fs-sm);color:var(--i-accent);margin-top:4px;cursor:pointer}
+
+/* claude */
+.cl{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+.ring{width:84px;height:84px;position:relative}
+.island[data-density="compact"] .ring{width:52px;height:52px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .v{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--big)*.62);font-weight:700;font-variant-numeric:tabular-nums}
+.bars{display:flex;flex-direction:column;gap:8px;min-width:0}
+.bl{display:flex;justify-content:space-between;font-size:var(--fs-sm);color:var(--i-muted);margin-bottom:3px;gap:8px}
+.bl b{color:var(--i-text);font-weight:600}
+.track{height:6px;border-radius:99px;background:var(--i-surface2);overflow:hidden}
+.island[data-density="compact"] .track{height:4px}
+.fill{height:100%;border-radius:99px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-sm);color:var(--i-muted);background:var(--i-surface2);border-radius:99px;padding:2px 8px;white-space:nowrap}
+
+/* focus / music slim */
+.slim{display:flex;align-items:center;gap:10px}
+.slim .big{font-size:calc(var(--big)*.7);font-weight:700;font-variant-numeric:tabular-nums}
+.slim .grow{flex:1;min-width:0}
+.play{width:30px;height:30px;border-radius:50%;background:var(--i-text);color:var(--i-base);display:grid;place-items:center;border:0;flex:none}
+.island[data-itheme="claro"] .play{color:#fff}
+.island[data-density="compact"] .play{width:22px;height:22px}
+.play svg{width:12px;height:12px;fill:currentColor}
+.dots{display:flex;gap:4px;margin-top:4px}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--i-surface2)}
+.dots i.on{background:var(--i-green)}
+.art{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--i-pink),var(--i-purple));flex:none}
+.island[data-density="compact"] .art{width:24px;height:24px;border-radius:6px}
+.mtitle{font-size:var(--fs);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msub{font-size:var(--fs-sm);color:var(--i-muted)}
+
+/* alerts timeline */
+.tl{display:flex;flex-direction:column}
+.tl .ev{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:center;min-height:calc(var(--row) - 4px);font-size:var(--fs)}
+.tl .ev .d{width:7px;height:7px;border-radius:50%;justify-self:center}
+.tl .ev .src{font-size:calc(var(--fs-sm) - 1px);font-weight:700;color:var(--i-faint);margin-right:6px;letter-spacing:.03em}
+.tl .ev .tt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tl .ev time{font-size:var(--fs-sm);color:var(--i-faint);font-variant-numeric:tabular-nums}
+
+/* column overflow fade */
+.fadecol{max-height:var(--capH,none);overflow:hidden;position:relative}
+.fadecol.capped::after{content:"";position:absolute;inset:auto 0 0;height:42px;background:linear-gradient(transparent,var(--i-collar))}
+
+/* dock */
+.dockrow{display:flex;justify-content:center;margin-top:var(--cardgap)}
+.dock{display:flex;align-items:center;gap:8px;background:var(--i-surface);border:1px solid var(--i-border);border-radius:16px;padding:6px 8px;box-shadow:inset 0 1px 0 var(--i-hi),var(--i-shadow)}
+.island[data-density="compact"] .dock{padding:4px 6px;border-radius:12px;gap:6px}
+.app{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font:700 11px var(--f-ui);color:#fff}
+.island[data-density="compact"] .app{width:22px;height:22px;border-radius:6px;font-size:9px}
+.np{display:flex;align-items:center;gap:8px;padding-right:8px;margin-right:2px;border-right:1px solid var(--i-border);font-size:var(--fs-sm);max-width:200px}
+.np .art{width:28px;height:28px}
+.island[data-density="compact"] .np .art{width:20px;height:20px}
+
+/* bento */
+.kpis{display:grid;gap:var(--cardgap);margin-bottom:var(--cardgap)}
+.kpi{display:flex;flex-direction:column;gap:6px;min-width:0}
+.kpi .k-top{display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);color:var(--i-muted);font-weight:600}
+.kpi .k-num{font-size:var(--big);font-weight:750;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi .k-num small{font-size:calc(var(--big)*.42);font-weight:600;color:var(--i-muted);letter-spacing:0;margin-left:3px}
+.kpi .k-sub{font-size:var(--fs-sm);color:var(--i-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.island[data-density="compact"] .kpi{flex-direction:row;align-items:center;gap:8px}
+.island[data-density="compact"] .kpi .k-top span{display:none}
+.island[data-density="compact"] .kpi .k-sub{display:none}
+.island[data-density="compact"] .kpi .k-extra{display:none}
+.stack{display:flex;height:6px;border-radius:99px;overflow:hidden;gap:2px}
+.strip{display:flex;gap:8px;overflow:hidden}
+.strip .evc{flex:1;min-width:0;background:var(--i-surface2);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:2px}
+.strip .evc .h{display:flex;justify-content:space-between;font-size:calc(var(--fs-sm) - 1px);color:var(--i-faint);font-weight:700;letter-spacing:.03em}
+.strip .evc .b{font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oneline{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--i-muted)}
+
+/* ===== gestão (charts page) ===== */
+.island{--i-plot:var(--i-collar)}
+.island[data-itheme="claro"]{--i-plot:#ffffff}
+.p-red{background:color-mix(in srgb,var(--i-red) 18%,transparent);color:var(--i-red)}
+.gbar{display:flex;align-items:center;gap:10px;margin-bottom:var(--cardgap);flex-wrap:wrap}
+.gbar .tabs{margin-left:0}
+.gbar .spr{display:flex;align-items:center;gap:2px;margin-left:auto;font-size:var(--fs-sm);font-weight:600;white-space:nowrap}
+.gbar .spr button{width:22px;height:22px;border:0;background:transparent;color:var(--i-muted);border-radius:6px;display:grid;place-items:center;cursor:pointer}
+.gbar .spr button:hover{background:var(--i-surface2)}
+.gbar .spr svg{width:12px;height:12px}
+.ibtn.on{background:color-mix(in srgb,var(--i-accent) 18%,transparent);color:var(--i-accent)}
+.ibtn.on svg{stroke:currentColor}
+.gk{display:flex;gap:10px;align-items:center;font-size:var(--fs-sm);color:var(--i-muted);margin-left:auto;white-space:nowrap}
+.gk i{display:inline-block;width:10px;height:2px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.gk i.sq{width:8px;height:8px;border-radius:2px}
+.gk i.ds{background:repeating-linear-gradient(90deg,currentColor 0 3px,transparent 3px 5px)!important;height:1.5px}
+.island[data-density="compact"] .gk{display:none}
+.chart{position:relative;display:block}
+.chart svg{display:block;overflow:visible}
+.chart text{font:500 9.5px var(--f-ui);fill:var(--i-faint);font-variant-numeric:tabular-nums}
+.chart text.v{fill:var(--i-text);font-weight:650;font-size:10.5px}
+.chart .hit{fill:transparent;cursor:default}
+.chart .grp{transition:opacity .12s}
+.chart.hovering .grp:not(.on){opacity:.35}
+.gcols{align-items:stretch}
+.gcols .card{display:flex;flex-direction:column}
+.gcols .gfoot{margin-top:auto;padding-top:8px}
+.gfoot{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.island[data-density="compact"] .gfoot{margin-top:5px}
+.ctip{position:absolute;pointer-events:none;z-index:5;min-width:128px;white-space:nowrap;background:var(--i-plot);border:1px solid var(--i-border);border-radius:9px;padding:7px 9px;box-shadow:0 6px 18px rgba(0,0,0,.35);font-size:var(--fs-sm);transform:translateY(-50%);opacity:0;transition:opacity .1s}
+.ctip.show{opacity:1}
+.ctip > div{position:relative;z-index:1}
+.ctip::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--i-surface2)}
+.ctip b{display:block;font-weight:650;margin-bottom:3px;color:var(--i-text)}
+.ctip .l{display:flex;align-items:center;gap:6px;color:var(--i-muted);line-height:1.6}
+.ctip .l i{width:7px;height:7px;border-radius:2px;flex:none}
+.ctip .l span{margin-left:auto;padding-left:10px;color:var(--i-text);font-variant-numeric:tabular-nums;font-weight:600}
+.seg2{display:flex;height:26px;gap:2px;border-radius:7px;overflow:hidden}
+.island[data-density="compact"] .seg2{height:20px}
+.seg2 span{display:flex;align-items:center;padding:0 8px;font-size:var(--fs-sm);font-weight:700;min-width:0;border-radius:4px}
+.flowkey{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:7px 0 2px;font-size:var(--fs-sm);color:var(--i-muted)}
+.flowkey b{display:block;color:var(--i-text);font-weight:600;font-size:var(--fs)}
+.flowkey i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:baseline}
+.island[data-density="compact"] .flowkey{display:none}
+.seg2 .fill-on{color:#0b0c10}
+.island[data-itheme="claro"] .seg2 .fill-on{color:#fff}
+.seg2 span:not(.fill-on){color:var(--i-text)}
+.island[data-density="compact"] .gkpi .k-top span{display:inline}
+.island[data-density="compact"] .gkpi .k-num{margin-left:auto}
+.pdots{display:flex;justify-content:center;gap:6px;margin-top:10px}
+.pdots i{width:6px;height:6px;border-radius:50%;background:var(--i-surface2)}
+.pdots i.on{background:var(--i-text)}
+
+/* ===== current (as-is) ===== */
+.cur{--c-card:rgba(255,255,255,.055);font-family:var(--f-ui);background:#000;color:#f2f2f2;border-radius:0 0 34px 34px;padding:0 24px 14px;position:relative}
+.cur .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:190px;height:32px;background:#000;border-radius:0 0 12px 12px}
+.cur .h{height:30px;display:flex;align-items:center;justify-content:space-between;font-size:10px;color:#888}
+.cur .cc{display:grid;grid-template-columns:1fr 1px 1fr;gap:0 14px;max-height:430px;overflow:hidden}
+.cur .div{background:rgba(255,255,255,.08)}
+.cur .colc{display:flex;flex-direction:column;gap:12px;min-width:0}
+.cur .bc{background:var(--c-card);border-radius:12px;padding:10px}
+.cur .lab{font-size:11px;font-weight:600;color:#999;display:flex;justify-content:space-between}
+.cur .sl{font-size:10.5px;color:#9a9a9a;margin:6px 0 2px}
+.cur .r{display:flex;align-items:center;gap:6px;height:22px;font-size:11px;white-space:nowrap}
+.cur .r span.t{overflow:hidden;text-overflow:ellipsis;flex:1}
+.cur .r .k{color:#888;font-variant-numeric:tabular-nums}
+.cur .tg{font-size:8.5px;font-weight:700;background:rgba(255,255,255,.12);border-radius:4px;padding:1px 4px;color:#ddd}
+.cur .tb{background:rgba(64,128,255,.35);color:#cfe0ff}
+.cur .g{color:#32d74b}
+.cur .rule{height:1px;background:rgba(255,255,255,.08);margin:6px 0}
+.cur .big{font-size:30px;font-weight:700;color:#32d74b;line-height:1.1}
+.cur .tr{height:5px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+.cur .dockc{display:flex;justify-content:center;margin-top:12px}
+.cur .dockc div{display:flex;gap:10px;background:rgba(255,255,255,.06);border-radius:12px;padding:6px 10px}
+
+/* columns section */
+.wf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.wf-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
+.wf-row{display:flex;gap:10px;align-items:flex-end;margin:14px 0 12px;overflow-x:auto;padding-bottom:4px}
+.wf{background:#16181d;border-radius:0 0 12px 12px;padding:6px;display:flex;flex-direction:column;gap:4px;flex:none}
+.wf .wl{font:600 10px var(--f-body);color:var(--muted);text-align:center;margin-top:4px}
+.wf .g{display:grid;gap:4px}
+.wf b{display:block;background:#2c3038;border-radius:3px}
+.wf b.k{background:#245b73}.wf b.h{background:#3a3f48;height:6px}
+.wf b.d{background:#2f343c;height:7px;width:40%;margin:2px auto 0;border-radius:4px}
+.wfcap{font:600 11px var(--f-body);color:var(--muted);text-align:center}
+.rules{margin:0;padding-left:18px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:6px}
+.rules b{color:var(--fg);font-weight:600}
+
+/* stages */
+.steps{display:flex;flex-direction:column;gap:0;border-left:2px solid var(--line);margin-left:10px}
+.step{position:relative;padding:0 0 24px 26px}
+.step::before{content:attr(data-n);position:absolute;left:-13px;top:0;width:24px;height:24px;border-radius:50%;background:var(--panel);border:2px solid var(--accent);color:var(--accent);font:700 12px var(--f-display);display:grid;place-items:center}
+.step h3{margin-bottom:4px}
+.step .what{color:var(--muted);font-size:14px;max-width:72ch}
+.step ul{margin:8px 0 0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:3px}
+.step code,.notes code{font:13px var(--f-mono);background:var(--chip);padding:1px 5px;border-radius:4px}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);margin-left:8px;vertical-align:middle}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.note{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;font-size:14px;min-width:0}
+.note h3{margin-bottom:6px}
+.note p{color:var(--muted)}
+.compare{width:100%;border-collapse:collapse;font-size:14px}
+.compare th,.compare td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.compare th{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 8px}
+@media (prefers-reduced-motion:no-preference){.island,.cur{transition:width .25s ease}}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Dr Island · proposta de interface</div>
+  <h1>Uma ilha mais legível, com temas e modo compacto</h1>
+  <p class="lede">Análise da ilha atual (render real em 2 colunas, com todos os blocos ativos), duas direções novas e o plano por etapas. Os dados dos exemplos são inventados.</p>
+
+  <section>
+    <h2>1 · O que se vê hoje</h2>
+    <p class="sub">Retirado do snapshot da app (2 colunas, +120 pt de largura extra) e do código (<code>View+BlockCard</code>, <code>IslandLayout</code>, <code>Brand</code>).</p>
+    <div class="legend"><span><i style="background:#e5484d"></i>Prejudica a leitura</span><span><i style="background:#f5a524"></i>Ar datado</span><span><i style="background:#8b93a1"></i>Impede temas/compacto</span></div>
+    <div class="diag">
+      <div class="issue"><div class="sev hi"></div><b>Conteúdo cortado a meio</b><span>As colunas param a 50% da altura do ecrã. «Desde ontem» e «Jira» ficam cortados sem fade nem indicação de que há mais.</span></div>
+      <div class="issue"><div class="sev hi"></div><b>Hierarquia plana</b><span>Títulos de card, rótulos de lista e metadados usam todos caption a 11–12 pt em cinzento. Só o «11%» se destaca.</span></div>
+      <div class="issue"><div class="sev hi"></div><b>Informação repetida</b><span>«Avisos recentes» e «Desde ontem» mostram as mesmas linhas, um por baixo do outro.</span></div>
+      <div class="issue"><div class="sev md"></div><b>Cartões quase invisíveis</b><span>O fundo dos cards é branco a 5,5% sobre preto, sem borda nem relevo. Ainda assim, a divisória de 1 px entre colunas junta uma segunda camada de estrutura.</span></div>
+      <div class="issue"><div class="sev md"></div><b>Claude fora do sistema</b><span>É o único bloco sem card. Fica a flutuar ao lado de blocos que têm card.</span></div>
+      <div class="issue"><div class="sev md"></div><b>Linhas densas e crípticas</b><span>Linhas de 25 pt com três ícones seguidos (✓ 👁 ✓) sem legenda, siglas como LC/SO/TL e emojis de tipo de issue misturados com SF Symbols.</span></div>
+      <div class="issue"><div class="sev md"></div><b>Estados vazios ocupam muito</b><span>Com «Nada a tocar», a música gasta ~100 pt. Um card só com «A carregar…» ocupa a altura toda.</span></div>
+      <div class="issue"><div class="sev md"></div><b>Pouca cor com significado</b><span>As fontes (Claude, Git, Jira, Foco) não têm cor própria. O azul DF só aparece no sprint e o resto é cinzento.</span></div>
+      <div class="issue"><div class="sev lo"></div><b>Cores escritas à mão</b><span><code>Color.white.opacity(…)</code>, <code>.secondary</code> e <code>Brand.*</code> estão espalhados pelas views. Assim não há como trocar de tema.</span></div>
+      <div class="issue"><div class="sev lo"></div><b>Medidas fixas</b><span><code>IslandLayout</code> é um enum de constantes estáticas (linha de 25, padding de 10…). Um modo compacto precisa que estas medidas dependam da densidade.</span></div>
+    </div>
+  </section>
+
+  <section id="lab">
+    <h2>2 · Laboratório</h2>
+    <p class="sub">Troca o layout, o tema, a página e a densidade. Todos os exemplos usam 2 colunas. Passa o rato pelas linhas e pelos gráficos, e experimenta as abas. Na ilha, o botão de gráficos no topo também troca de página.</p>
+    <div class="bar">
+      <div class="ctl"><label>Layout</label><div class="seg" id="segLayout">
+        <button data-v="atual">Atual</button><button data-v="camadas">A · Camadas</button><button data-v="bento">B · Bento</button></div></div>
+      <div class="ctl"><label>Tema</label><div class="seg" id="segTheme">
+        <button data-v="grafite">Grafite</button><button data-v="meia-noite">Meia-noite</button><button data-v="aurora">Aurora</button><button data-v="claro">Claro</button></div></div>
+      <div class="ctl"><label>Página</label><div class="seg" id="segPage">
+        <button data-v="resumo">Resumo</button><button data-v="gestao">Gestão · gráficos</button></div></div>
+      <div class="ctl"><label>Densidade</label><div class="seg" id="segDensity">
+        <button data-v="normal">Normal</button><button data-v="compact">Compacto</button></div></div>
+    </div>
+    <div class="stage"><div class="menubar"><span>Finder &nbsp; Ficheiro &nbsp; Editar</span><span>qua 25 nov 10:12</span></div><div class="stage-inner" id="stage"></div></div>
+    <p class="stage-note" id="stageNote"></p>
+  </section>
+
+  <section>
+    <h2>Gráficos da Gestão · antes e depois</h2>
+    <p class="sub">Hoje, os quatro gráficos são Swift Charts com os estilos de origem: eixos cheios, barras grossas, vermelho contra verde e nada que os ligue aos cards do resumo. A proposta usa as mesmas peças do resto da ilha. No laboratório, escolhe «Gestão · gráficos».</p>
+    <div class="notes">
+      <div class="note"><h3>Números primeiro</h3><p>Uma faixa de 4 números da sprint, como os KPIs do Bento: concluído, dias que faltam, ritmo face ao ideal e bloqueadas. O estado vai numa pill («atrás do ideal», «precisa de ajuda»).</p></div>
+      <div class="note"><h3>Card igual aos outros</h3><p>Tile azul Jira, título, legenda no lado direito do cabeçalho (some no compacto) e pills de resumo no fundo. Os quatro cards de cada linha têm a mesma altura.</p></div>
+      <div class="note"><h3>Burndown que responde</h3><p>Área suave por baixo do «por fazer», valor atual no ponto, «hoje» como pill, os dias que faltam sombreados e uma previsão tracejada até ao fim da sprint («sobram ~8 pts»).</p></div>
+      <div class="note"><h3>Fluxo sem barras soltas</h3><p>Uma barra segmentada com os pontos dentro de cada parte, o tempo médio em cada estado e as tasks paradas há mais tempo, como linhas da lista (com ícone, chave e pill de dias).</p></div>
+      <div class="note"><h3>Bugs em espelho</h3><p>Criados para cima (vermelho) e resolvidos para baixo (azul) na mesma escala. O saldo de cada semana lê-se pela diferença de alturas, e o par vermelho/azul distingue-se com daltonismo.</p></div>
+      <div class="note"><h3>Velocity com o plano por trás</h3><p>O planeado é uma barra larga e discreta, com o concluído fino por dentro. A média é uma linha com etiqueta à direita e a última sprint mostra o valor.</p></div>
+      <div class="note"><h3>Tooltip ao passar o rato</h3><p>Ao lado do ponto, com os valores daquele dia, semana ou sprint. Nas barras, as outras ficam esbatidas. No burndown, aparece uma guia vertical.</p></div>
+      <div class="note"><h3>Eixos limpos</h3><p>O topo é o primeiro valor redondo acima dos dados (35 → 40), com 3 marcas, grelha de 1 px quase invisível e datas sem se sobreporem.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · As duas direções</h2>
+    <div class="tablewrap"><table class="compare">
+      <thead><tr><th></th><th>A · Camadas</th><th>B · Bento</th></tr></thead>
+      <tbody>
+        <tr><td><b>Ideia</b></td><td>Evolução do atual: as mesmas colunas de blocos, com cards a sério, um cabeçalho com cor por fonte e abas para juntar listas.</td><td>Painel de controlo: em cima, uma faixa de números grandes (Claude, PRs, sprint, foco) e, por baixo, as listas.</td></tr>
+        <tr><td><b>Lê-se em</b></td><td>Listas primeiro: o que tenho de fazer</td><td>Números primeiro: como está o dia, depois o detalhe</td></tr>
+        <tr><td><b>Configuração</b></td><td>A de hoje (<code>IslandLayoutConfig</code>) não muda</td><td>A faixa de KPIs é nova e fica fora das colunas, como a dock</td></tr>
+        <tr><td><b>Música</b></td><td>Card fino. Desaparece se não houver nada a tocar</td><td>Entra na dock como «a tocar»</td></tr>
+        <tr><td><b>Avisos</b></td><td>Avisos e Resumo do dia num só card com linha do tempo</td><td>Faixa horizontal de eventos ao fundo</td></tr>
+        <tr><td><b>Custo</b></td><td>Médio: tokens, componentes e restyle dos blocos</td><td>Maior: tudo o que a A exige, mais a faixa de KPIs e a dock com música</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>4 · 1, 2 e 3 colunas</h2>
+    <p class="sub">Só mostro o exemplo de 2 colunas acima. Isto é como cada layout se adapta quando o utilizador muda o número de colunas em «Aparência».</p>
+    <div class="wf-grid">
+      <div class="wf-card">
+        <h3>A · Camadas</h3>
+        <div class="wf-row" id="wfA"></div>
+        <ul class="rules">
+          <li><b>1 coluna</b> (400 pt, compacto 340 pt): as abas do Git e do Jira são essenciais para a altura não disparar. As chips do cabeçalho ficam só com ícones.</li>
+          <li><b>2 colunas</b> (660 pt como hoje, compacto 560 pt): o exemplo acima.</li>
+          <li><b>3 colunas</b> (870 pt como hoje, compacto 740 pt): a terceira coluna leva Música, Linha do tempo e Avisos, como no preset atual. O cabeçalho ocupa a largura toda.</li>
+        </ul>
+      </div>
+      <div class="wf-card">
+        <h3>B · Bento</h3>
+        <div class="wf-row" id="wfB"></div>
+        <ul class="rules">
+          <li><b>1 coluna</b>: KPIs numa grelha 2×2, listas empilhadas e a faixa de eventos reduzida a uma linha («4 avisos novos»).</li>
+          <li><b>2 colunas</b>: 4 KPIs numa linha e listas em 2 colunas.</li>
+          <li><b>3 colunas</b>: 6 KPIs (mais Jira e Avisos) e listas em 3 colunas. Com 3 colunas, a faixa de eventos passa a coluna.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="stage-note">Regra comum: em vez de cortar a seco a 50% do ecrã, a coluna desvanece no fundo. Assim fica claro que dá para fazer scroll.</p>
+  </section>
+
+  <section>
+    <h2>5 · Etapas</h2>
+    <p class="sub">Cada etapa entra na <code>main</code> sozinha e não estraga a anterior. As duas primeiras não mudam nada visualmente: com «Grafite» + «Normal», a ilha fica igual à de hoje.</p>
+    <div class="steps">
+      <div class="step" data-n="1"><h3>Fundações: tokens de tema e densidade <span class="tag">sem mudança visual</span></h3>
+        <p class="what">Tirar as cores e as medidas de dentro das views.</p>
+        <ul>
+          <li><code>IslandTheme</code> no Core (superfícies, texto, acento, semânticas e cor por fonte), injetado via <code>EnvironmentKey</code> e escolhido em <code>SettingsKey.islandTheme</code>.</li>
+          <li><code>IslandDensity</code> (<code>.regular</code>/<code>.compact</code>) e <code>IslandMetrics(density:)</code>: as constantes de <code>IslandLayout</code> passam a propriedades. É aqui que entram os testes do cálculo de alturas.</li>
+          <li>Trocar <code>Color.white.opacity</code>/<code>.secondary</code>/<code>Brand</code> pelos tokens, view a view.</li>
+        </ul></div>
+      <div class="step" data-n="2"><h3>Componentes base</h3>
+        <p class="what">As peças comuns aos dois layouts.</p>
+        <ul>
+          <li><code>BlockCard</code> v2 (cabeçalho com tile colorido, contador e acessório à direita), <code>ListRow</code> v2 (com 1 ou 2 linhas consoante a densidade), <code>Pill</code>, <code>SegmentedTabs</code> e <code>KPITile</code>.</li>
+          <li>Fade nas colunas no lugar do corte. Estados vazios numa só linha.</li>
+        </ul></div>
+      <div class="step" data-n="3"><h3>Layout A · Camadas</h3>
+        <ul>
+          <li>Restyle de todos os blocos com os componentes v2. O Claude passa a ter card.</li>
+          <li>Abas no Git (Meus/A rever) e no Jira (Tasks/Aprovações). Avisos e Resumo fundidos.</li>
+          <li>Cabeçalho com saudação e estado («ao vivo», atualizar, definições).</li>
+        </ul></div>
+      <div class="step" data-n="4"><h3>Modo compacto</h3>
+        <ul>
+          <li>Interruptor em «Aparência» e atalho de teclado opcional (<code>HotKeyManager</code>).</li>
+          <li>Compacto: linhas de 22 pt sem segunda linha, anel de 52 pt, radius 12, larguras ~18% menores.</li>
+          <li>As alturas em <code>IslandView.height(of:)</code> passam a vir de <code>IslandMetrics</code>.</li>
+        </ul></div>
+      <div class="step" data-n="5"><h3>Temas extra</h3>
+        <ul>
+          <li>Meia-noite, Aurora e Claro. O Claro precisa de uma faixa preta no topo para se fundir com o notch físico.</li>
+          <li>Na página «Aparência», escolha por miniaturas. O tema respeita «Reduzir transparência» e «Aumentar contraste».</li>
+        </ul></div>
+      <div class="step" data-n="6"><h3>Layout B · Bento</h3>
+        <ul>
+          <li>A faixa de KPIs não é um <code>IslandBlock</code>: fica acima das colunas, como a dock fica abaixo.</li>
+          <li>Dock com «a tocar» e faixa de eventos. O número de KPIs depende das colunas (4 → 2×2 → 6).</li>
+          <li>Seletor de layout em «Aparência»: Clássico / Camadas / Bento.</li>
+        </ul></div>
+      <div class="step" data-n="7"><h3>Acabamento</h3>
+        <ul>
+          <li>Variáveis de snapshot <code>DR_ISLAND_THEME</code>, <code>DR_ISLAND_LAYOUT</code> e <code>DR_ISLAND_DENSITY</code> para gerar renders de todas as combinações.</li>
+          <li>Atualizar <code>docs/funcionalidades.md</code>. Rever as animações (o anel e o pulso de alerta seguem a cor de acento do tema).</li>
+        </ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>6 · Melhorias que valem em qualquer layout</h2>
+    <div class="notes">
+      <div class="note"><h3>Escala de tipo</h3><p>Três tamanhos: título de card 13 pt semibold, conteúdo 13 pt, meta 11,5 pt. Hoje é quase tudo 11–12 pt.</p></div>
+      <div class="note"><h3>Cor por fonte</h3><p>Claude laranja, Git roxo, Jira azul DF, Foco verde, Música rosa e Avisos âmbar. A mesma cor aparece no tile, no pulso de alerta e no ponto do aviso.</p></div>
+      <div class="note"><h3>Estado com legenda</h3><p>O ✓ e o 👁 passam a uma pill com texto («CI ok», «2 aprov.»). As siglas passam a avatar com a cor da pessoa e o nome no tooltip.</p></div>
+      <div class="note"><h3>Ícones coerentes</h3><p>Só SF Symbols. O tipo de issue (bug, história, hotfix) passa a ícone monocromático em vez de emoji.</p></div>
+      <div class="note"><h3>Notch e tema claro</h3><p>O notch é físico e preto. Por isso o Claro mantém uma faixa preta de ~46 pt no topo e só o corpo é claro.</p></div>
+      <div class="note"><h3>Decisões que são tuas</h3><p>Qual direção seguir (A, B ou ambas), se o compacto liga sozinho (ecrã sem notch, ou mais de N blocos) ou só à mão, e se o «Atual» fica como opção «Clássico».</p></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const S={layout:"camadas",theme:"grafite",density:"normal",page:"resumo",gitTab:"mine",jiraTab:"tasks",board:"clinica",unit:"pts"};
+try{const s=JSON.parse(localStorage.getItem("drisland-lab")||"{}");Object.assign(S,s)}catch(e){}
+const save=()=>{try{localStorage.setItem("drisland-lab",JSON.stringify({layout:S.layout,theme:S.theme,density:S.density,page:S.page}))}catch(e){}};
+
+const I={
+ spark:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg>',
+ git:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M6 8.5v7M18 15.5V9a3 3 0 0 0-3-3h-4"/><path d="M13 3.5 10.5 6 13 8.5"/></svg>',
+ flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+ list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"/></svg>',
+ timer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>',
+ music:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
+ bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></svg>',
+ refresh:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.7L20 8"/><path d="M20 3v5h-5"/></svg>',
+ gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
+ chart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V4M4 20h16M8 15l4-4 3 3 5-6"/></svg>',
+ check:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="var(--i-base,#000)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ dot:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg>',
+ bug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="7" y="8" width="10" height="12" rx="5"/><path d="M9 8a3 3 0 0 1 6 0M3 13h4M17 13h4M4 7l3 2M20 7l-3 2M4 19l3-2M20 19l-3-2"/></svg>',
+ story:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
+ bolt:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+ play:'<svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>',
+ flow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h10M4 12h16M4 18h7"/></svg>',
+ gauge:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 18a8 8 0 1 1 16 0"/><path d="m12 18 4-6"/></svg>',
+ clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+ chevL:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 5-7 7 7 7"/></svg>',
+ chevR:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 5 7 7-7 7"/></svg>',
+ logo:'<svg viewBox="0 0 24 24" fill="none"><rect x="1" y="3" width="22" height="18" rx="5" fill="currentColor" opacity=".25"/><path d="M5 15l4-4 3 3 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+
+const D={
+ claude:{session:.11,reset:"4h 21m",week:.19,weekLeft:"5d 14h",forecast:"não esgota hoje"},
+ mine:[
+  {k:"#2590",t:"Timeline: anexos em mensagens colapsadas",m:"clinica-web · há 2 h",st:"ok",p:[["CI ok","green"]]},
+  {k:"#2575",t:"Melhorias no editor de texto",m:"clinica-web · há 1 d",st:"review",p:[["2 aprov.","green"]]},
+  {k:"#2370",t:"Componente Material personalizado",m:"design-kit · há 4 d",st:"review",p:[["em revisão","purple"]]}],
+ review:[
+  {k:"#2563",t:"FormAside com base em Material",m:"clinica-web · Luís C.",st:"review",av:["LC","#7c5cff"]},
+  {k:"#2581",t:"Chamadas perdidas ficam tratadas",m:"voz-api · Luís C.",st:"review",av:["LC","#7c5cff"]},
+  {k:"#2584",t:"Normalizar última escritura",m:"clinica-web · Luís C.",st:"ok",p:[["aprovaste","blue"]],av:["LC","#7c5cff"]},
+  {k:"#2602",t:"Criar projeto base",m:"onboarding · Sara O.",st:"review",av:["SO","#e0612c"]}],
+ sprint:{name:"Sprint 20 · Clínica",day:4,days:10,progress:.35},
+ tasks:[
+  {k:"APP-52",t:"Alterações no editor de texto",m:"História · 5 pts",ic:"story",p:[["In Review","blue"]]},
+  {k:"APP-3116",t:"Mensagens colapsadas não abrem",m:"Bug · prioridade alta",ic:"bug",p:[["Em Progresso","amber"]]},
+  {k:"APP-47",t:"Templates favoritos",m:"História · 3 pts",ic:"story",p:[["Ready 2 Dev","grey"]]}],
+ approvals:[
+  {k:"APP-3166",t:"Hotfix: valor da última escritura",m:"Hotfix · Tiago L.",ic:"bolt",p:[["WT 4 QA test","blue"]],av:["TL","#1f9d8b"]},
+  {k:"APP-3039",t:"Projeto em Angular",m:"História · Sara S.",ic:"story",p:[["In Review","blue"]],av:["SS","#c2417a"]}],
+ alerts:[
+  {s:"JIRA",t:"APP-3116 passou a «Em Progresso»",time:"09:41",c:"accent"},
+  {s:"GIT",t:"Novo comentário em #2575",time:"09:12",c:"purple"},
+  {s:"GIT",t:"CI passou em #2575",time:"08:55",c:"green"},
+  {s:"JIRA",t:"APP-52 passou a «In Review»",time:"ontem",c:"accent"}],
+ music:{t:"Deep Focus",a:"Spotify · Lo-fi Beats"},
+ apps:[["VS","#2f80ed"],[">_","#2b2b2b"],["Ob","#7c3aed"],["Ar","#8b5cf6"],["Br","#fb542b"]]
+};
+
+const isC=()=>S.density==="compact";
+const pills=a=>(a||[]).map(([t,c])=>`<span class="pill p-${c}">${t}</span>`).join("");
+const av=a=>a?`<span class="av" style="background:${a[1]}">${a[0]}</span>`:"";
+function stIcon(r){
+  if(r.ic){const col=r.ic==="bug"?"var(--i-red)":r.ic==="bolt"?"var(--i-amber)":"var(--i-green)";return `<span class="st" style="color:${col}">${I[r.ic]}</span>`}
+  return `<span class="st" style="color:${r.st==="ok"?"var(--i-green)":"var(--i-purple)"}">${r.st==="ok"?I.check:I.dot}</span>`;
+}
+const row=r=>`<div class="row">${stIcon(r)}<span class="key">${r.k}</span><div class="t"><div class="tt">${r.t}</div><div class="meta">${r.m}</div></div><span class="trail">${pills(r.p)}${av(r.av)}</span></div>`;
+const head=(tile,icon,title,count,acc="")=>`<div class="chead"><span class="tile ${tile}">${I[icon]}</span><span class="ctitle">${title}</span>${count!=null?`<span class="count">${count}</span>`:""}${acc}</div>`;
+const ring=(f,col)=>{const r=16,c=2*Math.PI*r;return `<div class="ring"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="${r}" fill="none" stroke="var(--i-surface2)" stroke-width="4"/><circle cx="20" cy="20" r="${r}" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${c*f} ${c}"/></svg><div class="v">${Math.round(f*100)}%</div></div>`};
+const bar=(label,val,f,col)=>`<div><div class="bl"><span>${label}</span><b>${val}</b></div><div class="track"><div class="fill" style="width:${f*100}%;background:${col}"></div></div></div>`;
+
+function ihead(compact){
+  return `<div class="ihead"><div class="left"><span class="logo" style="color:var(--i-muted)">${I.logo}${compact?"":"doutor<b style='font-weight:700'>finanças</b>"}</span>${compact?"":`<span class="hello">Bom dia <span class="imuted" style="font-weight:400">· qua, 25 nov</span></span>`}</div>
+  <div class="right"><span class="live">ao vivo</span><button class="ibtn${S.page==="gestao"?" on":""}" data-page-toggle aria-label="Gestão">${I.chart}</button><button class="ibtn" aria-label="Atualizar">${I.refresh}</button><button class="ibtn" aria-label="Definições">${I.gear}</button></div></div>`;
+}
+function claudeCard(){
+  const c=D.claude;
+  return `<div class="card">${head("c-claude","spark","Claude",null,`<span class="acc">reinicia em ${c.reset}</span>`)}
+   <div class="cl">${ring(c.session,"var(--i-green)")}<div class="bars">${bar("Sessão","11%",c.session,"var(--i-green)")}${bar("Semana · "+c.weekLeft,"19%",c.week,"var(--i-amber)")}${isC()?"":`<div><span class="chip">● ${c.forecast}</span></div>`}</div></div></div>`;
+}
+function focusCard(){
+  return `<div class="card"><div class="slim"><span class="tile c-focus">${I.timer}</span><div class="grow"><div class="ctitle">Foco <span class="imuted" style="font-weight:400">· ronda 1 de 4</span></div>${isC()?"":`<div class="dots"><i class="on"></i><i></i><i></i><i></i></div>`}</div><span class="big">25:00</span><button class="play" aria-label="Iniciar">${I.play}</button></div></div>`;
+}
+function musicCard(){
+  return `<div class="card"><div class="slim"><span class="art"></span><div class="grow"><div class="mtitle">${D.music.t}</div><div class="msub">${D.music.a}</div></div><button class="play" aria-label="Tocar">${I.play}</button></div></div>`;
+}
+function alertsCard(){
+  const n=isC()?3:4;
+  return `<div class="card">${head("c-bell","bell","Avisos",D.alerts.length,`<span class="acc" style="color:var(--i-accent)">desde ontem · ver tudo</span>`)}
+  <div class="tl">${D.alerts.slice(0,n).map(a=>`<div class="ev"><span class="d" style="background:var(--i-${a.c})"></span><span class="tt"><span class="src">${a.s}</span>${a.t}</span><time>${a.time}</time></div>`).join("")}</div></div>`;
+}
+function gitCard(){
+  const list=S.gitTab==="mine"?D.mine:D.review;
+  const tabs=`<div class="tabs" role="tablist"><button data-git="mine" aria-pressed="${S.gitTab==="mine"}">Meus ${D.mine.length}</button><button data-git="review" aria-pressed="${S.gitTab==="review"}">A rever ${D.review.length}</button></div>`;
+  return `<div class="card">${head("c-git","git","Pull requests",null,tabs)}<div class="rows">${list.map(row).join("")}</div></div>`;
+}
+function sprintCard(){
+  const sp=D.sprint;
+  const acc=`<span class="acc">dia ${sp.day}/${sp.days}<span class="track" style="width:60px"><span class="fill" style="display:block;width:${sp.progress*100}%;background:var(--i-accent)"></span></span></span>`;
+  return `<div class="card">${head("c-jira","flag",sp.name,null,acc)}
+   <div class="sublabel">As minhas · ${D.tasks.length}</div><div class="rows">${D.tasks.map(row).join("")}</div>
+   <div class="sublabel" style="margin-top:8px">Aprovações · ${D.approvals.length}</div><div class="rows">${D.approvals.map(row).join("")}</div></div>`;
+}
+function jiraCard(){
+  return `<div class="card">${head("c-jira","list","Jira",5,`<span class="acc">fora da sprint</span>`)}<div class="rows">${row({k:"APP-2990",t:"Rever permissões de exportação",m:"Tarefa · sem sprint",ic:"story",p:[["To Do","grey"]]})}${isC()?"":row({k:"APP-2871",t:"Documentar fluxo de faturação",m:"Tarefa · sem sprint",ic:"story",p:[["To Do","grey"]]})}</div><div class="more">+3 mais</div></div>`;
+}
+function dock(withMusic){
+  return `<div class="dockrow"><div class="dock">${withMusic?`<div class="np"><span class="art"></span>${isC()?"":`<div style="min-width:0"><div class="mtitle" style="font-size:var(--fs-sm)">${D.music.t}</div><div class="msub" style="font-size:10px">a tocar</div></div>`}<button class="play" style="width:22px;height:22px" aria-label="Tocar">${I.play}</button></div>`:""}${D.apps.map(([l,c])=>`<span class="app" style="background:${c}">${l}</span>`).join("")}</div></div>`;
+}
+
+function renderCamadas(){
+  const w=isC()?560:660;
+  return `<div class="island" style="width:${w}px" data-itheme="${S.theme}" data-density="${S.density}"><div class="notch"></div>${ihead(isC())}
+   <div class="cols" style="grid-template-columns:1fr 1fr">
+    <div class="col">${claudeCard()}${focusCard()}${musicCard()}${alertsCard()}</div>
+    <div class="col">${gitCard()}${sprintCard()}${jiraCard()}</div>
+   </div>${dock(false)}</div>`;
+}
+function renderBento(){
+  const w=isC()?620:780, c=D.claude, sp=D.sprint;
+  const kpi=(tile,icon,label,num,sub,extra="")=>`<div class="card kpi"><div class="k-top"><span class="tile ${tile}">${I[icon]}</span><span>${label}</span></div><div class="k-num">${num}</div><div class="k-sub">${sub}</div>${extra}</div>`;
+  const kpis=`<div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+    ${kpi("c-claude","spark","Claude",`11<small>%</small>`,`reinicia em ${c.reset}`,`<div class="k-extra track"><div class="fill" style="width:11%;background:var(--i-green)"></div></div>`)}
+    ${kpi("c-git","git","Pull requests",`7<small>abertos</small>`,`3 teus · 4 a rever`,`<div class="k-extra stack"><span style="flex:2;background:var(--i-green)"></span><span style="flex:1;background:var(--i-accent)"></span><span style="flex:4;background:var(--i-purple)"></span></div>`)}
+    ${kpi("c-jira","flag","Sprint 20",`${sp.day}<small>/ ${sp.days} dias</small>`,`3 tuas · 2 aprovações`,`<div class="k-extra track"><div class="fill" style="width:${sp.progress*100}%;background:var(--i-accent)"></div></div>`)}
+    ${kpi("c-focus","timer","Foco",`25:00`,`ronda 1 de 4`,`<div class="k-extra dots"><i class="on"></i><i></i><i></i><i></i></div>`)}
+  </div>`;
+  const prs=[...D.mine.map(r=>({...r,p:[["teu","grey"],...(r.p||[])]})),...D.review.slice(0,isC()?2:3)];
+  const lists=`<div class="cols" style="grid-template-columns:1fr 1fr">
+    <div class="card">${head("c-git","git","Pull requests",prs.length)}<div class="rows">${prs.map(row).join("")}</div></div>
+    <div class="card">${head("c-jira","flag","Sprint · as minhas",D.tasks.length)}<div class="rows">${D.tasks.map(row).join("")}</div>
+      <div class="sublabel" style="margin-top:8px">Aprovações · ${D.approvals.length}</div><div class="rows">${D.approvals.map(row).join("")}</div></div>
+  </div>`;
+  const strip=isC()
+   ? `<div class="card" style="margin-top:var(--cardgap)"><div class="oneline"><span class="tile c-bell">${I.bell}</span><b style="color:var(--i-text)">4 avisos novos</b> · último: APP-3116 passou a «Em Progresso» · 09:41</div></div>`
+   : `<div class="card" style="margin-top:var(--cardgap)">${head("c-bell","bell","Desde ontem",D.alerts.length,`<span class="acc" style="color:var(--i-accent)">ver tudo</span>`)}<div class="strip">${D.alerts.map(a=>`<div class="evc"><div class="h"><span style="color:var(--i-${a.c})">${a.s}</span><span>${a.time}</span></div><div class="b">${a.t}</div></div>`).join("")}</div></div>`;
+  return `<div class="island" style="width:${w}px" data-itheme="${S.theme}" data-density="${S.density}"><div class="notch"></div>${ihead(isC())}${kpis}${lists}${strip}${dock(true)}</div>`;
+}
+function renderAtual(){
+  const r=(ic,k,t,tags="")=>`<div class="r">${ic}<span class="k">${k}</span><span class="t">${t}</span>${tags}</div>`;
+  const ok='<span class="g">✓</span>', eye='<span style="color:#aaa">👁</span>';
+  return `<div class="cur" style="width:780px"><div class="notch"></div><div class="h"><span>▣ doutorfinanças</span><span>⟳ &nbsp;⚙</span></div>
+  <div class="cc"><div class="colc">
+    <div><div class="lab"><span>Claude</span><span style="font-weight:500">● ao vivo</span></div><div style="display:flex;justify-content:space-between;align-items:flex-end"><span class="big">11%</span><span style="font-size:10.5px;color:#999">reinicia em 4h 21m</span></div><div class="tr"><div style="width:11%;height:100%;background:#32d74b"></div></div><div style="display:flex;gap:8px;align-items:center;font-size:10.5px;color:#999;margin-top:6px">Semana <div class="tr" style="flex:1"><div style="width:19%;height:100%;background:#ffcc33"></div></div>19% · 5d 14h</div></div>
+    <div class="bc" style="display:flex;align-items:center;gap:10px"><div style="width:46px;height:46px;border-radius:50%;border:3px solid #333;display:grid;place-items:center;font-size:11px;font-weight:700">25:00</div><div style="flex:1;font-size:12px;font-weight:600">Foco · ronda 1 de 4</div><span style="background:#fff;color:#000;border-radius:50%;width:22px;height:22px;display:grid;place-items:center;font-size:9px">▶</span></div>
+    <div class="bc" style="display:flex;gap:10px;opacity:.55"><div style="width:46px;height:46px;border-radius:8px;background:#222;display:grid;place-items:center">♪</div><div style="font-size:12px">Nada a tocar<div style="font-size:10px;color:#888">Abre uma música para a controlar aqui</div></div></div>
+    <div class="bc"><div class="lab"><span>🔔 Avisos recentes</span><span style="color:#6ea8ff">ver tudo</span></div>${D.alerts.slice(0,4).map(a=>`<div class="r"><span style="color:#6ea8ff">●</span><span class="t">${a.s} - ${a.t}</span><span class="k">${a.time}</span></div>`).join("")}</div>
+    <div class="bc"><div class="lab"><span>Desde ontem · 11:16</span><span style="color:#6ea8ff">ok</span></div><div class="sl">11 PRs · 5 Jira · 11 mais</div>${D.alerts.slice(0,3).map(a=>`<div class="r"><span style="color:#6ea8ff">●</span><span class="t">${a.s} - ${a.t}</span><span class="k">${a.time}</span></div>`).join("")}</div>
+  </div><div class="div"></div><div class="colc">
+    <div class="bc"><div class="lab"><span>⑂ Git</span></div><div class="sl">Os meus PRs</div>${D.mine.map(x=>r(ok+eye,x.k,x.t)).join("")}<div class="rule"></div><div class="sl">A rever</div>${D.review.slice(0,3).map(x=>r(ok+eye,x.k,x.t,'<span class="tg">LC</span>')).join("")}</div>
+    <div class="bc" style="background:rgba(0,166,229,.14);outline:1px solid rgba(0,166,229,.35)"><div class="lab"><span>⚑ SPRINT - SPRINT #20_Clinica</span></div><div class="sl">As minhas até ao fim</div>${D.tasks.map(x=>r("✨",x.k,"⭐ "+x.t,`<span class="tg tb">${x.p[0][0]}</span>`)).join("")}<div class="rule"></div><div class="sl">Aprovações</div>${D.approvals.map(x=>r("",x.k,"⚡ "+x.t,`<span class="tg tb">${x.p[0][0]}</span><span class="tg">${x.av[0]}</span>`)).join("")}</div>
+    <div class="bc"><div class="lab"><span>☰ Jira</span></div><div class="sl">As minhas tasks</div></div>
+  </div></div>
+  <div class="dockc"><div>${D.apps.map(([l,c])=>`<span class="app" style="background:${c};width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font:700 10px var(--f-ui);color:#fff">${l}</span>`).join("")}</div></div></div>`;
+}
+
+/* ===== Gestão (the charts page), in the same card system as the overview ===== */
+const G={
+ days:["18/11","19/11","20/11","21/11","24/11","25/11","26/11","27/11","28/11","01/12","02/12","03/12"],
+ today:8,
+ remaining:[33,33,31,28,27,24,21,18,15],
+ scope:[33,33,33,33,35,35,35,35,35],
+ flow:[{n:"Por fazer",v:7,t:"~4,8 d",c:"faint"},{n:"Em curso",v:8,t:"~1,5 d",c:"accent"},{n:"Concluído",v:20,t:"—",c:"green"}],
+ stale:[
+  {k:"TEP-7",t:"Exportar faturas em lote",m:"Em curso · bloqueada",ic:"flag",col:"red",p:[["2 d","red"]]},
+  {k:"TEP-8",t:"Rever textos do onboarding",m:"Por fazer · sem dono",ic:"clock",col:"amber",p:[["9 d","amber"]]},
+  {k:"TEP-10",t:"Limpar logs antigos da API",m:"Por fazer · Tiago L.",ic:"clock",col:"amber",p:[["9 d","amber"]]}],
+ bugs:{weeks:["6/10","13/10","20/10","27/10","3/11","10/11","17/11","24/11"],created:[3,5,2,4,6,3,4,5],resolved:[2,4,3,3,4,5,3,2],open:14,median:"3,5"},
+ vel:{names:["#13","#14","#15","#16","#17","#18"],planned:[26,28,30,24,32,27],done:[22,20,27,23,23,27]}
+};
+const niceTop=(m,t=3)=>{const target=m*1.05,mag=Math.pow(10,Math.floor(Math.log10(target/t)));let best=null;
+  for(const sc of [.1,1,10])for(const b of [1,2,5]){const st=Math.max(b*mag*sc,1),top=Math.ceil(target/st)*st,n=Math.round(top/st);
+   if(n<2||n>t+1)continue;if(!best||top<best.top||(top===best.top&&st>best.step))best={top,step:st}}
+  return best||{top:Math.ceil(target),step:1}};
+const tipAttr=(title,lines)=>`data-tip='${JSON.stringify({title,lines}).replace(/'/g,"&#39;")}'`;
+const cssv=n=>`var(--i-${n})`;
+let gradSeq=0;
+
+function gestaoGeom(){
+  const W=gestaoWidth(),padX=isC()?14:22,gap=isC()?8:12,pad=isC()?9:14;
+  return {W,cw:Math.floor((W-2*padX-gap)/2-2*pad-2),h:isC()?82:124};
+}
+function gestaoWidth(){return S.layout==="bento"?(isC()?620:780):(isC()?560:660)}
+
+function burndownSVG(w,h){
+  const n=G.days.length,T=G.today,padL=22,padR=40,padT=18,padB=16;
+  const sc=niceTop(Math.max(...G.scope)),x=i=>padL+(w-padL-padR)*i/(n-1),y=v=>padT+(h-padT-padB)*(1-v/sc.top);
+  const ideal=i=>G.scope[0]*(1-i/(n-1));
+  const pace=(G.scope[T]-G.remaining[T])/T, proj=Math.max(G.remaining[T]-pace*(n-1-T),0);
+  const id=`g${++gradSeq}`;
+  let s=`<svg width="${w}" height="${h}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${cssv("accent")};stop-opacity:.26"/><stop offset="1" style="stop-color:${cssv("accent")};stop-opacity:0"/></linearGradient></defs>`;
+  // what is left of the sprint, as a quiet band
+  s+=`<rect x="${x(T)}" y="${padT}" width="${x(n-1)-x(T)}" height="${h-padT-padB}" rx="4" style="fill:${cssv("text")};opacity:.035"/>`;
+  for(let v=0;v<=sc.top;v+=sc.step)s+=`<line x1="${padL}" x2="${w-padR+18}" y1="${y(v)}" y2="${y(v)}" style="stroke:${cssv("text")};opacity:.08" stroke-width="1"/><text x="${padL-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  G.days.forEach((d,i)=>{if((i%3===0&&n-1-i>=3)||i===n-1)s+=`<text x="${x(i)}" y="${h-3}" text-anchor="${i===0?"start":i===n-1?"end":"middle"}">${d}</text>`});
+  let step=`M${x(0)},${y(G.scope[0])}`;for(let i=1;i<=T;i++)step+=` H${x(i)} V${y(G.scope[i])}`;step+=` H${x(n-1)}`;
+  s+=`<path d="${step}" fill="none" style="stroke:${cssv("faint")}" stroke-width="1"/>`;
+  s+=`<line x1="${x(0)}" y1="${y(ideal(0))}" x2="${x(n-1)}" y2="${y(0)}" style="stroke:${cssv("faint")}" stroke-width="1" stroke-dasharray="3 3"/>`;
+  const line=G.remaining.map((v,i)=>`${i?"L":"M"}${x(i)},${y(v)}`).join(" ");
+  s+=`<path d="${line} L${x(T)},${y(0)} L${x(0)},${y(0)}Z" fill="url(#${id})"/>`;
+  s+=`<line x1="${x(T)}" y1="${y(G.remaining[T])}" x2="${x(n-1)}" y2="${y(proj)}" style="stroke:${cssv("accent")};opacity:.55" stroke-width="1.6" stroke-dasharray="4 3" stroke-linecap="round"/>`;
+  s+=`<path d="${line}" fill="none" style="stroke:${cssv("accent")}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  s+=`<line x1="${x(T)}" x2="${x(T)}" y1="${padT-4}" y2="${h-padB}" style="stroke:${cssv("amber")};opacity:.6" stroke-width="1"/>`;
+  s+=`<g transform="translate(${x(T)},${padT-9})"><rect x="-15" y="-7" width="30" height="13" rx="6.5" style="fill:color-mix(in srgb,${cssv("amber")} 22%,${cssv("plot")})"/><text x="0" y="3" text-anchor="middle" style="fill:${cssv("amber")};font-weight:650">hoje</text></g>`;
+  s+=`<circle cx="${x(n-1)}" cy="${y(proj)}" r="3" style="fill:${cssv("plot")};stroke:${cssv("accent")};opacity:.8" stroke-width="1.5"/><text x="${x(n-1)+6}" y="${y(proj)+3}">~${Math.round(proj)}</text>`;
+  s+=`<circle cx="${x(T)}" cy="${y(G.remaining[T])}" r="4" style="fill:${cssv("accent")};stroke:${cssv("plot")}" stroke-width="2"/>`;
+  s+=`<text class="v" x="${x(T)+8}" y="${y(G.remaining[T])-6}">${G.remaining[T]} pts</text>`;
+  s+=`<line class="guide" y1="${padT}" y2="${h-padB}" style="stroke:${cssv("text")};opacity:0" stroke-width="1"/>`;
+  const slot=(w-padL-padR)/(n-1);
+  for(let i=0;i<=T;i++)s+=`<rect class="hit" x="${x(i)-slot/2}" y="0" width="${slot}" height="${h}" data-x="${x(i)}" data-y="${y(Math.max(G.remaining[i],G.scope[i]))}" ${tipAttr(G.days[i]+(i===T?" · hoje":""),[["Por fazer",G.remaining[i]+" pts","accent"],["Ideal",ideal(i).toFixed(1).replace(".",",")+" pts","faint"],["Âmbito",G.scope[i]+" pts","faint"]])}/>`;
+  return s+`</svg>`;
+}
+
+function bugsSVG(w,h){
+  const B=G.bugs,n=B.weeks.length,padL=22,padR=6,padT=6,padB=16;
+  const top=niceTop(Math.max(...B.created,...B.resolved),2).top,mid=padT+(h-padT-padB)/2,half=(h-padT-padB)/2;
+  const slot=(w-padL-padR)/n,bw=Math.min(12,slot*.42);
+  let s=`<svg width="${w}" height="${h}">`;
+  s+=`<line x1="${padL}" x2="${w-padR}" y1="${mid}" y2="${mid}" style="stroke:${cssv("text")};opacity:.14"/>`;
+  s+=`<text x="${padL-6}" y="${padT+7}" text-anchor="end">${top}</text><text x="${padL-6}" y="${mid+3}" text-anchor="end">0</text><text x="${padL-6}" y="${h-padB}" text-anchor="end">${top}</text>`;
+  B.weeks.forEach((wk,i)=>{
+    const cx=padL+slot*(i+.5),hc=half*B.created[i]/top,hr=half*B.resolved[i]/top;
+    s+=`<g class="grp" data-g="${i}"><rect x="${cx-bw/2}" y="${mid-1.5-hc}" width="${bw}" height="${hc}" rx="3" style="fill:${cssv("red")}"/><rect x="${cx-bw/2}" y="${mid+1.5}" width="${bw}" height="${hr}" rx="3" style="fill:${cssv("accent")}"/></g>`;
+    if(i%2===0)s+=`<text x="${cx}" y="${h-3}" text-anchor="middle">${wk}</text>`;
+    s+=`<rect class="hit" x="${cx-slot/2}" y="0" width="${slot}" height="${h}" data-g="${i}" data-x="${cx}" data-y="${mid-hc-4}" ${tipAttr("Semana de "+wk,[["Criados",B.created[i],"red"],["Resolvidos",B.resolved[i],"accent"],["Saldo",(B.created[i]-B.resolved[i]>0?"+":"")+(B.created[i]-B.resolved[i]),"faint"]])}/>`;
+  });
+  return s+`</svg>`;
+}
+
+function velocitySVG(w,h){
+  const V=G.vel,n=V.names.length,padL=22,padR=42,padT=10,padB=16;
+  const sc=niceTop(Math.max(...V.planned,...V.done)),y=v=>padT+(h-padT-padB)*(1-v/sc.top);
+  const slot=(w-padL-padR)/n,pw=Math.min(22,slot*.55),dw=Math.min(9,pw*.42);
+  const avg=V.done.reduce((a,b)=>a+b,0)/n;
+  let s=`<svg width="${w}" height="${h}">`;
+  for(let v=0;v<=sc.top;v+=sc.step)s+=`<line x1="${padL}" x2="${w-padR}" y1="${y(v)}" y2="${y(v)}" style="stroke:${cssv("text")};opacity:.08"/><text x="${padL-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  V.names.forEach((nm,i)=>{
+    const cx=padL+slot*(i+.5),last=i===n-1;
+    s+=`<g class="grp" data-g="${i}"><rect x="${cx-pw/2}" y="${y(V.planned[i])}" width="${pw}" height="${y(0)-y(V.planned[i])}" rx="5" style="fill:${cssv("text")};opacity:.1"/>`;
+    s+=`<rect x="${cx-dw/2}" y="${y(V.done[i])}" width="${dw}" height="${y(0)-y(V.done[i])}" rx="3" style="fill:${cssv("accent")}"/></g>`;
+    if(last)s+=`<text class="v" x="${cx}" y="${y(Math.max(V.done[i],V.planned[i]))-5}" text-anchor="middle">${V.done[i]}</text>`;
+    s+=`<text x="${cx}" y="${h-3}" text-anchor="middle" ${last?`style="fill:${cssv("text")};font-weight:650"`:""}>${nm}</text>`;
+    const pct=Math.round(V.done[i]/V.planned[i]*100);
+    s+=`<rect class="hit" x="${cx-slot/2}" y="0" width="${slot}" height="${h}" data-g="${i}" data-x="${cx}" data-y="${y(Math.max(V.done[i],V.planned[i]))-4}" ${tipAttr("Sprint "+nm,[["Planeado",V.planned[i]+" pts","faint"],["Concluído",V.done[i]+" pts","accent"],["Cumprido",pct+"%","faint"]])}/>`;
+  });
+  s+=`<line x1="${padL}" x2="${w-padR+4}" y1="${y(avg)}" y2="${y(avg)}" style="stroke:${cssv("muted")};opacity:.8"/>`;
+  s+=`<text x="${w-padR+8}" y="${y(avg)-2}" style="fill:${cssv("muted")}">média</text><text class="v" x="${w-padR+8}" y="${y(avg)+10}">${Math.round(avg)}</text>`;
+  return s+`</svg>`;
+}
+
+function kpiTile(tile,icon,label,num,sub,extra=""){
+  return `<div class="card kpi gkpi"><div class="k-top"><span class="tile ${tile}">${I[icon]}</span><span>${label}</span></div><div class="k-num">${num}</div><div class="k-sub">${sub}</div>${extra}</div>`;
+}
+
+function renderGestao(){
+  const {W,cw,h}=gestaoGeom(),T=G.today,scope=G.scope[T],done=scope-G.remaining[T],pct=Math.round(done/scope*100);
+  const left=G.days.length-1-T, behind=Math.round(G.remaining[T]-G.scope[0]*(1-T/(G.days.length-1)));
+  const tabs=(key,opts)=>`<div class="tabs">${opts.map(([v,l])=>`<button data-gtab="${key}:${v}" aria-pressed="${S[key]===v}">${l}</button>`).join("")}</div>`;
+  const bar=`<div class="gbar">${tabs("board",[["clinica","Clínica"],["plataforma","Plataforma"],["backoffice","Backoffice"]])}
+    <div class="spr"><button aria-label="Sprint anterior">${I.chevL}</button>Sprint 18 · Clínica<button aria-label="Sprint seguinte">${I.chevR}</button></div>
+    ${tabs("unit",[["pts","Pontos"],["tasks","Tasks"]])}</div>`;
+  const kpis=`<div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+    ${kpiTile("c-jira","check","Concluído",`${pct}<small>%</small>`,`${done} de ${scope} pts`,`<div class="k-extra track"><div class="fill" style="width:${pct}%;background:var(--i-green)"></div></div>`)}
+    ${kpiTile("c-jira","clock","Faltam",`${left}<small>dias</small>`,`acaba a 03/12`,`<div class="k-extra track"><div class="fill" style="width:${Math.round(T/(G.days.length-1)*100)}%;background:var(--i-accent)"></div></div>`)}
+    ${kpiTile("c-jira","chart","Ritmo",`${behind}<small>pts atrás</small>`,`<span class="pill p-amber">atrás do ideal</span>`)}
+    ${kpiTile("c-jira","flag","Bloqueadas",`1`,`TEP-7 · há 2 d`,`<div class="k-extra"><span class="pill p-red">precisa de ajuda</span></div>`)}
+  </div>`;
+  const keys=items=>`<span class="gk">${items.map(([l,c,k])=>`<span><i class="${k||""}" style="background:var(--i-${c});color:var(--i-${c})"></i>${l}</span>`).join("")}</span>`;
+  const burn=`<div class="card">${head("c-jira","chart","Burndown",null,keys([["Por fazer","accent"],["Ideal","faint","ds"],["Previsão","accent","ds"]]))}
+    <div class="chart">${burndownSVG(cw,isC()?h:h+46)}<div class="ctip"></div></div>
+    <div class="gfoot"><span class="pill p-blue">${pct}% concluído</span><span class="pill p-amber">previsão: sobram ~8 pts</span><span class="pill p-grey">+2 pts de âmbito</span></div></div>`;
+  const total=G.flow.reduce((a,f)=>a+f.v,0);
+  const flow=`<div class="card">${head("c-jira","flow","Fluxo",`${total} pts`)}
+    <div class="seg2">${G.flow.map(f=>`<span class="${f.c==="faint"?"":"fill-on"}" style="flex:${f.v};background:${f.c==="faint"?"var(--i-surface2)":`var(--i-${f.c})`}" title="${f.n}: ${f.v} pts">${f.v}</span>`).join("")}</div>
+    <div class="flowkey">${G.flow.map(f=>`<div><i style="background:${f.c==="faint"?"var(--i-faint)":`var(--i-${f.c})`}"></i>${f.n}<b>${f.v} pts</b>${f.t==="—"?"":`${f.t} em média`}</div>`).join("")}</div>
+    <div class="sublabel" style="margin-top:8px">Paradas há mais tempo · ${G.stale.length}</div>
+    <div class="rows">${G.stale.slice(0,isC()?2:3).map(r=>`<div class="row"><span class="st" style="color:var(--i-${r.col})">${I[r.ic]}</span><span class="key">${r.k}</span><div class="t"><div class="tt">${r.t}</div><div class="meta">${r.m}</div></div><span class="trail">${pills(r.p)}</span></div>`).join("")}</div></div>`;
+  const B=G.bugs,bc=B.created.reduce((a,b)=>a+b,0),br=B.resolved.reduce((a,b)=>a+b,0);
+  const bugs=`<div class="card">${head("c-jira","bug","Bugs · 8 semanas",null,keys([["Criados","red","sq"],["Resolvidos","accent","sq"]]))}
+    <div class="chart">${bugsSVG(cw,h)}<div class="ctip"></div></div>
+    <div class="gfoot"><span class="pill p-red">${B.open} abertos</span><span class="pill p-grey">${bc} criados · ${br} resolvidos</span><span class="pill p-blue">mediana ${B.median} d</span></div></div>`;
+  const V=G.vel,avg=Math.round(V.done.reduce((a,b)=>a+b,0)/V.done.length);
+  const vel=`<div class="card">${head("c-jira","gauge","Velocity",null,keys([["Planeado","faint","sq"],["Concluído","accent","sq"]]))}
+    <div class="chart">${velocitySVG(cw,h)}<div class="ctip"></div></div>
+    <div class="gfoot"><span class="pill p-green">média ${avg} pts</span><span class="pill p-grey">${V.names.length} sprints</span><span class="pill p-grey">cumpre 85% do plano</span></div></div>`;
+  return `<div class="island" style="width:${W}px" data-itheme="${S.theme}" data-density="${S.density}"><div class="notch"></div>${ihead(isC())}
+    ${bar}${kpis}<div class="cols gcols" style="grid-template-columns:1fr 1fr">${burn}${flow}${bugs}${vel}</div>
+    <div class="pdots"><i></i><i class="on"></i></div></div>`;
+}
+
+/* Hover: a tooltip card for the point under the pointer; bars dim their neighbours, lines show a guide. */
+function wireCharts(root){
+  root.querySelectorAll(".chart").forEach(ch=>{
+    const tip=ch.querySelector(".ctip"),guide=ch.querySelector(".guide");
+    ch.querySelectorAll("[data-tip]").forEach(el=>{
+      el.addEventListener("mouseenter",()=>{
+        const d=JSON.parse(el.dataset.tip);
+        tip.innerHTML=`<div><b>${d.title}</b>${d.lines.map(([l,v,c])=>`<div class="l"><i style="background:var(--i-${c})"></i>${l}<span>${v}</span></div>`).join("")}</div>`;
+        // Beside the point, on the side with more room, so it never hides the mark it describes.
+        const x=+el.dataset.x,right=x<ch.clientWidth/2;
+        tip.style.top=(ch.clientHeight/2)+"px";tip.classList.add("show");
+        tip.style.left=(right?x+12:x-12-tip.offsetWidth)+"px";
+        if(el.dataset.g!=null){ch.classList.add("hovering");ch.querySelectorAll(".grp").forEach(g=>g.classList.toggle("on",g.dataset.g===el.dataset.g))}
+        if(guide){guide.setAttribute("x1",el.dataset.x);guide.setAttribute("x2",el.dataset.x);guide.style.opacity=.25}
+      });
+      el.addEventListener("mouseleave",()=>{tip.classList.remove("show");ch.classList.remove("hovering");if(guide)guide.style.opacity=0});
+    });
+  });
+}
+
+const notes={
+ atual:"Recriação aproximada do snapshot real: Claude sem card, divisória entre colunas, avisos repetidos e o corte seco no fundo das colunas. Tema e densidade não se aplicam aqui.",
+ camadas:"A · Camadas: as colunas de hoje, com cards de verdade, tile colorido por fonte, abas no Git (clica), meta numa segunda linha (some no compacto), Avisos e Resumo num só card e a música num card fino.",
+ bento:"B · Bento: os números em cima e as listas por baixo. A música vive na dock. No compacto, os KPIs encolhem para uma linha e a faixa de eventos vira um resumo de uma linha.",
+ gestao:"Gestão: a mesma linguagem do resumo. Em cima, quatro números da sprint (concluído, dias, ritmo, bloqueadas); por baixo, quatro cards com tile, legenda no cabeçalho e pills de resumo. Burndown com área, previsão tracejada e «hoje»; Fluxo como barra segmentada com as tasks paradas; Bugs criados para cima e resolvidos para baixo; Velocity com o planeado por trás do concluído. Passa o rato pelos gráficos."
+};
+function render(){
+  const st=document.getElementById("stage");
+  const gest=S.page==="gestao"&&S.layout!=="atual";
+  st.innerHTML=S.layout==="atual"?renderAtual():gest?renderGestao():S.layout==="bento"?renderBento():renderCamadas();
+  document.getElementById("stageNote").textContent=(gest?notes.gestao:notes[S.layout])+(S.layout!=="atual"?` Largura: ${S.layout==="bento"?(isC()?620:780):(isC()?560:660)} pt.`:"");
+  for(const [id,key] of [["segLayout","layout"],["segTheme","theme"],["segPage","page"],["segDensity","density"]]){
+    document.querySelectorAll(`#${id} button`).forEach(b=>{b.setAttribute("aria-pressed",b.dataset.v===S[key]);if(key!=="layout")b.disabled=S.layout==="atual"});
+  }
+  st.querySelectorAll("[data-git]").forEach(b=>b.onclick=()=>{S.gitTab=b.dataset.git;render()});
+  st.querySelectorAll("[data-gtab]").forEach(b=>b.onclick=()=>{const [k,v]=b.dataset.gtab.split(":");S[k]=v;render()});
+  st.querySelectorAll("[data-page-toggle]").forEach(b=>b.onclick=()=>{S.page=S.page==="gestao"?"resumo":"gestao";save();render()});
+  wireCharts(st);
+}
+for(const [id,key] of [["segLayout","layout"],["segTheme","theme"],["segPage","page"],["segDensity","density"]]){
+  document.querySelectorAll(`#${id} button`).forEach(b=>b.addEventListener("click",()=>{if(b.disabled)return;S[key]=b.dataset.v;save();render()}));
+}
+render();
+
+/* wireframes */
+function wf(cols,kind){
+  const W={1:110,2:170,3:230}[cols];
+  let h=`<div class="wf" style="width:${W}px"><b class="h"></b>`;
+  if(kind==="B"){
+    const k=cols===1?2:cols===2?4:6;
+    h+=`<div class="g" style="grid-template-columns:repeat(${k},1fr)">${Array.from({length:cols===1?4:k},()=>`<b class="k" style="height:16px"></b>`).join("")}</div>`;
+  }
+  const hs=kind==="A"?[[22,30,12,18],[34,26,14],[14,20,16]]:[[30,18],[30,22],[26,16]];
+  h+=`<div class="g" style="grid-template-columns:repeat(${cols},1fr);align-items:start">`;
+  for(let i=0;i<cols;i++){h+=`<div class="g">${(cols===1?hs.flat().slice(0,kind==="A"?6:4):hs[i]).map(x=>`<b style="height:${x}px"></b>`).join("")}</div>`}
+  h+=`</div>`;
+  if(kind==="B")h+=`<b style="height:${cols===1?6:12}px;background:#4a3f1f"></b>`;
+  h+=`<b class="d"></b></div>`;
+  return `<div>${h}<div class="wfcap">${cols} col.</div></div>`;
+}
+document.getElementById("wfA").innerHTML=[1,2,3].map(c=>wf(c,"A")).join("");
+document.getElementById("wfB").innerHTML=[1,2,3].map(c=>wf(c,"B")).join("");
+</script>

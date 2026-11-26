@@ -20,7 +20,7 @@ Levantamento factual, a partir do código, de todas as features e regras da app 
 | Helper | `helper/nowplaying.c` e `.pl` (Now Playing do sistema) |
 | SDK | 26 fixo: o SDK 27 das CLT não traz o plugin de macros do SwiftUI |
 | Cor da marca | `#00A6E5` (`make-icon.swift`) |
-| Debug | `DR_ISLAND_SNAPSHOT=<png>` grava o render; `DR_ISLAND_FAKE=0..1` força a % |
+| Debug | `DR_ISLAND_SNAPSHOT=<png>` grava o render; `DR_ISLAND_FAKE=0..1` força a %; `DR_ISLAND_THEME`, `DR_ISLAND_DENSITY`, `DR_ISLAND_STYLE`, `DR_ISLAND_COLUMNS` (1–3) e `DR_ISLAND_SNAPSHOT_DELAY` (segundos, default 3) forçam tema, tamanho, colunas e o atraso do render |
 | Processo | Mantido acordado (`beginActivity`), pois o painel transparente click-through pode ser limitado pelo macOS |
 
 ## Features por bloco
@@ -251,7 +251,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jir
 - Desde macOS 15.4 só processos Apple-signed respondem; numa execução `swift run` sem helper essa fonte não existe.
 - Prefere o que está realmente a tocar. Mostra título, artista, capa (só https, ou bytes do sistema) e barra de progresso que avança entre polls.
 - Controlos: play/pausa, anterior/seguinte via teclas de media (`MediaKeys`; pode precisar de Acessibilidade). Clique abre a app de origem.
-- Vazio: "Nada a tocar — Abre uma música para a controlar aqui".
+- Vazio: uma só linha, "Nada a tocar".
 
 ### 5. Temporizador de foco (Pomodoro)
 
@@ -277,7 +277,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 - Dock centrado sob as colunas (não é um bloco movível). Apps à escolha (arrastar para ordenar), com pasta opcional (abre a app nessa pasta, p. ex. projeto no VS Code, se a pasta existir). Clique abre ou traz para a frente.
 - A mesma app não se adiciona 2×.
 - Sugestões, se instaladas: VS Code, Cursor, Claude, Xcode, IntelliJ (+CE), PhpStorm, WebStorm, PyCharm, Android Studio, Warp, iTerm, Terminal, Docker, Postman, TablePlus, Sublime Text, GitHub Desktop.
-- Ícones em alta resolução com magnificação tipo Dock.
+- Ícones em alta resolução numa pílula justa; o ícone por baixo do rato cresce um pouco (12%, nada com «Reduzir movimento»).
 
 ### 7. Avisos (alertas)
 
@@ -295,6 +295,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 - "Mini ilha" (peek): mostra só o que mudou durante ~3,5s + 0,5s por linha extra (máx. de linhas definido). O hover abre a ilha completa e substitui-a.
 - **Fusão de alertas**: alertas seguidos fundem-se em vez de se substituírem. As leituras do GitHub e do Jira chegam com segundos de diferença e a segunda substituía a primeira (causa de "o alerta corre mas não exibe nada" e de comentários que não apareciam). `IslandInstance.peek` junta as novas linhas às existentes (máx. 4, ficam as mais recentes, sem duplicados por id) e reinicia o temporizador.
+- **Avisos com a ilha aberta**: um aviso que chega com a ilha completa aberta (hover, atalho) ou durante a pré-visualização do efeito já não se perde: fica guardado (`IslandInstance.heldPeek`, máx. 4, sem duplicados) e a mini ilha mostra-o assim que a ilha fecha (0,6 s depois, no fim da animação de fecho). Vale em Camadas e Bento.
 - **Nova sessão na mini ilha**: com a mini ilha visível (Mini ilha e aviso de nova sessão ligados), o cometa e o brilho verde percorrem o CONTORNO da mini ilha (`miniSessionAnimation`, usa `IslandShape` com `outlineOnly`), os dois brilhos (sparkles) aparecem ao lado dela e a mini ilha abre logo (atraso de 0,15 s em vez de 1,4 s à espera da volta do cometa). Sem mini ilha, continua no anel do notch.
 
 **Origem do aviso**
@@ -333,6 +334,12 @@ Bloco "Foco" (`showFocus`, default desligado).
 - Sincroniza ~8s após o arranque, 5s depois de cada novo aviso (junta vários) e a cada 15 min; botão "Sincronizar agora" e "Abrir gist"/"Mostrar pasta".
 - Junção: união por id, mais recentes primeiro, mesmos limites (30 dias, 300). "Limpar histórico…" grava a data da limpeza (`historyClearedAt`), que viaja com a cópia: as entradas até essa data desaparecem em todos os Macs.
 
+**Definições no gist** (`settingsSyncEnabled`, default ligado; só com a cópia em «Gist do GitHub»)
+- Ficheiro `dr-island-settings.json` no mesmo gist secreto do histórico, com a data da última alteração, o Mac e os valores (`SettingsBackup`, DrIslandCore).
+- Vão todas as preferências com default em `Settings.registerDefaults()`, menos (`SyncedSettings.excluded`): caminho do `gh`, ecrãs (todos/desligados/ecrã da ilha), ajuste do notch, calibração interna do uso, o histórico e a sua configuração, a contabilidade desta sincronização, «silenciar agora», estado do resumo do dia, timer a correr e uso diário. O token do Jira nunca vai (só está na Keychain).
+- Regras (`SettingsSync`): ganha a alteração mais recente (`settingsChangedAt`, carimbada ~2 s depois de uma preferência mudar neste Mac); um Mac que nunca sincronizou as definições (`settingsSyncedOnce`) adota as do gist; só se aplicam chaves conhecidas e do mesmo tipo; o que vem do gist não conta como alteração local.
+- Sincroniza com o histórico (arranque, 15 min, "Sincronizar agora") e 5 s depois de uma alteração. Uma falha aparece à parte em Definições → Histórico e no registo de erros, sem afetar o histórico.
+
 **Offline/online**: a borda fica vermelha sem rede (`NetworkMonitor`); a mini ilha avisa "Sem ligação à internet" / "Ligação restabelecida"; ao voltar a rede (após 2s) atualiza tudo.
 
 **Logo na ilha**: o logo da Doutor Finanças aparece pequeno, a branco (60 % de opacidade) no canto superior esquerdo da ilha aberta, à altura do notch, como marca de água (`IslandView.watermark`), sem interceptar cliques.
@@ -343,10 +350,11 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 **Linha do tempo** (bloco, `showTimeline` ligado)
 - Eventos de hoje por ordem cronológica.
-- Gráfico de eventos por hora: intervalo desde a 1ª atividade ou 08h, mínimo 6h, até à hora atual. Hora de pico = a mais cedo em caso de empate.
+- Gráfico de eventos por hora em colunas (`HourlyColumnChart`, também em Definições → Dia): intervalo desde a 1ª atividade ou 08h, mínimo 6h, até à hora atual. Horas sem eventos ficam com um traço discreto; a coluna mais alta mostra o número; a hora atual aparece como «agora». Passar o rato numa coluna diz a hora e o total. Hora de pico = a mais cedo em caso de empate.
 - "detalhes" abre Definições → Dia, com seletor de dia (30 dias) e "Em números".
 
 **Resumo/briefing**
+- Enquanto o resumo está ativo, o bloco "Avisos recentes" fica escondido (mostraria as mesmas linhas).
 - Digest do que mudou desde a última vez que viste a ilha (`briefingLastSeen`; sem isso, 24h atrás).
 - Abre sozinho no máximo 1×/dia, a partir das 05:00, só se houver algo novo e `briefingAuto` ligado (default).
 - Anunciado na mini ilha ("Resumo do dia: 3 PRs · 2 Jira"); o bloco completo aparece na abertura seguinte até "ok" (marca como visto).
@@ -355,9 +363,35 @@ Bloco "Foco" (`showFocus`, default desligado).
 ### 9. Layout e aparência
 
 **Colunas e blocos**
-- 1–3 colunas simétricas em torno do notch (largura 400 / 660 / 870 pt; ajuste extra por coluna −60…+120 pt). Predefinições: vertical (1 col), duas colunas, três colunas.
+- 1–3 colunas simétricas em torno do notch (largura Normal 400 / 660 / 870 pt, Compacto 340 / 560 / 740 pt; ajuste extra por coluna −60…+120 pt). Predefinições: vertical (1 col), duas colunas, três colunas.
 - Cada bloco move-se de coluna ou posição e aparece exatamente 1×: repetido mantém o 1º; em falta vai para o fim da 1ª coluna; ao reduzir colunas, os blocos passam para a última mantida.
 - Blocos sem conteúdo ou desligados não ocupam espaço. Altura = coluna mais alta.
+- Sem linha divisória entre colunas. Uma coluna mais alta do que o máximo faz scroll e desvanece no fundo (fade) em vez de ser cortada; começa sempre pelo topo.
+
+**Layout «Camadas»**
+- Cada bloco é um card com fundo, borda fina, brilho no topo e um cabeçalho com um quadrado colorido da fonte (Claude laranja, Git roxo, Jira/Sprint/Backlog/Histórico/Linha do tempo azul, Foco verde, Música rosa, Avisos/Resumo âmbar).
+- Cabeçalho da ilha na faixa do notch: com 2+ colunas em Normal, a saudação («Bom dia» 05–11h, «Boa tarde» 12–19h, «Boa noite» no resto) e a data.
+- Linhas de PR e de task com uma segunda linha de detalhes em Normal (repositório e autor; tipo e responsável ou prioridade) e o estado num pill colorido pela categoria. O dono aparece como avatar com as iniciais e uma cor estável por nome.
+- **Abas nos cards Git e Jira**: Git «Meus N» / «A rever N»; Jira «Tasks N» / «Aprovações N». O card da Sprint não tem abas: mostra «As minhas · N» e «Aprovações · N» uma por baixo da outra, com os totais reais. Só há abas quando a 2.ª lista está ligada e as duas têm conteúdo; senão o card mostra uma só lista. Ao abrir a ilha, muda para a outra aba se a atual não tiver itens e a outra tiver, ou se a outra tiver novidades por ver e a atual não tiver nenhuma (`TabChoice`, DrIslandCore). As novidades por aba seguem o canal «linha destacada» dos avisos.
+- Tudo o que é desenhado sobre o preto do notch (mini ilha, borda, pontos) usa cores para fundo escuro, mesmo no tema Claro.
+
+**Estilo: Camadas ou Bento** (Definições → Aparência → «Tema e tamanho» → «Estilo»; `islandStyle`, default Camadas)
+- **Camadas**: os blocos nas colunas escolhidas em «Layout».
+- **Bento**: em cima, números grandes (`KPITile`): Claude (% da sessão, reinicia em, barra e, à direita, «Semana N%» na cor do limiar, com «Mostrar semana» ligado; o tooltip diz quando a semana reinicia), Pull requests (abertos, teus · a rever, barra dividida), Sprint (dia X / Y dias, tuas · aprovações, progresso) e Foco (tempo, ronda, pontos; clicar começa/pausa). Com 3 colunas juntam-se Jira (tasks, aprovações) e Avisos (eventos de hoje, clicar abre o histórico). 1 coluna: grelha 2×2; 2: uma linha de 4; 3: uma linha de 6. Fontes desligadas saem da faixa. Em Compacto cada número fica numa linha (ícone e valor; o Claude junta «semana N%» à direita).
+- Por baixo, as listas: os blocos do layout menos os que estão noutro sítio (Claude e Foco nos números, Música no dock, Avisos na faixa com menos de 3 colunas), redistribuídos pelas colunas para equilibrar as alturas (`BentoLayout`, DrIslandCore).
+- Faixa de avisos ao fundo (menos de 3 colunas; escondida com o Resumo do dia ativo): os últimos avisos lado a lado (4, ou 2 com 1 coluna), com origem e há quanto tempo; em Compacto, uma linha com o último.
+- Música no dock, quando há algo a tocar: capa, título, «a tocar» e play/pausa.
+- Largura: 1 coluna 400 pt (Compacto 340), 2 colunas 780 (620), 3 colunas 960 (800). `DR_ISLAND_STYLE=camadas|bento` força o estilo num arranque.
+- O logótipo da Doutor Finanças fica no canto inferior direito, ao lado do dock (nos dois estilos).
+
+**Temas** (Definições → Aparência → «Tema e tamanho», miniaturas)
+- Grafite (default, as cores originais), Meia-noite (gradiente azul-escuro), Aurora (dois brilhos, violeta e verde-azulado) e Claro (fundo claro com uma faixa preta de altura notch + 6 pt, para se fundir com o notch; cabeçalho em branco).
+- A mini ilha e a borda do notch continuam pretas em todos os temas; só as cores de destaque seguem o tema.
+- «Aumentar contraste» do macOS aproxima os textos secundários do principal e reforça bordas e cards; «Reduzir transparência» torna os cards opacos e tira os brilhos da Aurora (`IslandPalette.adjusted`).
+
+**Tamanho: Normal e Compacto**
+- Compacto: cards mais pequenos (cantos 12 pt, padding 9), linhas de uma só linha (22 pt, sem detalhes), anel do Claude de 52 pt, ícones do dock de 22 pt, texto 11,5 pt; nunca fica mais alto do que a ilha antiga.
+- Escolha manual em «Tema e tamanho» e atalho global opcional «Atalho para alternar o tamanho» (desligado por defeito; mesmas opções do atalho principal). Os dois atalhos não podem ser iguais: o seletor desativa a combinação do outro e, se coincidirem, ganha o de abrir a ilha.
 
 **Hover e atalho**
 - `expandOnHover` ligado; atraso ao fechar 0–1s (default 0,2).
@@ -383,7 +417,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 ### 10. Marca de dono nas linhas
 
-- Cápsula no FIM de cada linha de PR e de task.
+- Avatar redondo no FIM de cada linha de PR e de task, com uma cor estável por nome (`AvatarColor`).
 - Só nas linhas dos outros: as iniciais do autor/responsável (cinzento). Quando é meu não aparece nada.
 - Iniciais: nome com 2+ palavras → primeira e última (Luís Pedro Bettencourt Costa → LC); uma só palavra/login → 2 primeiras letras (luisinhoc → LU).
 - Dica ao passar o rato: o nome completo.
@@ -393,14 +427,23 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 ### 11. Gestão (2.ª página da ilha)
 
-- A ilha tem **duas páginas**: o resumo habitual e a «Gestão». Passa-se de uma à outra com um **deslize horizontal de dois dedos** no touchpad (só com a ilha aberta e o rato por cima; a ilha acompanha o dedo e a altura anima entre as duas), pelos **dois pontinhos** no fundo (clicáveis) ou pelo botão (`chart.xyaxis.line`, tooltip «Gestão») no título do card da sprint. Passa de página com 1/3 da largura ou um gesto rápido (`PageSwipe`, DrIslandCore); movimento vertical e rodas de rato nunca mudam de página. Com «Reduzir movimento» a troca é um fade. Ao fechar, a ilha volta ao resumo. Não há janela nem item de menu. Definições → Jira → «Gestão» (`showManagement`, default ligado) esconde a página: sem deslize, sem pontinhos e sem o botão no card da sprint.
-- `ManagementStore` lê tudo do Jira em **só leitura** (GET); sem cache em disco nesta fase. Lê quando a página abre (e de cada vez que se volta a ela), mantendo o gráfico visível enquanto atualiza.
-- Cabeçalho: chips de **stream** (as escolhidas nas Definições, ou as das sprints onde já tive tasks), ‹ nome › da sprint (abre na ativa; também as fechadas) e **Pontos | Tasks**. Sem campo de pontos no site, a unidade fica em «tasks».
-- **Quatro cartões** (grelha 2×2 quando a ilha tem 2 ou 3 colunas, empilhados e com scroll vertical numa coluna só; cada um tem a mesma altura):
-  - **Burndown · sprint**: «por fazer» (azul), ideal tracejado (dias úteis), âmbito (cinza, em degraus), marca «hoje» e legenda. Etiquetas: «62% concluído», «N bloqueadas», prazo («acaba em N dias», «acaba hoje», «fora de prazo», «fechada») e, em pontos, «N de M tasks sem pontos» (clicar passa a tasks) quando falta pontos a mais de 20 %.
-  - **Fluxo** (`FlowMetrics`): por estado, quanto trabalho (pontos ou tasks) há agora (barra: cinza = por fazer, azul = em curso, verde = feito) e a **mediana de dias** que o trabalho lá fica (das estadias já terminadas). Por baixo, até 3 tasks **bloqueadas (flag) ou paradas há ≥ 3 dias** no mesmo estado, as bloqueadas primeiro. Os estados vêm do Jira por id (`/rest/api/3/status`), com o nome.
-  - **Bugs · 8 semanas** (`BugFlow`, `BugsClient`): criados vs. resolvidos por semana (semanas a começar à segunda), «N abertos» (com «+» se houver mais do que os 100 lidos), totais e mediana de dias até resolver. São os bugs de **todo o projeto** da sprint (o prefixo das chaves), pelos tipos que `JiraIssueKind` reconhece como bug; lê até 200 recentes e 100 abertos.
-  - **Velocity** (`VelocityMetrics`): por sprint fechada do board (até 6, a mais antiga à esquerda), planeado (o que estava na sprint ao começar) contra concluído, com a média como linha. As sprints fechadas são lidas uma vez por sessão (em memória) e o gráfico vai enchendo à medida que chegam.
+- A ilha tem **duas páginas**: o resumo habitual e a «Gestão». Passa-se de uma à outra com um **deslize horizontal de dois dedos** no touchpad (só com a ilha aberta e o rato por cima; a ilha acompanha o dedo e a altura anima entre as duas), pelo **botão de gráficos no topo da ilha** (`chart.line.uptrend.xyaxis`, ao lado de reiniciar e das definições; fica azul na «Gestão» e volta ao resumo), pelos **dois pontinhos** no fundo (clicáveis) ou pelo botão (`chart.xyaxis.line`, tooltip «Gestão») no título do card da sprint. Passa de página com 1/3 da largura ou um gesto rápido (`PageSwipe`, DrIslandCore); movimento vertical e rodas de rato nunca mudam de página. Com «Reduzir movimento» a troca é um fade. Ao fechar, a ilha volta ao resumo. Não há janela nem item de menu. Definições → Jira → «Gestão» (`showManagement`, default ligado) esconde a página: sem deslize, sem pontinhos e sem o botão no card da sprint. O botão de gráficos do topo continua visível e, clicado, volta a ligar a página e abre-a.
+- **Indicador «ao vivo»** no topo da ilha, como no exemplo de design: ponto verde «ao vivo» com os dados a atualizar; ponto vermelho «sem ligação» sem rede ou com o Claude offline (as mesmas regras da borda vermelha).
+- `ManagementStore` lê tudo do Jira em **só leitura** (GET). Lê quando a página abre (e de cada vez que se volta a ela), mantendo o gráfico visível enquanto atualiza.
+- **Velocidade das leituras** (medido com `DR_ISLAND_JIRA_TRACE=1`: cada pedido ao Jira demora ~200 ms, o peso estava no número de pedidos feitos um a um, não num limite do Jira):
+  - Os quadros, os campos (`fetchFieldIDs`: Sprint e pontos numa só leitura de `/field`) e os estados (`/status`) são pedidos ao mesmo tempo; campos e estados só na primeira abertura da sessão, e os estados passam a cada leitura de sprint em vez de cada sprint os pedir.
+  - O histórico das tasks cuja pesquisa vem cortada é lido 4 de cada vez (`changelogConcurrency`); as sprints fechadas da Velocity, 2 de cada vez.
+  - **Sprints fechadas em disco** (`SprintSnapshotFileCache`, `~/Library/Application Support/DrIsland/sprints/v1-<id>.json`): não mudam, por isso a Velocity e o burndown de uma sprint antiga abrem sem ir ao Jira depois da primeira vez.
+  - Voltar a uma sprint aberta (‹ ›) nos 2 minutos seguintes mostra-a sem nova leitura; os bugs do mesmo projeto ficam 5 minutos.
+  - **A sprint escolhida primeiro**: ao abrir ou ao mudar de stream, só a sprint escolhida é lida (a Velocity mostra logo o que já está em disco); as sprints fechadas que faltam e os bugs só começam quando ela já está no ecrã. Mudar de stream ou de sprint cancela as leituras que estavam a correr (`loadTask`, `ManagementSideData.cancelAll`), para não competirem com as novas. Medido sem cache: sprint no ecrã em ~1,7 s.
+  - Medido no Jira da DF: a primeira abertura passou de ~27 s (Velocity completa) para ~6,5 s; as seguintes ficam completas em ~3 s.
+- Cabeçalho: abas de **stream** à esquerda (as escolhidas nas Definições, ou as das sprints onde já tive tasks), ‹ nome › da sprint (abre na ativa; também as fechadas) e abas **Pontos | Tasks** à direita, no mesmo estilo das abas dos cards. Sem campo de pontos no site, a unidade fica em «tasks».
+- **Números da sprint** (`ManagementKPIs`, os mesmos tiles do Bento; uma linha de 4, ou 2×2 com 1 coluna; em Compacto, título e valor numa linha): **Concluído** (% e «N de M pts», barra verde), **Faltam** (dias úteis até ao fim, «acaba a dd/mm», barra azul com a parte da sprint já passada), **Ritmo** («N pts atrás» a âmbar ou «à frente» a verde face à linha ideal de hoje, ou «em dia», com a previsão por baixo) e **Bloqueadas** (abertas com flag, a vermelho, e a primeira com os dias). As contas vêm de `SprintPace` (DrIslandCore): ritmo = feito ÷ dias úteis passados; previsão = o que falta − ritmo × dias úteis que faltam (sem previsão depois do fim).
+- **Quatro cartões** (grelha 2×2 quando a ilha tem 2 ou 3 colunas, empilhados e com scroll vertical numa coluna só; cada um tem a mesma altura). Todos usam o card do resto da ilha (`ManagementCardFrame`): tile azul do Jira, título, legenda à direita do cabeçalho (`ChartKey`) e pills de resumo presas ao fundo (`Pill`):
+  - **Burndown**: o gráfico cobre a sprint inteira (até ao último dia), com os dias que faltam sombreados. «Por fazer» (azul, linha de 2 pt com uma área suave por baixo e o valor atual num ponto), ideal tracejado fino até 0 no último dia (dias úteis), âmbito (cinza, em degraus), «hoje» numa pill âmbar e a **previsão** tracejada desde hoje até ao fim, com «~N» na ponta. O eixo vai até ao primeiro valor redondo acima dos dados (`ChartScale`: 33 pontos → 0–40). Passar o rato mostra os três valores do dia ao lado do ponto. Pills: «62% concluído», «previsão: sobram ~N pts» (âmbar) ou «previsão: acaba a tempo» (verde), «+N pts de âmbito» quando entrou trabalho depois do início e, em pontos, «N de M tasks sem pontos» (clicar passa a tasks) quando falta pontos a mais de 20 %.
+  - **Fluxo** (`FlowMetrics`, `FlowGroup`): uma **barra segmentada** com os três grupos de estado (por fazer, em curso, concluído), cada parte com o total lá dentro, e por baixo (só em Normal) o nome, o total e a média das **medianas de dias** que o trabalho fica nos estados do grupo (das estadias já terminadas). Depois, «Paradas há mais tempo · N» com as tasks **bloqueadas (flag) ou paradas há ≥ 3 dias** no mesmo estado, as bloqueadas primeiro, como linhas de lista (ícone, chave, estado e pill de dias), quantas couberem no card. Os estados vêm do Jira por id (`/rest/api/3/status`), com o nome.
+  - **Bugs · 8 semanas** (`BugFlow`, `BugsClient`): em **espelho**, criados para cima (vermelho) e resolvidos para baixo (azul: vermelho contra verde confunde-se com daltonismo) na mesma escala, por semana; ao passar o rato, os números e o saldo da semana (semanas a começar à segunda), «N abertos» (com «+» se houver mais do que os 100 lidos), totais e mediana de dias até resolver. São os bugs de **todo o projeto** da sprint (o prefixo das chaves), pelos tipos que `JiraIssueKind` reconhece como bug; lê até 200 recentes e 100 abertos.
+  - **Velocity** (`VelocityMetrics`): por sprint fechada do board (até 6, a mais antiga à esquerda), planeado (o que estava na sprint ao começar, barra larga e discreta) contra concluído (barra fina azul por dentro), com a média como linha fina e a etiqueta «média N» à direita; a última sprint fica em destaque no eixo e mostra o valor. Pills: média, número de sprints e «cumpre N% do plano». Passar o rato numa sprint mostra o planeado, o concluído e a percentagem cumprida. As sprints fechadas são lidas uma vez por sessão (em memória) e o gráfico vai enchendo à medida que chegam.
 - Estados: «A carregar…», erro em português (mantém o último gráfico), «Sem boards», «Sem sprints neste board», «Sem tasks nesta sprint», «Sem pontos nesta sprint».
 - Teste sem Jira: `DR_ISLAND_FAKE_MANAGEMENT=1` com `DR_ISLAND_PAGE=management` e `DR_ISLAND_SNAPSHOT=<png>`.
 
@@ -441,6 +484,8 @@ Ver [[#7. Avisos (alertas)]] para canais e regras, e a tabela de tons em [[#2. P
 | Atraso ao fechar | 0,2s |
 | Efeito / velocidade / elasticidade | Mola / 1,6× / 0,55 |
 | Atalho global | ⌃⌥I |
+| Tema / tamanho / estilo | Grafite / Normal / Camadas |
+| Atalho para alternar o tamanho | desligado |
 | `alertConfetti` | ligado |
 | `showOwner` | ligado |
 | `claudeUpdateAnimation` | ligado |
@@ -451,7 +496,7 @@ Ver [[#7. Avisos (alertas)]] para canais e regras, e a tabela de tons em [[#2. P
 - Token do Claude: lido do Keychain do Claude Code, nunca guardado nem registado.
 - Token do Jira: só no Keychain (`com.fazam.token-island` / `jira-api-token`), com cache em memória.
 - GitHub: sem tokens na app; usa o `gh` autenticado.
-- UserDefaults: apenas números/estado (cache do uso, baselines de PRs/Jira, mutes, estado do foco, não vistos, `briefingLastSeen`).
+- UserDefaults: preferências e estado (cache do uso, baselines de PRs/Jira, mutes, estado do foco, não vistos, `briefingLastSeen`). As preferências têm cópia no gist (ver «Definições no gist»).
 - Transcripts do Claude Code: só leitura.
 - Jira: só https.
 

@@ -5,13 +5,14 @@ import DrIslandCore
 struct IslandPageDots: View {
     let page: IslandPage
     let select: (IslandPage) -> Void
+    @Environment(\.islandPalette) private var palette
 
     var body: some View {
         HStack(spacing: 6) {
             ForEach(IslandPage.allCases, id: \.self) { candidate in
                 Button { select(candidate) } label: {
                     Circle()
-                        .fill(Color.white.opacity(candidate == page ? 0.8 : 0.25))
+                        .fill(Color(palette.text).opacity(candidate == page ? 0.8 : 0.25))
                         .frame(width: 5, height: 5)
                         .frame(width: 14, height: 14)
                         .contentShape(Rectangle())

@@ -13,33 +13,32 @@ struct BriefingBlock: View {
     let entries: [AlertEntry]
     let since: Date
     let dismiss: () -> Void
+    @Environment(\.islandPalette) private var palette
+    @Environment(\.islandMetrics) private var metrics
 
     nonisolated static let maxRows = 5
     nonisolated static let summaryHeight: CGFloat = 16
 
-    nonisolated static func contentHeight(rows: Int) -> CGFloat {
-        IslandLayout.alertsHeader + 6 + summaryHeight + 4 + CGFloat(max(rows, 1)) * IslandLayout.alertsRow
+    nonisolated static func contentHeight(rows: Int, metrics m: IslandMetrics) -> CGFloat {
+        CGFloat(m.cardHeader) + 4 + summaryHeight + 4 + CGFloat(max(rows, 1)) * EntryRow.height(m)
     }
 
     var body: some View {
         let shown = Array(entries.prefix(Self.maxRows))
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Label(DayBriefing.sinceLabel(since, now: Date()), systemImage: "sunrise").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                Spacer()
-                Button(action: dismiss) { Text("ok").font(.caption2.weight(.semibold)).foregroundStyle(linkBlue) }
+        VStack(alignment: .leading, spacing: 4) {
+            CardHeader(title: DayBriefing.sinceLabel(since, now: Date()), icon: "sunrise", source: .briefing) {
+                Button(action: dismiss) { Text("ok").fontWeight(.semibold).foregroundStyle(Color(palette.info)) }
                     .buttonStyle(.plain).pointingHandCursor()
                     .islandTip("Marcar como visto")
             }
-            .frame(height: IslandLayout.alertsHeader)
             Text(entries.isEmpty ? "Sem novidades" : DayBriefing.summary(entries) + (entries.count > Self.maxRows ? " · \(entries.count - Self.maxRows) mais" : ""))
-                .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                .font(.system(size: CGFloat(metrics.metaSize))).foregroundStyle(Color(palette.textSecondary)).lineLimit(1)
                 .frame(height: Self.summaryHeight, alignment: .leading)
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(shown) { EntryRow(entry: $0, caption: clock($0.date)) }
             }
         }
-        .frame(height: Self.contentHeight(rows: shown.count), alignment: .top)
+        .frame(height: Self.contentHeight(rows: shown.count, metrics: metrics), alignment: .top)
         .blockCard()
     }
 }

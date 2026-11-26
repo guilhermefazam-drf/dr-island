@@ -15,15 +15,13 @@ extension Brand {
     static let logo: NSImage? = Bundle.main.url(forResource: "DoutorFinancasLogo", withExtension: "svg").flatMap(NSImage.init(contentsOf:))
 }
 
-let linkBlue = Color(red: 0.45, green: 0.68, blue: 1.0)
-
 extension Brand {
-    /// Usage colours: green, then amber and red past the user's thresholds (percentages, 0–100).
-    static func color(forFraction fraction: Double, amber: Double, red: Double) -> Color {
+    /// Usage colours from the island's palette: green, then amber and red past the user's thresholds (percentages, 0–100).
+    static func color(forFraction fraction: Double, amber: Double, red: Double, palette: IslandPalette) -> Color {
         switch UsageLevel.level(forFraction: fraction, amber: amber, red: red) {
-        case .normal: green
-        case .warning: self.amber
-        case .critical: self.red
+        case .normal: Color(palette.green)
+        case .warning: Color(palette.amber)
+        case .critical: Color(palette.red)
         }
     }
 }

@@ -19,6 +19,9 @@ final class IslandState {
     /// Sprint lists opened with "+N mais": "t<sprint id>" for the tasks, "a<sprint id>" for the approvals.
     var expandedSprintLists: Set<String> = []
     var showAllApprovals = false
+    /// The tab the Git card (Meus / A rever) and the Jira card (Tasks / Aprovações) show; kept until the app quits.
+    var gitTab: TwoListTab = .first
+    var jiraTab: TwoListTab = .first
     /// Backlog groups (`BacklogGroup.id`) opened with "+N mais".
     var expandedBacklog: Set<String> = []
     /// The settings preview is driving the island, so closing it must not count as "the user saw the alerts".

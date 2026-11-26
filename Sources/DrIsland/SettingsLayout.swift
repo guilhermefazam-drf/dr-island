@@ -4,6 +4,7 @@ import DrIslandCore
 /// Where each block of the island goes: the number of columns, a preset, and each block's column and order.
 struct LayoutPage: View {
     @AppStorage(SettingsKey.islandLayout) private var json = IslandLayoutConfig.vertical.encoded()
+    @AppStorage(SettingsKey.islandDensity) private var density = IslandDensity.regular.rawValue
 
     private var layout: IslandLayoutConfig { IslandLayoutConfig.decode(json) }
     private func save(_ layout: IslandLayoutConfig) { json = layout.encoded() }
@@ -21,7 +22,7 @@ struct LayoutPage: View {
                     Text("Largura das colunas")
                     Slider(value: Binding(get: { layout.extraColumnWidth }, set: { save(layout.withExtraColumnWidth($0)) }),
                            in: -60...IslandLayoutConfig.maxExtraColumnWidth, step: 5)
-                    Text("\(Int(layout.width)) pt").monospacedDigit().foregroundStyle(.secondary).frame(width: 64, alignment: .trailing)
+                    Text("\(Int(layout.width(density: IslandDensity(stored: density)))) pt").monospacedDigit().foregroundStyle(.secondary).frame(width: 64, alignment: .trailing)
                 }
                 HStack {
                     Button("Vertical") { save(IslandLayoutConfig.vertical.withExtraColumnWidth(layout.extraColumnWidth)) }
@@ -32,7 +33,7 @@ struct LayoutPage: View {
             } header: {
                 Text("Disposição")
             } footer: {
-                Text("A ilha tem sempre colunas do mesmo tamanho, centradas no notch. Por defeito 1 coluna mede 400 pt, 2 medem 660 e 3 medem 870; o seletor acima alarga ou estreita todas as colunas (a largura total aparece à direita). A altura é a da coluna mais alta. Blocos sem conteúdo (sem atalhos) ou desligados em «Conteúdo» não ocupam espaço.")
+                Text("A ilha tem sempre colunas do mesmo tamanho, centradas no notch. Por defeito, em Normal, 1 coluna mede 400 pt, 2 medem 660 e 3 medem 870 (em Compacto, 340, 560 e 740); o seletor acima alarga ou estreita todas as colunas (a largura total aparece à direita). A altura é a da coluna mais alta. Blocos sem conteúdo (sem atalhos) ou desligados em «Conteúdo» não ocupam espaço.")
             }
             ForEach(Array(layout.columns.enumerated()), id: \.offset) { index, column in
                 Section(layout.columnCount == 1 ? "Blocos, de cima para baixo" : "Coluna \(index + 1)") {

@@ -63,6 +63,9 @@ enum Settings {
             SettingsKey.alertHistory: "[]",
             SettingsKey.historySyncMode: HistorySyncMode.gist.rawValue,
             SettingsKey.historyClearedAt: 0.0,
+            SettingsKey.settingsSyncEnabled: true,
+            SettingsKey.settingsChangedAt: 0.0,
+            SettingsKey.settingsSyncedOnce: false,
             SettingsKey.showSprint: true,
             SettingsKey.showManagement: true,
             SettingsKey.jiraSprintBoards: "",
@@ -75,6 +78,10 @@ enum Settings {
             SettingsKey.briefingLastSeen: 0.0,
             SettingsKey.claudeGauge: "bar",
             SettingsKey.islandLayout: IslandLayoutConfig.vertical.encoded(),
+            SettingsKey.islandTheme: IslandTheme.grafite.rawValue,
+            SettingsKey.islandDensity: IslandDensity.regular.rawValue,
+            SettingsKey.islandStyle: IslandStyle.camadas.rawValue,
+            SettingsKey.densityHotKey: HotKeyOption.off.rawValue,
             SettingsKey.showFocus: false,
             SettingsKey.focusMinutes: 25,
             SettingsKey.focusShortBreak: 5,
@@ -110,6 +117,7 @@ enum Settings {
     static var githubRefreshSeconds: TimeInterval {
         min(max(UserDefaults.standard.double(forKey: SettingsKey.githubRefreshSeconds), 60), 600)
     }
+    static var settingsSyncEnabled: Bool { UserDefaults.standard.bool(forKey: SettingsKey.settingsSyncEnabled) }
     static var historySyncMode: HistorySyncMode {
         HistorySyncMode(rawValue: UserDefaults.standard.string(forKey: SettingsKey.historySyncMode) ?? "") ?? .gist
     }

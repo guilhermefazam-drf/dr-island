@@ -2,51 +2,53 @@ import AppKit
 import SwiftUI
 import DrIslandCore
 
+/// The focus timer on one line: tile, phase and rounds, the time left and the controls.
 struct FocusBlock: View {
     let store: FocusStore
-    @Environment(\.islandColumnWidth) private var columnWidth
+    @Environment(\.islandPalette) private var palette
+    @Environment(\.islandMetrics) private var metrics
+
+    /// Normal shows the round dots under the label; Compacto keeps a single line.
+    nonisolated static func contentHeight(_ m: IslandMetrics) -> CGFloat { m.rowHasMeta ? 40 : CGFloat(m.rowHeight) }
 
     var body: some View {
         let timer = store.timer
         let config = store.config
-        let tint = timer.phase == .focus ? Brand.blue : Brand.green
+        let tint = timer.phase == .focus ? Color(palette.accent) : Color(palette.green)
+        let button = CGFloat(metrics.rowHasMeta ? 30 : 22)
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let remaining = Int(timer.remaining(now: context.date, config).rounded(.up))
-            HStack(spacing: 14) {
+            HStack(spacing: 10) {
                 ZStack {
-                    Circle().stroke(Color.white.opacity(0.12), lineWidth: 5)
+                    RoundedRectangle(cornerRadius: CGFloat(metrics.tile) * 0.3, style: .continuous)
+                        .fill(Color(palette.source(.focus)).opacity(0.2))
+                    Image(systemName: "timer")
+                        .font(.system(size: CGFloat(metrics.tile) * 0.45, weight: .semibold))
+                        .foregroundStyle(Color(palette.source(.focus)))
                     Circle().trim(from: 0, to: timer.progress(now: context.date, config))
-                        .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .stroke(tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                    Text(Duration.seconds(remaining), format: .time(pattern: .minuteSecond))
-                        .font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit())
+                        .padding(4)
                 }
-                .frame(width: IslandLayout.focusContent, height: IslandLayout.focusContent)
-                let controls = HStack(spacing: 8) {
-                    CircleButton(symbol: timer.isRunning ? "pause.fill" : "play.fill", size: 30, filled: true,
-                                 help: timer.isRunning ? "Pausar" : "Começar") { store.toggle() }
-                    CircleButton(symbol: "forward.end.fill", help: "Saltar para a fase seguinte") { store.skip() }
-                    CircleButton(symbol: "arrow.counterclockwise", help: "Recomeçar") { store.reset() }
+                .frame(width: CGFloat(metrics.tile), height: CGFloat(metrics.tile))
+                .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(label(timer, config))
+                        .font(.system(size: CGFloat(metrics.titleSize), weight: .semibold))
+                        .foregroundStyle(Color(palette.text)).lineLimit(1)
+                    if metrics.rowHasMeta { dots(timer, config, tint: tint) }
                 }
-                if columnWidth >= islandWideColumn {
-                    // Wide: the text keeps the left, the controls sit at the right edge, and nothing floats in between.
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(label(timer, config)).font(.system(size: 13, weight: .medium))
-                        dots(timer, config, tint: tint)
-                    }
-                    Spacer(minLength: 8)
-                    controls
-                } else {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(label(timer, config)).font(.caption).foregroundStyle(.secondary)
-                        dots(timer, config, tint: tint)
-                        controls
-                    }
-                    Spacer(minLength: 0)
-                }
+                Spacer(minLength: 6)
+                Text(Duration.seconds(remaining), format: .time(pattern: .minuteSecond))
+                    .font(.system(size: CGFloat(metrics.titleSize) * (metrics.rowHasMeta ? 1.4 : 1.1), weight: .semibold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(Color(palette.text))
+                CircleButton(symbol: timer.isRunning ? "pause.fill" : "play.fill", size: button, filled: true,
+                             help: timer.isRunning ? "Pausar" : "Começar") { store.toggle() }
+                CircleButton(symbol: "forward.end.fill", size: button * 0.85, help: "Saltar para a fase seguinte") { store.skip() }
+                CircleButton(symbol: "arrow.counterclockwise", size: button * 0.85, help: "Recomeçar") { store.reset() }
             }
         }
-        .frame(height: IslandLayout.focusContent)
+        .frame(height: Self.contentHeight(metrics))
         .blockCard()
     }
 
@@ -59,9 +61,9 @@ struct FocusBlock: View {
     private func dots(_ timer: FocusTimer, _ config: FocusTimer.Config, tint: Color) -> some View {
         let total = config.roundsBeforeLongBreak
         let done = timer.phase == .longBreak ? total : timer.completedRounds % total
-        return HStack(spacing: 5) {
+        return HStack(spacing: 4) {
             ForEach(0..<total, id: \.self) { index in
-                Circle().fill(index < done ? tint : Color.white.opacity(0.18)).frame(width: 7, height: 7)
+                Circle().fill(index < done ? tint : Color(palette.surfaceRaised)).frame(width: 6, height: 6)
             }
         }
     }

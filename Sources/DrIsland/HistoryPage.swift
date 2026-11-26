@@ -5,6 +5,7 @@ struct HistoryPage: View {
     let sync: HistorySyncStore
     @AppStorage(SettingsKey.alertHistory) private var json = "[]"
     @AppStorage(SettingsKey.historySyncMode) private var modeRaw = HistorySyncMode.gist.rawValue
+    @AppStorage(SettingsKey.settingsSyncEnabled) private var settingsSync = true
     @State private var source: AlertEntry.Source?
     @State private var confirmClear = false
     @State private var confirmLocal = false
@@ -87,6 +88,13 @@ struct HistoryPage: View {
                     Button("Sincronizar agora") { sync.syncNow() }.disabled(sync.status == .syncing)
                 }
             }
+            if mode == .gist {
+                ToggleRow("Guardar também as definições",
+                          detail: "Tema, layout, avisos, atalhos, Claude, GitHub e Jira (sem o token, que fica só na Keychain). Não vão o caminho do gh, os ecrãs nem o ajuste do notch. Ganha a alteração mais recente; um Mac que nunca sincronizou adota as do gist.",
+                          isOn: $settingsSync)
+                    .onChange(of: settingsSync) { _, on in if on { sync.syncNow() } }
+                if settingsSync { settingsStatusLabel }
+            }
         } header: {
             Text("Cópia de segurança")
         } footer: {
@@ -112,6 +120,19 @@ struct HistoryPage: View {
         case .ok(let date): Label("Sincronizado às \(date.formatted(date: .omitted, time: .shortened))", systemImage: "checkmark.circle").foregroundStyle(.secondary)
         case .failed(let message):
             Label(message + " O histórico continua guardado neste Mac.", systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+        }
+    }
+
+    @ViewBuilder private var settingsStatusLabel: some View {
+        switch sync.settingsStatus {
+        case .idle, .off: Text("Definições ainda não sincronizadas").font(.caption).foregroundStyle(.secondary)
+        case .syncing: Text("A sincronizar as definições…").font(.caption).foregroundStyle(.secondary)
+        case .ok(let date):
+            Label("Definições sincronizadas às \(date.formatted(date: .omitted, time: .shortened))", systemImage: "checkmark.circle")
+                .font(.caption).foregroundStyle(.secondary)
+        case .failed(let message):
+            Label(message + " As definições continuam guardadas neste Mac.", systemImage: "exclamationmark.triangle")
+                .font(.caption).foregroundStyle(.orange)
         }
     }
 

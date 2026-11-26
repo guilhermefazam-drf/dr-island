@@ -6,7 +6,9 @@ import DrIslandCore
 struct MarqueeText: View {
     let text: String
     var font: Font = .caption
-    var color: Color = .white
+    /// Defaults to the theme's text colour.
+    var color: Color?
+    @Environment(\.islandPalette) private var palette
 
     @State private var textWidth: CGFloat = 0
     @State private var boxWidth: CGFloat = 0
@@ -16,7 +18,7 @@ struct MarqueeText: View {
     var body: some View {
         // With Reduce Motion the text stays put and is truncated instead of sliding.
         if reduceMotion {
-            Text(text).font(font).foregroundStyle(color).lineLimit(1)
+            Text(text).font(font).foregroundStyle(color ?? Color(palette.text)).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             sliding
@@ -33,7 +35,7 @@ struct MarqueeText: View {
             })
             .overlay(alignment: .leading) {
                 TimelineView(.animation(minimumInterval: 1.0 / 30, paused: overflow == 0)) { context in
-                    Text(text).font(font).foregroundStyle(color).fixedSize()
+                    Text(text).font(font).foregroundStyle(color ?? Color(palette.text)).fixedSize()
                         .background(GeometryReader { geo in
                             Color.clear.onAppear { textWidth = geo.size.width }.onChange(of: geo.size.width) { _, w in textWidth = w }
                         })

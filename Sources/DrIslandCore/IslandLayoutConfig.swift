@@ -65,15 +65,36 @@ public struct IslandLayoutConfig: Codable, Equatable, Sendable {
     public var columnCount: Int { columns.count }
 
     /// Total width of the island: 400 pt for one column (as it always was), 2 × 330 or 3 × 290 beyond that.
-    public static func width(columns: Int) -> Double {
-        switch columns {
-        case ...1: return 400
-        case 2: return 660
-        default: return 870
+    /// Compacto is narrower: 340, 560 and 740 pt.
+    public static func width(columns: Int, density: IslandDensity = .regular) -> Double {
+        switch (columns, density) {
+        case (...1, .regular): return 400
+        case (2, .regular): return 660
+        case (_, .regular): return 870
+        case (...1, .compact): return 340
+        case (2, .compact): return 560
+        case (_, .compact): return 740
         }
     }
-    public var width: Double { Self.width(columns: columnCount) + Double(columnCount) * extraColumnWidth }
-    public static var maxWidth: Double { width(columns: maxColumns) + Double(maxColumns) * maxExtraColumnWidth }
+    /// Bento is wider from two columns on, for the row of numbers on top: 780 / 960 pt (Compacto 620 / 800);
+    /// one column keeps Camadas' width (its numbers go in a 2 × 2 grid).
+    public static func width(columns: Int, density: IslandDensity = .regular, style: IslandStyle) -> Double {
+        guard style == .bento else { return width(columns: columns, density: density) }
+        switch (columns, density) {
+        case (...1, _): return width(columns: 1, density: density)
+        case (2, .regular): return 780
+        case (_, .regular): return 960
+        case (2, .compact): return 620
+        case (_, .compact): return 800
+        }
+    }
+    public func width(density: IslandDensity = .regular, style: IslandStyle = .camadas) -> Double {
+        Self.width(columns: columnCount, density: density, style: style) + Double(columnCount) * extraColumnWidth
+    }
+    public var width: Double { width(density: .regular) }
+    public static var maxWidth: Double {
+        IslandStyle.allCases.map { width(columns: maxColumns, style: $0) }.max()! + Double(maxColumns) * maxExtraColumnWidth
+    }
 
     /// 1–3 columns, every block exactly once (a repeated one keeps its first place; a missing one goes to the end of the first column).
     private mutating func normalize() {

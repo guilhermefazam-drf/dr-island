@@ -9,49 +9,54 @@ struct PullRequestRow: View {
     /// The unseen change on this PR, shown as a tag and a tinted row (nil with row alerts off).
     let change: PRChange?
     @AppStorage(SettingsKey.prMutes) private var mutesJSON = "[]"
+    @Environment(\.islandPalette) private var palette
+    @Environment(\.islandMetrics) private var metrics
 
     var body: some View {
         Button { NSWorkspace.shared.open(pr.url) } label: {
-            HStack(spacing: 8) {
-                Image(systemName: Self.ciSymbol(pr.ci)).foregroundStyle(Self.ciColor(pr.ci)).frame(width: 14)
+            ListRow(key: "#\(pr.number)", title: pr.title, meta: meta, tint: tint) {
+                Image(systemName: Self.ciSymbol(pr.ci)).foregroundStyle(Self.ciColor(pr.ci, palette)).frame(width: 14)
                     .islandTip(Self.ciText(pr.ci))
-                if pr.hasConflicts { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).islandTip("Conflitos com a branch base") }
-                ReviewIcon(pr: pr)
-                Text("#\(pr.number)")
-                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                Text(pr.title).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
-                Spacer(minLength: 4)
+                ReviewIcon(pr: pr).frame(width: 18)
+            } trailing: {
+                // At the right end, so a conflict does not push this row's key and title out of line with the others.
+                if pr.hasConflicts { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color(palette.amber)).islandTip("Conflitos com a branch base") }
                 if let change {
-                    RowTag(change.label, change.tone.color)
+                    Pill(change.label, change.tone.color(in: palette))
                 } else if let reason = attentionReason {
-                    RowTag(reason.text, reason.tone.color)
+                    Pill(reason.text, reason.tone.color(in: palette))
                 }
-                if pr.role == .authored, let comments = pr.unresolvedThreadCount, comments > 0 {
-                    HStack(spacing: 2) {
-                        Image(systemName: "bubble.left.fill").font(.system(size: 8))
-                        Text("\(comments)").font(.system(size: 9, weight: .semibold).monospacedDigit())
-                    }
-                    .foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 5).padding(.vertical, 1).background(Capsule().fill(Color.white.opacity(0.14)))
-                    .islandTip("\(comments) thread\(comments == 1 ? "" : "s") por resolver")
+                if pr.role == .authored, let comments = pr.unresolvedThreadCount, comments > 0, !metrics.rowHasMeta {
+                    Pill("\(comments) por resolver", Color(palette.textSecondary))
+                        .islandTip("\(comments) thread\(comments == 1 ? "" : "s") por resolver")
                 }
-                if pr.isDraft { RowTag("draft", .gray) }
-                OwnerTag(name: pr.author, isMine: pr.isMine)
+                if pr.isDraft { Pill("draft", Color(palette.neutral)) }
+                Avatar(name: pr.author, isMine: pr.isMine)
             }
-            .frame(height: IslandLayout.prRowHeight)
-            .background {
-                if let change {
-                    RoundedRectangle(cornerRadius: 5).fill(change.tone.color.opacity(0.16)).padding(.horizontal, -6)
-                } else if pr.role == .reviewRequested, let reason = attentionReason, reason.tone != .info {
-                    RoundedRectangle(cornerRadius: 5).fill(reason.tone.color.opacity(0.12)).padding(.horizontal, -6)
-                }
-            }
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .islandTip(pr.title)
         .opacity(PRMutes.isMuted(prID: pr.id, in: PRMutes.decode(mutesJSON)) ? 0.45 : 1)
         .contextMenu { menu }
+    }
+
+    /// The details line: repository, the author on others' PRs, and threads left to resolve on the user's own.
+    private var meta: String {
+        // The repository's name from the PR's URL (github.com/<owner>/<repo>/pull/<n>); the stored field can be the owner alone.
+        let path = pr.url.pathComponents
+        var parts = [path.count > 2 ? path[2] : pr.repository]
+        if pr.role == .reviewRequested, let author = pr.author, !author.isEmpty { parts.append(author) }
+        if pr.role == .authored, let comments = pr.unresolvedThreadCount, comments > 0 {
+            parts.append("\(comments) thread\(comments == 1 ? "" : "s") por resolver")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// An unseen change paints the row; so does a review that waits on the user for a reason other than "new".
+    private var tint: Color? {
+        if let change { return change.tone.color(in: palette).opacity(0.16) }
+        if pr.role == .reviewRequested, let reason = attentionReason, reason.tone != .info { return reason.tone.color(in: palette).opacity(0.12) }
+        return nil
     }
 
     @ViewBuilder private var menu: some View {
@@ -120,12 +125,12 @@ struct PullRequestRow: View {
         }
     }
 
-    private static func ciColor(_ ci: CIState) -> Color {
+    private static func ciColor(_ ci: CIState, _ palette: IslandPalette) -> Color {
         switch ci {
-        case .passing: return .green
-        case .failing: return .red
-        case .pending: return .yellow
-        case .none: return .gray
+        case .passing: return Color(palette.green)
+        case .failing: return Color(palette.red)
+        case .pending: return Color(palette.amber)
+        case .none: return Color(palette.neutral)
         }
     }
 }

@@ -22,6 +22,8 @@ struct IslandView: View {
     /// macOS «Reduzir movimento»: the island fades instead of growing or springing, and the decorative motion (comet,
     /// sweep, sparkles, confetti, dock magnification) is skipped. Pure opacity effects stay.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
     /// Update animation on the ring: a highlight sweeping along it plus a glow pulse.
     @State private var sweep: CGFloat = 0
     @State private var sweepOpacity: Double = 0
@@ -66,7 +68,8 @@ struct IslandView: View {
     @AppStorage(SettingsKey.showForecast) private var showForecast = true
     @AppStorage(SettingsKey.alertBanner) private var alertBanner = false
     @State private var alertOpacity: Double = 0
-    @State private var alertColor: Color = PRChange.Tone.info.color
+    @State private var alertTone: PRChange.Tone = .info
+    private var alertColor: Color { alertTone.color(in: notchPalette) }
     /// Silhouette progress (0 = notch, 1 = expanded); width and height are staged separately per effect.
     @State private var widthProgress: CGFloat = 0
     @State private var heightProgress: CGFloat = 0
@@ -111,6 +114,8 @@ struct IslandView: View {
         .frame(width: expandedSize.width, height: expandedSize.height, alignment: .top)
         .coordinateSpace(.named(islandRootSpace))
         .environment(tips)
+        .environment(\.islandPalette, islandPalette)
+        .environment(\.islandMetrics, islandMetrics)
         .animation(.easeOut(duration: 0.2), value: state.expanded)
         .animation(.easeInOut(duration: 0.2), value: syncing)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: prStore.unseen.isEmpty)
@@ -164,6 +169,7 @@ struct IslandView: View {
             withAnimation(motion.width) { widthProgress = expanded ? 1 : 0 }
             withAnimation(motion.height) { heightProgress = expanded ? 1 : 0 }
             if expanded {
+                chooseTabsOnOpen()
                 // The content "arrives" slightly after the bubble starts growing, then settles with a spring.
                 Task {
                     try? await Task.sleep(for: .seconds(motion.contentDelay))
@@ -244,6 +250,9 @@ struct IslandView: View {
         let sprint: SprintInfo
         let rows: [JiraRow]
         let approvalRows: [JiraRow]
+        /// Real totals, not the visible rows (those stop at the row limit, with «+N mais»).
+        let mineCount: Int
+        let approvalCount: Int
         var id: Int { sprint.id ?? sprint.name.hashValue }
     }
 
@@ -255,7 +264,8 @@ struct IslandView: View {
                 : jiraTaskRows(JiraOrder.sprintSorted(mine, me: jiraStore.myName), expanded: state.expandedSprintLists.contains("t" + key))
             let approvals = jiraStore.approvals.filter { $0.sprintIDs.contains(sprint.id ?? -1) }
             return SprintSection(sprint: sprint, rows: rows,
-                                 approvalRows: Settings.jiraApproverEnabled ? jiraTaskRows(approvals, expanded: state.expandedSprintLists.contains("a" + key)) : [])
+                                 approvalRows: Settings.jiraApproverEnabled ? jiraTaskRows(approvals, expanded: state.expandedSprintLists.contains("a" + key)) : [],
+                                 mineCount: mine.count, approvalCount: Settings.jiraApproverEnabled ? approvals.count : 0)
         }
     }
 
@@ -304,25 +314,222 @@ struct IslandView: View {
         }
     }
 
-    private func sectionHeight(rows: Int) -> CGFloat {
-        rows == 0 ? 0 : IslandLayout.sectionSpacing + IslandLayout.prHeaderHeight + CGFloat(rows) * IslandLayout.prRowHeight
-    }
-
     /// Pinned apps that still exist on disk (an uninstalled app just disappears from the row).
     private var shortcuts: [DevShortcut] {
         ShortcutList.decode(shortcutsJSON).filter { FileManager.default.fileExists(atPath: $0.appPath) }
     }
 
+    // MARK: Tabs (Git and Jira cards)
+
+    /// Tabs on the Git card only when there are reviews to show and both lists have something.
+    private var gitTabs: [TwoListTab] {
+        TabChoice.tabs(firstCount: prRows(for: .authored).count, secondCount: includeReviews ? prStore.snapshot.reviewRequested.count : 0,
+                       secondEnabled: includeReviews)
+    }
+
+    /// The list the Git card shows: the chosen tab, or the only list with something.
+    private var gitList: PRList {
+        if gitTabs.isEmpty { return prRows(for: .authored).isEmpty ? .review : .authored }
+        return state.gitTab == .first ? .authored : .review
+    }
+
+    private func prCount(_ list: PRList) -> Int {
+        list == .authored ? prStore.snapshot.authored.count : prStore.snapshot.reviewRequested.count
+    }
+
+    private func prChanges(_ list: PRList) -> [PRChange] {
+        let ids = Set((list == .authored ? prStore.snapshot.authored : prStore.snapshot.reviewRequested).map(\.id))
+        return rowChanges.filter { ids.contains($0.prID) }
+    }
+
+    private var outOfSprintApprovals: [JiraTask] {
+        Settings.jiraApproverEnabled ? jiraStore.approvals.filter { !sprintApprovals.contains($0) } : []
+    }
+
+    private var approvalCount: Int { outOfSprintApprovals.count }
+
+    private var jiraTabs: [TwoListTab] {
+        TabChoice.tabs(firstCount: jiraRows.count, secondCount: approvalCount, secondEnabled: Settings.jiraApproverEnabled)
+    }
+
+    /// The Jira card shows the approvals when that tab is chosen, or when they are its only content.
+    private var jiraShowsApprovals: Bool {
+        jiraTabs.isEmpty ? jiraRows.isEmpty : state.jiraTab == .second
+    }
+
+    private func jiraChanges(_ tasks: [JiraTask]) -> [PRChange] {
+        let ids = Set(tasks.map { "jira-" + $0.key })
+        return rowChanges.filter { ids.contains($0.prID) }
+    }
+
+    /// The dot on a tab: the loudest unseen change among its rows.
+    private func badge(_ changes: [PRChange]) -> Color? {
+        changes.map(\.tone).max().map { $0.color(in: islandPalette) }
+    }
+
+    /// Opening the island turns a card to the tab that has news when the open one has none.
+    private func chooseTabsOnOpen() {
+        if !gitTabs.isEmpty {
+            state.gitTab = TabChoice.onOpen(current: state.gitTab, firstUnseen: prChanges(.authored).count, secondUnseen: prChanges(.review).count,
+                                            firstItems: prCount(.authored), secondItems: prCount(.review))
+        }
+        if !jiraTabs.isEmpty {
+            state.jiraTab = TabChoice.onOpen(current: state.jiraTab, firstUnseen: jiraChanges(jiraStore.tasks).count,
+                                             secondUnseen: jiraChanges(outOfSprintApprovals).count,
+                                             firstItems: jiraStore.tasks.count, secondItems: approvalCount)
+        }
+    }
+
+    // MARK: Bento (numbers on top, events strip, music in the dock)
+
+    /// Music goes into the dock in Bento, when something is playing.
+    private var dockMusic: MusicStore? { isBento && musicStore.nowPlaying != nil ? musicStore : nil }
+
+    private var kpiModels: [KPITile.Model] { kpiModels(now: Date()) }
+
+    private func kpiModels(now: Date) -> [KPITile.Model] {
+        var available: Set<BentoLayout.KPI> = [.claude]
+        if prStore.status != .disabled { available.insert(.pullRequests) }
+        if showSprint, jiraStore.status != .disabled, !sprintSections.isEmpty { available.insert(.sprint) }
+        if showFocus { available.insert(.focus) }
+        if jiraStore.status != .disabled { available.insert(.jira) }
+        if showAlertsBlock { available.insert(.alerts) }
+        return BentoLayout.kpis(columns: layout.columnCount, available: available).map { kpiModel($0, now: now) }
+    }
+
+    private func kpiModel(_ kpi: BentoLayout.KPI, now: Date) -> KPITile.Model {
+        let p = islandPalette
+        switch kpi {
+        case .claude:
+            let fraction = store.sessionFraction
+            let colour = Brand.color(forFraction: fraction, amber: amber, red: red, palette: p)
+            let reset = store.sessionResetsAt.map { "reinicia em " + SprintInfo.remainingLabel($0.timeIntervalSince(now)) } ?? "Sessão · 5 h"
+            // The week sits beside the session, in its own threshold colour, when the reading has it.
+            let week = store.weeklyFraction.map { weekly in
+                KPITile.Aside(label: "Semana", value: "\(Int((weekly * 100).rounded()))%",
+                              color: Brand.color(forFraction: weekly, amber: amber, red: red, palette: p))
+            }
+            let weekTip = store.weeklyResetsAt.map { "Semana reinicia em " + SprintInfo.remainingLabel($0.timeIntervalSince(now)) }
+            let tip = [statusMessage, showWeekly ? weekTip : nil].compactMap { $0 }.joined(separator: " · ")
+            return .init(id: kpi.rawValue, title: "Claude", icon: "sparkle", source: .claude,
+                         value: (store.isEstimate ? "≈" : "") + "\(Int((fraction * 100).rounded()))", unit: "%",
+                         detail: store.hasValue ? reset : "sem leitura", gauge: .bar(fraction, colour), valueColor: colour,
+                         aside: showWeekly ? week : nil, tip: tip.isEmpty ? nil : tip)
+        case .pullRequests:
+            let mine = prStore.snapshot.authored.count
+            let review = includeReviews ? prStore.snapshot.reviewRequested.count : 0
+            return .init(id: kpi.rawValue, title: "Pull requests", icon: "arrow.triangle.pull", source: .pullRequests,
+                         value: "\(mine + review)", unit: "abertos", detail: "\(mine) teus · \(review) a rever",
+                         gauge: .stack([(Double(mine), Color(p.green)), (Double(review), Color(p.purple))]))
+        case .sprint:
+            let section = sprintSections.first
+            let sprint = section?.sprint
+            let calendar = Calendar.current
+            let total = sprint.map { max(calendar.dateComponents([.day], from: calendar.startOfDay(for: $0.start), to: calendar.startOfDay(for: $0.end)).day ?? 0, 1) } ?? 0
+            let day = sprint.map { min(max((calendar.dateComponents([.day], from: calendar.startOfDay(for: $0.start), to: calendar.startOfDay(for: now)).day ?? 0) + 1, 1), total) } ?? 0
+            return .init(id: kpi.rawValue, title: sprint?.name ?? "Sprint", icon: "flag", source: .sprint,
+                         value: "\(day)", unit: "/ \(total) dias",
+                         detail: "\(section?.mineCount ?? 0) tuas · \(section?.approvalCount ?? 0) aprovações",
+                         gauge: .bar(sprint?.progress(now: now) ?? 0, Color(p.accent)),
+                         tip: sprint.map { SprintBar.tooltip($0) })
+        case .focus:
+            let timer = focusStore.timer, config = focusStore.config
+            let remaining = Int(timer.remaining(now: now, config).rounded(.up))
+            let total = config.roundsBeforeLongBreak
+            let done = timer.phase == .longBreak ? total : timer.completedRounds % total
+            let detail = timer.phase == .focus ? "ronda \(timer.completedRounds % total + 1) de \(total)" : timer.phase.title
+            return .init(id: kpi.rawValue, title: "Foco", icon: "timer", source: .focus,
+                         value: String(format: "%d:%02d", remaining / 60, remaining % 60),
+                         detail: detail + (timer.isRunning ? "" : " · em pausa"),
+                         gauge: .dots(total: total, done: done, Color(p.green)),
+                         tip: timer.isRunning ? "Pausar" : "Começar", action: { focusStore.toggle() })
+        case .jira:
+            return .init(id: kpi.rawValue, title: "Jira", icon: "checklist", source: .jira,
+                         value: "\(jiraStore.tasks.count)", unit: "tasks", detail: "\(approvalCount) aprovações")
+        case .alerts:
+            let today = todayCounts.reduce(0, +)
+            let latest = recentAlerts.first.map { "último: " + AlertsBlock.relative($0.date, now: now) } ?? "sem avisos"
+            return .init(id: kpi.rawValue, title: "Avisos", icon: "bell", source: .alerts,
+                         value: "\(today)", unit: "hoje", detail: latest, tip: "Ver o histórico", action: openHistory)
+        }
+    }
+
+    private var kpiRows: Int { BentoLayout.kpiRows(count: isBento ? kpiModels.count : 0, columns: layout.columnCount) }
+    private var kpiTileHeight: CGFloat { CGFloat(islandMetrics.card(Double(KPITile.contentHeight(islandMetrics)))) }
+
+    /// The numbers' rows and the space under them.
+    private var kpiExtra: CGFloat {
+        let rows = CGFloat(kpiRows)
+        guard rows > 0 else { return 0 }
+        return rows * kpiTileHeight + (rows - 1) * CGFloat(islandMetrics.cardGap) + CGFloat(islandMetrics.sectionSpacing)
+    }
+
+    /// The events strip (Bento, under three columns; with three the alerts are a column card).
+    private var showsEventStrip: Bool {
+        isBento && layout.columnCount < 3 && showAlertsBlock && !recentAlerts.isEmpty && !briefingActive
+    }
+    private var eventSlots: Int { layout.columnCount <= 1 ? 2 : 4 }
+    private var stripExtra: CGFloat {
+        showsEventStrip ? CGFloat(islandMetrics.sectionSpacing) + CGFloat(islandMetrics.card(Double(BentoEventStrip.contentHeight(islandMetrics)))) : 0
+    }
+
+    @ViewBuilder private var kpiGrid: some View {
+        let running = focusStore.timer.isRunning
+        TimelineView(.periodic(from: .now, by: running ? 1 : 30)) { context in
+            let models = kpiModels(now: context.date)
+            let per = BentoLayout.perRow(columns: layout.columnCount)
+            VStack(spacing: CGFloat(islandMetrics.cardGap)) {
+                ForEach(0..<BentoLayout.kpiRows(count: models.count, columns: layout.columnCount), id: \.self) { row in
+                    HStack(spacing: CGFloat(islandMetrics.cardGap)) {
+                        ForEach(models[(row * per)..<min((row + 1) * per, models.count)]) { KPITile(model: $0) }
+                        // A short last row keeps the tiles one width.
+                        let missing = per - (min((row + 1) * per, models.count) - row * per)
+                        ForEach(0..<max(missing, 0), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity) }
+                    }
+                    .frame(height: kpiTileHeight)
+                }
+            }
+        }
+        .frame(height: kpiExtra - CGFloat(islandMetrics.sectionSpacing))
+    }
+
     // MARK: Layout (columns of blocks)
 
-    private var layout: IslandLayoutConfig { IslandLayoutConfig.decode(layoutJSON) }
-    private var layoutWidth: CGFloat { CGFloat(layout.width) }
-    private static let columnGap: CGFloat = 14          // either side of the divider between columns
+    private var layout: IslandLayoutConfig {
+        let saved = IslandLayoutConfig.decode(layoutJSON)
+        return IslandOverrides.columns.map { saved.resized(to: $0) } ?? saved
+    }
+    private var layoutWidth: CGFloat { CGFloat(layout.width(density: islandDensity, style: islandStyle)) }
+
+    // MARK: Theme and density
+
+    @AppStorage(SettingsKey.islandTheme) private var themeName = IslandTheme.grafite.rawValue
+    @AppStorage(SettingsKey.islandDensity) private var densityName = IslandDensity.regular.rawValue
+    private var islandTheme: IslandTheme { IslandOverrides.theme ?? IslandTheme(stored: themeName) }
+    private var islandDensity: IslandDensity { IslandOverrides.density ?? IslandDensity(stored: densityName) }
+    @AppStorage(SettingsKey.islandStyle) private var styleName = IslandStyle.camadas.rawValue
+    private var islandStyle: IslandStyle { IslandOverrides.style ?? IslandStyle(stored: styleName) }
+    private var isBento: Bool { islandStyle == .bento }
+    private var islandPalette: IslandPalette {
+        islandTheme.palette.adjusted(increaseContrast: contrast == .increased, reduceTransparency: reduceTransparency)
+    }
+    /// Colours for what is drawn on the black notch and mini island: a light theme's tokens are tuned for a light
+    /// background, so those keep Grafite's (with the same accessibility adjustments).
+    private var notchPalette: IslandPalette {
+        islandPalette.isLight
+            ? IslandTheme.grafite.palette.adjusted(increaseContrast: contrast == .increased, reduceTransparency: reduceTransparency)
+            : islandPalette
+    }
+    /// Ink for the header strip (logo, greeting, buttons): it sits on the collar, which stays black on light themes.
+    private var headerInk: Color { islandPalette.isLight ? Color.white : Color(islandPalette.text) }
+    private var islandMetrics: IslandMetrics { IslandMetrics.forDensity(islandDensity) }
+    /// The gap between two columns (no divider: the cards already separate them).
+    private var columnGap: CGFloat { CGFloat(islandMetrics.cardGap) * 2 }
     private static let sidePadding: CGFloat = 24
 
     private var columnWidth: CGFloat {
         let n = CGFloat(layout.columnCount)
-        return (layoutWidth - 2 * Self.sidePadding - (n - 1) * (2 * Self.columnGap + 1)) / n
+        return (layoutWidth - 2 * Self.sidePadding - (n - 1) * columnGap) / n
     }
 
     /// The newest alerts (only the few shown are decoded from the stored history).
@@ -350,54 +557,61 @@ struct IslandView: View {
         case .focus: return showFocus
         case .history: return showHistory
         case .music: return true   // shown disabled when nothing is playing
-        case .alerts: return showAlertsBlock && !recentAlerts.isEmpty
+        case .alerts: return showAlertsBlock && !recentAlerts.isEmpty && !briefingActive   // the briefing lists the same entries
         case .briefing: return briefingActive
         case .timeline: return showTimeline
         }
     }
 
     private func height(of block: IslandBlock) -> CGFloat {
-        func section(_ rows: Int) -> CGFloat { rows == 0 ? 0 : IslandLayout.cardListHeader + 2 + CGFloat(rows) * IslandLayout.prRowHeight }
-        let (authored, review) = (prRows(for: .authored).count, prRows(for: .review).count)
+        let m = islandMetrics
+        func card(_ content: CGFloat) -> CGFloat { CGFloat(m.card(Double(content))) }
         switch block {
         case .claude:
-            let core = gaugeIsRing ? IslandLayout.claudeRingHeight
-                : IslandLayout.claudeHeight + (ClaudeBlock.showsForecast(store, enabled: showForecast) ? IslandLayout.forecastExtra : 0)
-            return core + (showCost ? IslandLayout.costExtra : 0)
+            return ClaudeBlock.height(store, ring: gaugeIsRing, showForecast: showForecast, showCost: showCost, metrics: m)
         case .pullRequests:
-            let parts = [section(authored), section(review)].filter { $0 > 0 }
-            return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
+            return CGFloat(m.listCard(rows: prRows(for: gitList).count))
         case .sprint:
             let sections = sprintSections
-            let parts = sections.isEmpty ? [section(sprintEmptyRows.count)]
-                : sections.flatMap { [section($0.rows.count), section($0.approvalRows.count)] }.filter { $0 > 0 }
-            return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
+            let counts = sections.isEmpty ? [sprintEmptyRows.count] : sections.flatMap { [$0.rows.count, $0.approvalRows.count] }
+            return CGFloat(m.listCard(sections: counts))
         case .jira:
-            let parts = [section(jiraRows.count), section(approvalRows.count)].filter { $0 > 0 }
-            return IslandLayout.card(IslandLayout.cardTitle + parts.reduce(0, +) + CGFloat(max(parts.count - 1, 0)) * IslandLayout.listRule)
-        case .backlog: return IslandLayout.card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated))
-        case .focus: return IslandLayout.card(IslandLayout.focusContent)
-        case .history: return IslandLayout.card(IslandLayout.historyContent)
-        case .music: return IslandLayout.card(musicStore.nowPlaying.map(MusicBlock.contentHeight) ?? IslandLayout.musicContent)
-        case .alerts: return IslandLayout.card(AlertsBlock.contentHeight(rows: min(recentAlerts.count, AlertsBlock.maxRows)))
-        case .briefing: return IslandLayout.card(BriefingBlock.contentHeight(rows: min(briefingEntries.count, BriefingBlock.maxRows)))
-        case .timeline: return IslandLayout.card(TimelineBlock.contentHeight)
+            return CGFloat(m.listCard(rows: jiraShowsApprovals ? approvalRows.count : jiraRows.count))
+        case .backlog: return card(BacklogBlock.contentHeight(groups: backlogGroups, message: backlogMessage, truncated: jiraStore.backlogTruncated, metrics: m))
+        case .focus: return card(FocusBlock.contentHeight(m))
+        case .history: return card(UsageHistoryChart.contentHeight(m))
+        case .music: return card(MusicBlock.contentHeight(musicStore.nowPlaying, m))
+        case .alerts: return card(AlertsBlock.contentHeight(rows: min(recentAlerts.count, AlertsBlock.maxRows), metrics: m))
+        case .briefing: return card(BriefingBlock.contentHeight(rows: min(briefingEntries.count, BriefingBlock.maxRows), metrics: m))
+        case .timeline: return card(TimelineBlock.contentHeight(m))
         }
     }
 
-    private var visibleColumns: [[IslandBlock]] { layout.columns.map { $0.filter(isVisible) } }
+    /// Camadas: the user's columns as they are. Bento: the blocks not shown elsewhere, spread over the columns so
+    /// they end up about the same height.
+    private var visibleColumns: [[IslandBlock]] {
+        guard isBento else { return layout.columns.map { $0.filter(isVisible) } }
+        return BentoLayout.distribute(BentoLayout.listBlocks(layout).filter(isVisible), columns: layout.columnCount,
+                                      gap: islandMetrics.sectionSpacing) { Double(height(of: $0)) }
+    }
 
     private func naturalHeight(of column: [IslandBlock]) -> CGFloat {
         var total: CGFloat = 0
         for block in column { total += height(of: block) }
-        return total + CGFloat(max(column.count - 1, 0)) * IslandLayout.sectionSpacing
+        return total + CGFloat(max(column.count - 1, 0)) * CGFloat(islandMetrics.sectionSpacing)
     }
 
     /// Half of the screen at most; a taller column scrolls inside the island.
     private var maxColumnHeight: CGFloat { screenHeight * 0.5 }
 
-    /// The shortcuts dock sits under the columns, centred and always last, so it adds to the height on its own.
-    private var dockExtra: CGFloat { shortcuts.isEmpty ? 0 : IslandLayout.card(IslandLayout.shortcutsContent) + IslandLayout.sectionSpacing }
+    /// The bottom row under the columns: the shortcuts dock, centred, with the Doutor Finanças logo in the
+    /// bottom-right corner. It is always last, so it adds to the height on its own.
+    private var bottomRowHeight: CGFloat {
+        if !shortcuts.isEmpty || dockMusic != nil { return ShortcutsDock.height(islandMetrics) }
+        return Brand.logo == nil ? 0 : Self.logoHeight
+    }
+    private static let logoHeight: CGFloat = 14
+    private var dockExtra: CGFloat { bottomRowHeight == 0 ? 0 : bottomRowHeight + CGFloat(islandMetrics.sectionSpacing) }
 
     /// The tallest column (capped) plus the dock sets the island's height.
     private var columnsHeight: CGFloat { min(visibleColumns.map(naturalHeight(of:)).max() ?? 0, maxColumnHeight) }
@@ -405,14 +619,14 @@ struct IslandView: View {
     /// The overview page's height; the «Gestão» page has its own, and the island glides between the two with the swipe.
     private var overviewHeight: CGFloat {
         let top = metrics.height + 6, bottom: CGFloat = 10
-        return top + columnsHeight + dockExtra + bottom
+        return top + kpiExtra + columnsHeight + stripExtra + dockExtra + bottom
     }
 
     /// Cards side by side from two columns on; capped like the overview's columns, and they scroll beyond it.
     private var managementColumns: Int { layout.columnCount >= 2 ? 2 : 1 }
-    private var managementGridHeight: CGFloat { min(IslandLayout.managementGrid(columns: managementColumns), maxColumnHeight) }
+    private var managementGridHeight: CGFloat { min(IslandLayout.managementGrid(columns: managementColumns, metrics: islandMetrics), maxColumnHeight) }
     private var managementHeight: CGFloat {
-        metrics.height + 6 + IslandLayout.managementHeader + 8 + managementGridHeight + 10
+        metrics.height + 6 + ManagementPage.topHeight(columns: managementColumns, metrics: islandMetrics) + managementGridHeight + 10
     }
 
     private var contentHeight: CGFloat {
@@ -422,7 +636,7 @@ struct IslandView: View {
     @ViewBuilder private var attentionDot: some View {
         if !state.expanded, !state.fullscreen, !state.splashPending, prStore.attention != .none {
             Circle()
-                .fill(prStore.attention == .critical ? Color.red : Color.orange)
+                .fill(prStore.attention == .critical ? Color(notchPalette.red) : Color(notchPalette.amber))
                 .frame(width: 7, height: 7)
                 .offset(x: metrics.width / 2 + CGFloat(thickness) + 9, y: metrics.height / 2 - 3.5)
                 .transition(.opacity)
@@ -481,12 +695,12 @@ struct IslandView: View {
             ForEach(segments.indices, id: \.self) { i in
                 let s = segments[i]
                 outline.trim(from: min(max(newSessionLap - s.from, 0), 1), to: min(max(newSessionLap - s.to, 0), 1))
-                    .stroke(i == segments.count - 1 ? Color.white : Brand.green, style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
-                    .shadow(color: Brand.green.opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
+                    .stroke(i == segments.count - 1 ? Color.white : Color(notchPalette.green), style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
+                    .shadow(color: Color(notchPalette.green).opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
                     .opacity(s.opacity)
             }
-            outline.stroke(Brand.green, style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
-                .shadow(color: Brand.green.opacity(0.9), radius: 7)
+            outline.stroke(Color(notchPalette.green), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
+                .shadow(color: Color(notchPalette.green).opacity(0.9), radius: 7)
                 .opacity(newSessionFlash)
         }
         .frame(width: IslandLayout.peekWidth, height: miniHeight, alignment: .top)
@@ -508,12 +722,12 @@ struct IslandView: View {
 
     private func alertRow(_ change: PRChange) -> some View {
         HStack(spacing: 6) {
-            Circle().fill(change.tone.color).frame(width: 7, height: 7).frame(width: 14)
-            Text(change.kind.origin).font(.system(size: 9, weight: .bold)).foregroundStyle(.white.opacity(0.55))
-            Text(change.ref).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-            Text(change.title).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
+            Circle().fill(change.tone.color(in: notchPalette)).frame(width: 7, height: 7).frame(width: 14)
+            Text(change.kind.origin).font(.system(size: 9, weight: .bold)).foregroundStyle(Color(notchPalette.textTertiary))
+            Text(change.ref).font(.caption2.monospacedDigit()).foregroundStyle(Color(notchPalette.textSecondary))
+            Text(change.title).font(.caption).foregroundStyle(Color(notchPalette.text).opacity(0.9)).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 4)
-            RowTag(change.label, change.tone.color)
+            RowTag(change.label, change.tone.color(in: notchPalette))
         }
         .frame(height: IslandLayout.peekRowHeight)
     }
@@ -522,7 +736,7 @@ struct IslandView: View {
     @ViewBuilder private var newsDot: some View {
         if alertDot, !state.expanded, !state.fullscreen, !state.splashPending, !prStore.unseen.isEmpty {
             Circle()
-                .fill(PRChange.Tone.info.color)
+                .fill(PRChange.Tone.info.color(in: notchPalette))
                 .frame(width: 7, height: 7)
                 .offset(x: metrics.width / 2 + CGFloat(thickness) + 9 + (prStore.attention != .none ? 11 : 0), y: metrics.height / 2 - 3.5)
                 .transition(.scale.combined(with: .opacity))
@@ -542,7 +756,7 @@ struct IslandView: View {
 
     private func playAlertPulse() {
         guard alertPulse, !state.expanded else { return }
-        alertColor = (prStore.lastChanges.map(\.tone).max() ?? .info).color
+        alertTone = prStore.lastChanges.map(\.tone).max() ?? .info
         alertOnMini = alertBanner
         flashAlert(times: 2)
     }
@@ -568,9 +782,8 @@ struct IslandView: View {
         }
     }
 
-    /// The thin rule between two parts of a Git / Jira card.
     private func color(forFraction fraction: Double) -> Color {
-        Brand.color(forFraction: fraction, amber: amber, red: red)
+        Brand.color(forFraction: fraction, amber: amber, red: red, palette: notchPalette)
     }
 
     private var ringOpacity: Double {
@@ -579,7 +792,7 @@ struct IslandView: View {
     }
 
     private var statusColor: Color {
-        store.hasValue ? color(forFraction: store.sessionFraction) : .gray
+        store.hasValue ? color(forFraction: store.sessionFraction) : Color(notchPalette.neutral)
     }
 
     // MARK: Collapsed ring
@@ -599,16 +812,16 @@ struct IslandView: View {
                         .stroke(statusColor.opacity(ringOpacity), style: StrokeStyle(lineWidth: t + 1.5 * glow, lineCap: .round))
                         .shadow(color: statusColor.opacity((0.45 + 0.5 * glow) * ringOpacity), radius: 2.5 + 5 * glow)
                 } else if !store.hasValue && store.status != .loading {
-                    shape.stroke(Color.gray.opacity(0.6), style: StrokeStyle(lineWidth: t, dash: [3, 4]))
+                    shape.stroke(Color(notchPalette.neutral).opacity(0.6), style: StrokeStyle(lineWidth: t, dash: [3, 4]))
                 }
                 focusRing(shape, thickness: t)
                 if isOffline {
-                    shape.stroke(Brand.red, style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
-                        .shadow(color: Brand.red.opacity(0.8), radius: 5)
+                    shape.stroke(Color(notchPalette.red), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
+                        .shadow(color: Color(notchPalette.red).opacity(0.8), radius: 5)
                 }
                 newSessionComet(shape, thickness: t)
-                shape.stroke(Brand.green, style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
-                    .shadow(color: Brand.green.opacity(0.9), radius: 7)
+                shape.stroke(Color(notchPalette.green), style: StrokeStyle(lineWidth: t + 1.5, lineCap: .round))
+                    .shadow(color: Color(notchPalette.green).opacity(0.9), radius: 7)
                     .opacity(newSessionFlash)
             }
             .overlay {
@@ -630,7 +843,7 @@ struct IslandView: View {
     /// ring, which stays visible dimmed underneath. Hidden when the timer is stopped.
     @ViewBuilder private func focusRing(_ shape: NotchRing, thickness t: CGFloat) -> some View {
         if focusStore.timer.isRunning {
-            let tint = focusStore.timer.phase == .focus ? Brand.blue : Brand.green
+            let tint = focusStore.timer.phase == .focus ? Color(notchPalette.accent) : Color(notchPalette.green)
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let progress = max(focusStore.timer.progress(now: context.date, focusStore.config), 0.004)
                 ZStack {
@@ -654,8 +867,8 @@ struct IslandView: View {
         ForEach(segments.indices, id: \.self) { i in
             let s = segments[i]
             shape.trim(from: min(max(newSessionLap - s.from, 0), 1), to: min(max(newSessionLap - s.to, 0), 1))
-                .stroke(i == segments.count - 1 ? Color.white : Brand.green, style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
-                .shadow(color: Brand.green.opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
+                .stroke(i == segments.count - 1 ? Color.white : Color(notchPalette.green), style: StrokeStyle(lineWidth: t + s.width, lineCap: .round))
+                .shadow(color: Color(notchPalette.green).opacity(0.9 * s.opacity), radius: 3 + 4 * s.opacity)
                 .opacity(s.opacity)
         }
     }
@@ -666,8 +879,8 @@ struct IslandView: View {
             ForEach([-1.0, 1.0], id: \.self) { side in
                 Image(systemName: "sparkle")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(side < 0 ? Brand.green : Color.white)
-                    .shadow(color: Brand.green.opacity(0.9), radius: 4)
+                    .foregroundStyle(side < 0 ? Color(notchPalette.green) : Color.white)
+                    .shadow(color: Color(notchPalette.green).opacity(0.9), radius: 4)
                     .scaleEffect(0.3 + 0.9 * newSessionSparkle)
                     .rotationEffect(.degrees(side * 90 * (1 - newSessionSparkle)))
                     .opacity(newSessionSparkle)
@@ -796,9 +1009,13 @@ struct IslandView: View {
             .frame(width: layoutWidth, height: contentHeight)
             .animation(state.isSwiping ? nil : resizeAnimation, value: contentHeight)
             .animation(resizeAnimation, value: layoutWidth)
-            .background(alignment: .top) { shape.fill(Color.black) }
+            .background(alignment: .top) {
+                IslandBackground(theme: islandTheme, palette: islandPalette, collarHeight: metrics.height + 6,
+                                 reduceTransparency: reduceTransparency)
+                    .clipShape(shape)
+            }
             .overlay(alignment: .topLeading) { watermark.opacity(showContent ? 1 : 0) }   // fixed: it stays on both pages
-            .overlay(alignment: .topTrailing) { HStack(spacing: 2) { restartButton; gearButton } }
+            .overlay(alignment: .topTrailing) { HStack(alignment: .top, spacing: 2) { liveBadge; managementButton; restartButton; gearButton } }
             .overlay(alignment: .bottom) {
                 if showManagement {
                     IslandPageDots(page: state.page) { state.go(to: $0) }
@@ -822,9 +1039,49 @@ struct IslandView: View {
             .rotation3DEffect(.degrees(hinge), axis: (x: 1, y: 0, z: 0), anchor: .top, perspective: 0.5)
     }
 
+    /// «ao vivo» with a green dot while the readings are current; «sem ligação» in red when they are stale.
+    @ViewBuilder private var liveBadge: some View {
+        let colour = isOffline ? Color(notchPalette.red) : Color(notchPalette.green)
+        HStack(spacing: 5) {
+            Circle().fill(colour).frame(width: 6, height: 6)
+                .background(Circle().fill(colour.opacity(0.25)).padding(-3))
+            Text(isOffline ? "sem ligação" : "ao vivo").font(.system(size: 11))
+        }
+        .foregroundStyle(headerInk.opacity(0.65))
+        .padding(.trailing, 6)
+        .frame(height: metrics.height)
+        .islandTip(isOffline ? "Sem ligação: os números podem estar desatualizados" : "Os dados atualizam-se sozinhos")
+        .scaleEffect(showContent || reduceMotion ? 1 : 0.5)
+        .opacity(showContent ? 1 : 0)
+        .allowsHitTesting(showContent)
+    }
+
+    /// Turns to the «Gestão» page (the sprint charts) and back; the same as swiping sideways or the dots at the bottom.
+    /// Always shown: with the page turned off in the settings, clicking it turns the page on, so the charts are one
+    /// click away instead of hidden behind a setting.
+    private var managementButton: some View {
+        let onCharts = showManagement && state.page == .management
+        return Button(action: {
+            if !showManagement { showManagement = true }
+            state.go(to: onCharts ? .overview : .management)
+        }) {
+            Image(systemName: "chart.line.uptrend.xyaxis").font(.system(size: 12, weight: .medium))
+                .foregroundStyle(onCharts ? Color(notchPalette.accent) : headerInk.opacity(0.65))
+                .frame(width: 24, height: 24)
+                .background(RoundedRectangle(cornerRadius: 7).fill(onCharts ? Color(notchPalette.accent).opacity(0.18) : .clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .islandTip(onCharts ? "Voltar à vista geral" : "Gestão: gráficos da sprint")
+        .padding(.top, (metrics.height - 24) / 2)
+        .scaleEffect(showContent || reduceMotion ? 1 : 0.5)
+        .opacity(showContent ? 1 : 0)
+        .allowsHitTesting(showContent)
+    }
+
     private var restartButton: some View {
         Button(action: { ErrorLog.relaunch() }) {
-            Image(systemName: "arrow.clockwise").font(.system(size: 12)).foregroundStyle(.secondary)
+            Image(systemName: "arrow.clockwise").font(.system(size: 12)).foregroundStyle(headerInk.opacity(0.65))
                 .frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -837,7 +1094,7 @@ struct IslandView: View {
 
     private var gearButton: some View {
         Button(action: openSettings) {
-            Image(systemName: "gearshape").font(.system(size: 13)).foregroundStyle(.secondary)
+            Image(systemName: "gearshape").font(.system(size: 13)).foregroundStyle(headerInk.opacity(0.65))
                 .frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -849,15 +1106,35 @@ struct IslandView: View {
         .allowsHitTesting(showContent)
     }
 
+    /// The longest key a card can show, so its rows' titles line up. Jira cards share one width (every task the
+    /// island knows), so the Sprint, Jira and Backlog cards line up with each other too.
+    private func keyCharacters(for block: IslandBlock) -> Int? {
+        switch block {
+        case .pullRequests:
+            ListKeyColumn.longest((prStore.snapshot.authored + prStore.snapshot.reviewRequested).map { "#\($0.number)" })
+        case .sprint, .jira, .backlog:
+            ListKeyColumn.longest((jiraStore.tasks + jiraStore.approvals + jiraStore.sprintTasks + jiraStore.backlog.flatMap(\.tasks)).map(\.key))
+        default:
+            nil
+        }
+    }
+
     @ViewBuilder private func blockView(_ block: IslandBlock) -> some View {
         switch block {
         case .claude: ClaudeBlock(store: store, costStore: costStore, showCost: showCost)
         case .pullRequests:
+            let list = gitList
             VStack(alignment: .leading, spacing: 0) {
-                CardTitle(title: "Git", icon: "arrow.triangle.pull")
-                PullRequestSection(list: .authored, rows: prRows(for: .authored), changes: rowChanges) { setShowAll(.authored, $0) }
-                if !prRows(for: .authored).isEmpty && !prRows(for: .review).isEmpty { ListRule() }
-                PullRequestSection(list: .review, rows: prRows(for: .review), changes: rowChanges) { setShowAll(.review, $0) }
+                CardHeader(title: "Pull requests", icon: "arrow.triangle.pull", source: .pullRequests,
+                           count: gitTabs.isEmpty ? prCount(list).nonZero : nil) {
+                    if !gitTabs.isEmpty {
+                        SegmentedTabs(tabs: [
+                            .init(id: TwoListTab.first.rawValue, title: "Meus", count: prCount(.authored), badge: badge(prChanges(.authored))),
+                            .init(id: TwoListTab.second.rawValue, title: "A rever", count: prCount(.review), badge: badge(prChanges(.review))),
+                        ], selection: Binding(get: { state.gitTab.rawValue }, set: { state.gitTab = TwoListTab(rawValue: $0) ?? .first }))
+                    }
+                }
+                PullRequestSection(list: list, rows: prRows(for: list), changes: rowChanges, showsHeader: false) { setShowAll(list, $0) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()
@@ -865,30 +1142,48 @@ struct IslandView: View {
             let sections = sprintSections
             let single = sections.count == 1
             VStack(alignment: .leading, spacing: 0) {
-                CardTitle(title: single ? "SPRINT - \(sections[0].sprint.name)" : sections.isEmpty ? "Sprint atual" : "Sprints atuais",
-                          icon: "flag.checkered", sprint: single ? sections[0].sprint : nil,
-                          onManagement: showManagement ? { state.go(to: .management) } : nil)
+                CardHeader(title: single ? sections[0].sprint.name : sections.isEmpty ? "Sprint atual" : "Sprints atuais",
+                           icon: "flag.checkered", source: .sprint) {
+                    if showManagement {
+                        Button { state.go(to: .management) } label: { Image(systemName: "chart.xyaxis.line") }
+                            .buttonStyle(.plain).islandTip("Gestão")
+                    }
+                    if single { SprintBar(sprint: sections[0].sprint).islandTip(SprintBar.tooltip(sections[0].sprint)) }
+                }
                 if sections.isEmpty {
                     JiraSection(title: "As minhas até ao fim", rows: sprintEmptyRows, changes: rowChanges, myName: jiraStore.myName) { _ in }
                 }
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                     let key = section.sprint.id.map(String.init) ?? section.sprint.name
                     let label = single ? "" : section.sprint.name + " · "
+                    let mine = section.mineCount
+                    let approvals = section.approvalCount
                     if index > 0 { ListRule() }
-                    JiraSection(title: single ? "As minhas até ao fim" : label + SprintInfo.remainingLabel(section.sprint.remaining(now: Date())),
+                    JiraSection(title: single ? "As minhas · \(mine)" : label + SprintInfo.remainingLabel(section.sprint.remaining(now: Date())),
                                 rows: section.rows, changes: rowChanges, myName: jiraStore.myName) { setSprintList("t" + key, $0) }
                     if !section.approvalRows.isEmpty { ListRule() }
-                    JiraSection(title: label + "Aprovações", rows: section.approvalRows, changes: rowChanges, myName: jiraStore.myName) { setSprintList("a" + key, $0) }
+                    JiraSection(title: label + "Aprovações · \(approvals)", rows: section.approvalRows, changes: rowChanges, myName: jiraStore.myName) { setSprintList("a" + key, $0) }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard(active: !sections.isEmpty)
         case .jira:
+            let showsApprovals = jiraShowsApprovals
             VStack(alignment: .leading, spacing: 0) {
-                CardTitle(title: "Jira", icon: "checklist")
-                JiraSection(title: "As minhas tasks", rows: jiraRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllJira = $0 }
-                if !jiraRows.isEmpty && !approvalRows.isEmpty { ListRule() }
-                JiraSection(title: "Aprovações", rows: approvalRows, changes: rowChanges, myName: jiraStore.myName) { state.showAllApprovals = $0 }
+                CardHeader(title: "Jira", icon: "checklist", source: .jira,
+                           count: jiraTabs.isEmpty ? (showsApprovals ? approvalCount : jiraStore.tasks.count).nonZero : nil) {
+                    if !jiraTabs.isEmpty {
+                        SegmentedTabs(tabs: [
+                            .init(id: TwoListTab.first.rawValue, title: "Tasks", count: jiraStore.tasks.count, badge: badge(jiraChanges(jiraStore.tasks))),
+                            .init(id: TwoListTab.second.rawValue, title: "Aprovações", count: approvalCount, badge: badge(jiraChanges(outOfSprintApprovals))),
+                        ], selection: Binding(get: { state.jiraTab.rawValue }, set: { state.jiraTab = TwoListTab(rawValue: $0) ?? .first }))
+                    }
+                }
+                if showsApprovals {
+                    JiraSection(title: "Aprovações", rows: approvalRows, changes: rowChanges, myName: jiraStore.myName, showsHeader: false) { state.showAllApprovals = $0 }
+                } else {
+                    JiraSection(title: "As minhas tasks", rows: jiraRows, changes: rowChanges, myName: jiraStore.myName, showsHeader: false) { state.showAllJira = $0 }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .blockCard()
@@ -905,32 +1200,45 @@ struct IslandView: View {
     }
 
     private var details: some View {
-        VStack(spacing: IslandLayout.sectionSpacing) {
-            HStack(alignment: .top, spacing: Self.columnGap) {
+        VStack(spacing: CGFloat(islandMetrics.sectionSpacing)) {
+            if kpiRows > 0 { kpiGrid }
+            HStack(alignment: .top, spacing: columnGap) {
                 ForEach(Array(visibleColumns.enumerated()), id: \.offset) { index, column in
-                    if index > 0 {
-                        Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1)
-                    }
                     ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: IslandLayout.sectionSpacing) {
+                        VStack(alignment: .leading, spacing: CGFloat(islandMetrics.sectionSpacing)) {
                             ForEach(column, id: \.self) { block in
                                 blockView(block)
+                                    .environment(\.listKeyCharacters, keyCharacters(for: block))
                             }
                         }
                         .frame(width: columnWidth, alignment: .topLeading)
+                        // Room to scroll the last card above the fade (only when the column overflows).
+                        .padding(.bottom, naturalHeight(of: column) > maxColumnHeight ? ColumnFade.height : 0)
                     }
+                    .defaultScrollAnchor(.top)   // a column that grows while open keeps its top in view
                     .frame(width: columnWidth, height: min(naturalHeight(of: column), maxColumnHeight), alignment: .top)
+                    .columnFade(active: naturalHeight(of: column) > maxColumnHeight)
                     .environment(\.islandColumnWidth, columnWidth)
                 }
             }
             .frame(height: columnsHeight, alignment: .top)
-            if !shortcuts.isEmpty { ShortcutsDock(shortcuts: shortcuts) }
+            if showsEventStrip {
+                BentoEventStrip(entries: recentAlerts, slots: eventSlots, openAll: openHistory)
+            }
+            if bottomRowHeight > 0 {
+                ZStack {
+                    if !shortcuts.isEmpty || dockMusic != nil { ShortcutsDock(shortcuts: shortcuts, music: dockMusic) }
+                    brandLogo.frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .frame(height: bottomRowHeight)
+            }
         }
         .padding(.horizontal, Self.sidePadding)
         .padding(.top, metrics.height + 6)
         .padding(.bottom, 10)
         .frame(maxHeight: .infinity, alignment: .top)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(islandPalette.isLight ? .light : .dark)
+        .foregroundStyle(Color(islandPalette.text))
     }
 
     /// The second page: the manager's burndown, in the same side padding as the overview.
@@ -940,21 +1248,41 @@ struct IslandView: View {
             .padding(.top, metrics.height + 6)
             .padding(.bottom, 10)
             .frame(maxHeight: .infinity, alignment: .top)
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(islandPalette.isLight ? .light : .dark)
+            .foregroundStyle(Color(islandPalette.text))
     }
 
-    /// The Doutor Finanças logo, small, white and translucent in the top-left corner of the island (level with the notch), like a watermark.
-    @ViewBuilder private var watermark: some View {
+    /// The Doutor Finanças logo, small and quiet, in the island's bottom-right corner (next to the dock).
+    @ViewBuilder private var brandLogo: some View {
         if let logo = Brand.logo {
             Image(nsImage: logo).renderingMode(.template).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
-                .foregroundStyle(.white)
-                .frame(height: 16)
-                .opacity(0.6)
-                .frame(height: metrics.height)
-                .padding(.leading, Self.sidePadding)
-                .allowsHitTesting(false)
+                .foregroundStyle(Color(islandPalette.textSecondary))
+                .frame(height: Self.logoHeight)
+                .opacity(0.7)
                 .accessibilityHidden(true)
+                .allowsHitTesting(false)
         }
+    }
+
+    /// The island's header, level with the notch: with room (2+ columns at Normal), the greeting and today's date.
+    /// It sits on the theme's collar, which stays black on the light theme.
+    @ViewBuilder private var watermark: some View {
+        let ink = headerInk
+        HStack(spacing: 10) {
+            if layout.columnCount >= 2 && islandMetrics.rowHasMeta {
+                TimelineView(.everyMinute) { context in
+                    (Text(Greeting.text(for: context.date)).fontWeight(.semibold)
+                     + Text(" · " + context.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Locale(identifier: "pt_PT"))))
+                        .foregroundColor(ink.opacity(0.55)))
+                        .font(.system(size: CGFloat(islandMetrics.bodySize)))
+                        .foregroundStyle(ink)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .frame(height: metrics.height)
+        .padding(.leading, Self.sidePadding)
+        .allowsHitTesting(false)
     }
 
     private var statusMessage: String? {
@@ -973,7 +1301,7 @@ struct IslandView: View {
     private func bar(fraction: Double, color: Color, height: CGFloat) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.14))
+                Capsule().fill(Color(islandPalette.text).opacity(0.14))
                 Capsule().fill(color).frame(width: geo.size.width * fraction)
             }
         }
@@ -984,7 +1312,7 @@ struct IslandView: View {
         if let date {
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 Text("\(prefix) \(RemainingTime.string(until: date, now: context.date))")
-                    .font(.caption2).foregroundStyle(.secondary)
+                    .font(.caption2).foregroundStyle(Color(islandPalette.textSecondary))
             }
         }
     }

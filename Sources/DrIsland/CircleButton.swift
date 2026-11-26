@@ -9,14 +9,15 @@ struct CircleButton: View {
     var filled = false
     let help: String
     let action: () -> Void
+    @Environment(\.islandPalette) private var palette
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.42, weight: .semibold))
-                .foregroundStyle(filled ? Color.black : Color.white.opacity(0.9))
+                .foregroundStyle(filled ? Color(palette.base.last!) : Color(palette.text).opacity(0.9))
                 .frame(width: size, height: size)
-                .background(Circle().fill(filled ? Color.white : Color.white.opacity(0.0)))
+                .background(Circle().fill(filled ? Color(palette.text) : Color.clear))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

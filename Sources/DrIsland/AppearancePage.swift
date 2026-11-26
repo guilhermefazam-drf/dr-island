@@ -21,6 +21,7 @@ struct AppearancePage: View {
 
     var body: some View {
         Form {
+            ThemeAndSizeSection()
             Section("Borda") {
                 ToggleRow("Borda à volta do notch", detail: "Enche à medida que gastas o limite da sessão.", isOn: $showBorder)
                 SliderRow(title: "Espessura", value: "\(Int(thickness)) pt", number: $thickness, range: 1...8, step: 1)

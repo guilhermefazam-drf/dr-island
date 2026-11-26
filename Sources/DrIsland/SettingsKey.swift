@@ -56,6 +56,9 @@ enum SettingsKey {
     static let historyClearedAt = "historyClearedAt"  // timeIntervalSince1970 of the last "Limpar histórico" (0 = never), synced so other Macs drop it too
     static let historyGistID = "historyGistID"        // id of the secret gist holding the history
     static let historyGistLogin = "historyGistLogin"  // GitHub account the gist belongs to; another `gh` account searches again
+    static let settingsSyncEnabled = "settingsSyncEnabled" // also back up the preferences to the gist (with the history)
+    static let settingsChangedAt = "settingsChangedAt"     // timeIntervalSince1970 of the last change to a synced preference here (0 = never)
+    static let settingsSyncedOnce = "settingsSyncedOnce"   // this Mac has synced its preferences at least once (until then it adopts the gist's)
     static let showOwner = "showOwner"                // "eu" / initials before each PR and task row
     static let jiraSprintBoards = "jiraSprintBoards"  // ids of the boards (streams) whose active sprints show, "483,846"; empty = those of my tasks
     static let showManagement = "showManagement"      // the island's second page, «Gestão» (swipe, dots and the sprint card's button)
@@ -68,6 +71,10 @@ enum SettingsKey {
     static let briefingLastSeen = "briefingLastSeen"  // when the island was last looked at (closed)
     static let claudeGauge = "claudeGauge"            // "bar" | "ring": how the session is drawn in the Claude block
     static let islandLayout = "islandLayout"          // JSON IslandLayoutConfig
+    static let islandTheme = "islandTheme"            // IslandTheme.rawValue: "grafite" | "meia-noite" | "aurora" | "claro"
+    static let islandDensity = "islandDensity"        // IslandDensity.rawValue: "regular" | "compact"
+    static let islandStyle = "islandStyle"            // IslandStyle.rawValue: "camadas" | "bento"
+    static let densityHotKey = "densityHotKey"        // HotKeyOption.rawValue that toggles Normal / Compacto
     static let showFocus = "showFocus"                // focus timer block in the island
     static let focusMinutes = "focusMinutes"
     static let focusShortBreak = "focusShortBreak"

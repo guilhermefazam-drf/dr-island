@@ -24,6 +24,9 @@ final class IslandInstance {
     /// True while the settings preview holds the island open; hover logic stays out of the way.
     private var previewing = false
     private var peekWork: DispatchWorkItem?
+    /// Alerts that arrived while the island was open (or previewing): the mini island shows them once it closes,
+    /// so none is lost because the pointer happened to be over the island.
+    private var heldPeek: [PRChange] = []
     /// Opened by the global shortcut: stays open until the shortcut is pressed again (or Escape), however the pointer moves.
     private var pinned = false
     private let swiper = IslandPageSwiper()
@@ -115,7 +118,10 @@ final class IslandInstance {
         // `DR_ISLAND_PAGE=management` renders the «Gestão» page instead, after giving Jira time to answer.
         let showsManagement = ProcessInfo.processInfo.environment["DR_ISLAND_PAGE"] == "management"
         if showsManagement { state.go(to: .management) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + (showsManagement ? 20 : 2.5)) { [weak self] in
+        // `DR_ISLAND_PEEK=1` (with `DR_ISLAND_COLLAPSED`) fires a sample alert first, so the mini island is in the render.
+        let peeks = ProcessInfo.processInfo.environment["DR_ISLAND_PEEK"] != nil
+        if peeks { NotificationCenter.default.post(name: .prAlertTest, object: nil) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (showsManagement ? 20 : peeks ? 1.5 : 2.5)) { [weak self] in
             MainActor.assumeIsolated {
                 guard let view = self?.panel?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                 view.cacheDisplay(in: view.bounds, to: rep)
@@ -199,7 +205,12 @@ final class IslandInstance {
     /// Shows a mini island with only what changed for a few seconds. The panel stays click-through and the
     /// full island still opens on hover, which replaces the mini one.
     func peek(_ changes: [PRChange]) {
-        guard !previewing, !state.expanded, panel != nil, !changes.isEmpty else { return }
+        guard panel != nil, !changes.isEmpty else { return }
+        if previewing || state.expanded {
+            let incoming = Set(changes.map(\.id))
+            heldPeek = Array((heldPeek.filter { !incoming.contains($0.id) } + changes).suffix(IslandLayout.maxPeekRows))
+            return
+        }
         // Alerts that arrive while the mini island is still up (the GitHub and Jira readings land seconds apart) are added
         // to it: replacing it made the first one vanish before it could be read.
         let incoming = Set(changes.map(\.id))
@@ -208,6 +219,14 @@ final class IslandInstance {
         let work = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.state.peek = [] } }
         peekWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.5 + 0.5 * Double(state.peek.count - 1), execute: work)
+    }
+
+    /// Shows the alerts held while the island was open, now that it has closed.
+    private func showHeldPeek() {
+        guard !heldPeek.isEmpty, !previewing, !state.expanded else { return }
+        let held = heldPeek
+        heldPeek = []
+        peek(held)
     }
 
     // MARK: Hover
@@ -274,6 +293,7 @@ final class IslandInstance {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self, !self.state.expanded else { return }
+                    self.showHeldPeek()
                     self.state.showAllPRs = false
                     self.state.showAllReviews = false
                     self.state.showAllJira = false

@@ -255,7 +255,7 @@ public struct GistSyncClient: Sendable {
         return backup
     }
 
-    private func run(_ arguments: [String], input: Data? = nil) throws -> Data {
+    func run(_ arguments: [String], input: Data? = nil) throws -> Data {
         do { return try GitHubClient.run(gh, arguments, input: input) } catch GitHubError.failed(let line) where line.contains("404") {
             throw GistSyncError.notFound
         }

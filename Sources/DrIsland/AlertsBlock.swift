@@ -3,54 +3,32 @@ import SwiftUI
 import DrIslandCore
 
 struct AlertsBlock: View {
+    @Environment(\.islandPalette) private var palette
     let entries: [AlertEntry]
     let openAll: () -> Void
+    @Environment(\.islandMetrics) private var metrics
 
-    static let maxRows = 4
+    nonisolated static let maxRows = 4
 
-    static func contentHeight(rows: Int) -> CGFloat {
-        IslandLayout.alertsHeader + 6 + CGFloat(rows) * IslandLayout.alertsRow
+    nonisolated static func contentHeight(rows: Int, metrics m: IslandMetrics) -> CGFloat {
+        CGFloat(m.cardHeader) + 4 + CGFloat(rows) * EntryRow.height(m)
     }
 
     var body: some View {
         let shown = Array(entries.prefix(Self.maxRows))
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Label("Avisos recentes", systemImage: "bell").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                Spacer()
-                Button(action: openAll) {
-                    Text("ver tudo").font(.caption2).foregroundStyle(Color(red: 0.45, green: 0.68, blue: 1.0))
-                }
-                .buttonStyle(.plain).pointingHandCursor()
+        VStack(alignment: .leading, spacing: 4) {
+            CardHeader(title: "Avisos", icon: "bell", source: .alerts, count: entries.count.nonZero) {
+                Button(action: openAll) { Text("ver tudo").foregroundStyle(Color(palette.info)) }
+                    .buttonStyle(.plain).pointingHandCursor()
             }
-            .frame(height: IslandLayout.alertsHeader)
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(shown) { entry in row(entry, now: context.date) }
+                    ForEach(shown) { EntryRow(entry: $0, caption: Self.relative($0.date, now: context.date)) }
                 }
             }
         }
-        .frame(height: Self.contentHeight(rows: shown.count), alignment: .top)
+        .frame(height: Self.contentHeight(rows: shown.count, metrics: metrics), alignment: .top)
         .blockCard()
-    }
-
-    private func row(_ entry: AlertEntry, now: Date) -> some View {
-        let content = HStack(spacing: 8) {
-            Circle().fill(entry.tone.color).frame(width: 7, height: 7)
-            Text(entry.displayMessage).font(.caption).foregroundStyle(.white.opacity(0.9)).lineLimit(1).truncationMode(.tail)
-            Spacer(minLength: 4)
-            Text(Self.relative(entry.date, now: now)).font(.caption2).foregroundStyle(.secondary).monospacedDigit()
-        }
-        .frame(height: IslandLayout.alertsRow)
-        .contentShape(Rectangle())
-        return Group {
-            if let url = entry.destination {
-                Button { NSWorkspace.shared.open(url) } label: { content }.buttonStyle(.plain).pointingHandCursor()
-                    .islandTip("Abrir")
-            } else {
-                content
-            }
-        }
     }
 
     /// "agora", "5 min", "2 h", "ontem".

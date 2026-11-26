@@ -13,67 +13,75 @@ struct ClaudeBlock: View {
     @AppStorage(SettingsKey.redThreshold) private var red = 85.0
     @AppStorage(SettingsKey.workStart) private var workStart = WeeklyPace.defaultWorkStartMinute
     @AppStorage(SettingsKey.claudeGauge) private var gauge = "bar"
+    @Environment(\.islandPalette) private var palette
+    @Environment(\.islandMetrics) private var metrics
 
-    /// Whether the "esgota às" chip is shown (it adds a row, so the island's height depends on it).
-    static func showsForecast(_ store: UsageStore, enabled: Bool) -> Bool {
-        enabled && !store.isEstimate && store.sessionExhaustsAt != nil
+    /// Whether the "esgota às" chip is shown (it adds a row, so the island's height depends on it). Compacto leaves it out.
+    static func showsForecast(_ store: UsageStore, enabled: Bool, metrics: IslandMetrics) -> Bool {
+        enabled && metrics.rowHasMeta && !store.isEstimate && store.sessionExhaustsAt != nil
     }
 
+    /// The card's height: header, the gauge (bar or ring), the forecast chip and the cost tiles.
+    static func height(_ store: UsageStore, ring: Bool, showForecast: Bool, showCost: Bool, metrics: IslandMetrics) -> CGFloat {
+        let gauge = ring ? CGFloat(metrics.ringSize)
+            : IslandLayout.claudeBarBody + (showsForecast(store, enabled: showForecast, metrics: metrics) ? IslandLayout.forecastExtra : 0)
+        let content = CGFloat(metrics.cardHeader) + 8 + gauge + (showCost ? IslandLayout.costExtra : 0)
+        return CGFloat(metrics.card(Double(content)))
+    }
+
+    private var showsForecast: Bool { Self.showsForecast(store, enabled: showForecast, metrics: metrics) }
+
     private func color(_ fraction: Double) -> Color {
-        switch UsageLevel.level(forFraction: fraction, amber: amber, red: red) {
-        case .normal: return Brand.green
-        case .warning: return Brand.amber
-        case .critical: return Brand.red
-        }
+        Brand.color(forFraction: fraction, amber: amber, red: red, palette: palette)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Claude").font(.caption.weight(.medium)).foregroundStyle(.secondary)
-                Spacer()
-                statusChip
+            CardHeader(title: "Claude", icon: "sparkle", source: .claude) { statusChip }
+            if gauge == "ring" { ringBody } else {
+                // Pinned to the height `height(...)` assumes, so the card never clips or leaves a gap.
+                barBody.frame(height: IslandLayout.claudeBarBody + (showsForecast ? IslandLayout.forecastExtra : 0), alignment: .top)
             }
-            if gauge == "ring" { ringBody } else { barBody }
             if showCost { costTiles }
         }
+        .blockCard()
     }
 
     /// The session as a ring with the percentage inside; the details sit beside it.
     private var ringBody: some View {
         HStack(spacing: 16) {
             ZStack {
-                Circle().stroke(Color.white.opacity(0.12), lineWidth: 9)
+                Circle().stroke(Color(palette.text).opacity(0.12), lineWidth: 9)
                 Circle().trim(from: 0, to: min(max(store.sessionFraction, 0), 1))
                     .stroke(color(store.sessionFraction), style: StrokeStyle(lineWidth: 9, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(.easeOut(duration: 0.5), value: store.sessionFraction)
                 Text("\(store.isEstimate ? "≈" : "")\(Int((store.sessionFraction * 100).rounded()))%")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded)).foregroundStyle(color(store.sessionFraction))
+                    .font(.system(size: CGFloat(metrics.ringSize) * 0.26, weight: .semibold, design: .rounded)).foregroundStyle(color(store.sessionFraction))
                     .contentTransition(.numericText())
             }
-            .frame(width: 84, height: 84)
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Sessão · 5 h").font(.caption2).foregroundStyle(.secondary)
+            .frame(width: CGFloat(metrics.ringSize), height: CGFloat(metrics.ringSize))
+            VStack(alignment: .leading, spacing: metrics.rowHasMeta ? 7 : 3) {
+                Text("Sessão · 5 h").font(.caption2).foregroundStyle(Color(palette.textSecondary))
                 resetLabel(store.sessionResetsAt, prefix: "reinicia em")
-                if Self.showsForecast(store, enabled: showForecast), let eta = store.sessionExhaustsAt {
+                if showsForecast, let eta = store.sessionExhaustsAt {
                     Label("esgota às \(eta.formatted(date: .omitted, time: .shortened))", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption2.weight(.medium)).foregroundStyle(Brand.amber)
+                        .font(.caption2.weight(.medium)).foregroundStyle(Color(palette.amber))
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(Brand.amber.opacity(0.16)))
+                        .background(Capsule().fill(Color(palette.amber).opacity(0.16)))
                 }
                 if showWeekly, let weekly = store.weeklyFraction {
                     HStack(spacing: 6) {
-                        Text("Semana").font(.caption2).foregroundStyle(.secondary)
+                        Text("Semana").font(.caption2).foregroundStyle(Color(palette.textSecondary))
                         weeklyBar(weekly)
-                        Text("\(Int((weekly * 100).rounded()))%").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                        Text("\(Int((weekly * 100).rounded()))%").font(.caption2.monospacedDigit()).foregroundStyle(Color(palette.textSecondary))
                         if columnWidth >= islandWideColumn { resetLabel(store.weeklyResetsAt, prefix: "·") }
                     }
                 }
             }
             Spacer(minLength: 0)
         }
-        .frame(height: 84)
+        .frame(height: CGFloat(metrics.ringSize))
     }
 
     private var barBody: some View {
@@ -88,17 +96,17 @@ struct ClaudeBlock: View {
             }
             UsageBar(fraction: store.sessionFraction, color: color(store.sessionFraction), height: 8,
                      ticks: [min(amber, 100) / 100, min(max(red, amber), 100) / 100])
-            if Self.showsForecast(store, enabled: showForecast), let eta = store.sessionExhaustsAt {
+            if showsForecast, let eta = store.sessionExhaustsAt {
                 Label("Ao ritmo atual, esgota às \(eta.formatted(date: .omitted, time: .shortened))", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption2.weight(.medium)).foregroundStyle(Brand.amber)
+                    .font(.caption2.weight(.medium)).foregroundStyle(Color(palette.amber))
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(Brand.amber.opacity(0.16)))
+                    .background(Capsule().fill(Color(palette.amber).opacity(0.16)))
             }
             if showWeekly, let weekly = store.weeklyFraction {
                 HStack(spacing: 8) {
-                    Text("Semana").font(.caption2).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                    Text("Semana").font(.caption2).foregroundStyle(Color(palette.textSecondary)).frame(width: 44, alignment: .leading)
                     weeklyBar(weekly)
-                    Text("\(Int((weekly * 100).rounded()))%").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                    Text("\(Int((weekly * 100).rounded()))%").font(.caption2.monospacedDigit()).foregroundStyle(Color(palette.textSecondary))
                         .frame(width: 30, alignment: .trailing)
                     resetLabel(store.weeklyResetsAt, prefix: "·")
                 }
@@ -131,46 +139,46 @@ struct ClaudeBlock: View {
 
     private func tile(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
+            Text(title).font(.caption2).foregroundStyle(Color(palette.textSecondary))
             Text(value).font(.caption.weight(.semibold).monospacedDigit())
         }
         .padding(.horizontal, 9)
         .frame(maxWidth: .infinity, minHeight: IslandLayout.costTileHeight, maxHeight: IslandLayout.costTileHeight, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(palette.text).opacity(0.06)))
     }
 
     private var statusChip: some View {
         let (text, tint) = status
         return HStack(spacing: 5) {
             Circle().fill(tint).frame(width: 6, height: 6)
-            Text(text).font(.caption2).foregroundStyle(.secondary)
+            Text(text).foregroundStyle(Color(palette.textSecondary))
         }
     }
 
     private var status: (String, Color) {
-        if store.isRefreshing { return ("a atualizar", Brand.blue) }
+        if store.isRefreshing { return ("a atualizar", Color(palette.accent)) }
         if store.isEstimate {
             // Say why it is an estimate: the API error must stay visible while the local fallback fills in.
             switch store.status {
-            case .rateLimited: return ("≈ estimado · API limitada\(store.retryHint)", Brand.amber)
-            case .offline: return ("≈ estimado · sem ligação", Brand.amber)
-            case .unauthorized: return ("≈ estimado · sessão expirada", Brand.red)
-            default: return ("≈ estimado pelos logs", Brand.amber)
+            case .rateLimited: return ("≈ estimado · API limitada\(store.retryHint)", Color(palette.amber))
+            case .offline: return ("≈ estimado · sem ligação", Color(palette.amber))
+            case .unauthorized: return ("≈ estimado · sessão expirada", Color(palette.red))
+            default: return ("≈ estimado pelos logs", Color(palette.amber))
             }
         }
         switch store.status {
-        case .ok, .loading: return ("ao vivo", Brand.green)
-        case .noCredentials: return ("faz login no Claude Code", Brand.amber)
-        case .unauthorized: return ("sessão expirada", Brand.red)
-        case .offline: return ("sem ligação · último valor", Brand.amber)
-        case .rateLimited: return ("API limitada\(store.retryHint)", Brand.amber)
+        case .ok, .loading: return ("ao vivo", Color(palette.green))
+        case .noCredentials: return ("faz login no Claude Code", Color(palette.amber))
+        case .unauthorized: return ("sessão expirada", Color(palette.red))
+        case .offline: return ("sem ligação · último valor", Color(palette.amber))
+        case .rateLimited: return ("API limitada\(store.retryHint)", Color(palette.amber))
         }
     }
 
     @ViewBuilder private func resetLabel(_ date: Date?, prefix: String) -> some View {
         if let date {
             TimelineView(.periodic(from: .now, by: 30)) { context in
-                Text("\(prefix) \(RemainingTime.string(until: date, now: context.date))").font(.caption2).foregroundStyle(.secondary)
+                Text("\(prefix) \(RemainingTime.string(until: date, now: context.date))").font(.caption2).foregroundStyle(Color(palette.textSecondary))
             }
         }
     }

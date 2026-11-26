@@ -5,15 +5,15 @@ import DrIslandCore
 struct ConfettiBurst: View {
     let tick: Int
     @State private var progress: CGFloat = 0
+    @Environment(\.islandPalette) private var palette
 
     private struct Piece: Identifiable {
         let id: Int
-        let angle: Double, distance: CGFloat, spin: Double, size: CGSize, color: Color
+        let angle: Double, distance: CGFloat, spin: Double, size: CGSize, colorIndex: Int
     }
 
     /// Fixed, so the burst looks the same every time and needs no randomness at draw time.
     private static let pieces: [Piece] = {
-        let colors = [Brand.green, Brand.amber, Brand.blue, Brand.red, Color.white, Color(red: 0.8, green: 0.5, blue: 1)]
         return (0..<36).map { i in
             let t = Double(i)
             return Piece(id: i,
@@ -21,7 +21,7 @@ struct ConfettiBurst: View {
                          distance: 70 + CGFloat((i * 37) % 90),
                          spin: 180 + Double((i * 53) % 360),
                          size: CGSize(width: 4 + CGFloat(i % 3) * 2, height: 7 + CGFloat(i % 2) * 3),
-                         color: colors[i % colors.count])
+                         colorIndex: i % 6)
         }
     }()
 
@@ -34,10 +34,11 @@ struct ConfettiBurst: View {
             let t = startedAt.map { context.date.timeIntervalSince($0) / Self.duration } ?? 1
             ZStack {
                 if t >= 0 && t < 1 {
+                    let colors = [palette.green, palette.amber, palette.accent, palette.red, palette.text, palette.purple]
                     let progress = CGFloat(1 - pow(1 - t, 3))   // ease-out for the burst
                     ForEach(Self.pieces) { p in
                         Rectangle()
-                            .fill(p.color)
+                            .fill(Color(colors[p.colorIndex]))
                             .frame(width: p.size.width, height: p.size.height)
                             .rotationEffect(.degrees(p.spin * t))
                             .offset(x: CGFloat(cos(p.angle)) * p.distance * 1.6 * progress,
