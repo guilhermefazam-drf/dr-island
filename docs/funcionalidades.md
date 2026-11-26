@@ -295,6 +295,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 
 - "Mini ilha" (peek): mostra só o que mudou durante ~3,5s + 0,5s por linha extra (máx. de linhas definido). O hover abre a ilha completa e substitui-a.
 - **Fusão de alertas**: alertas seguidos fundem-se em vez de se substituírem. As leituras do GitHub e do Jira chegam com segundos de diferença e a segunda substituía a primeira (causa de "o alerta corre mas não exibe nada" e de comentários que não apareciam). `IslandInstance.peek` junta as novas linhas às existentes (máx. 4, ficam as mais recentes, sem duplicados por id) e reinicia o temporizador.
+- **Avisos com a ilha aberta**: um aviso que chega com a ilha completa aberta (hover, atalho) ou durante a pré-visualização do efeito já não se perde: fica guardado (`IslandInstance.heldPeek`, máx. 4, sem duplicados) e a mini ilha mostra-o assim que a ilha fecha (0,6 s depois, no fim da animação de fecho). Vale em Camadas e Bento.
 - **Nova sessão na mini ilha**: com a mini ilha visível (Mini ilha e aviso de nova sessão ligados), o cometa e o brilho verde percorrem o CONTORNO da mini ilha (`miniSessionAnimation`, usa `IslandShape` com `outlineOnly`), os dois brilhos (sparkles) aparecem ao lado dela e a mini ilha abre logo (atraso de 0,15 s em vez de 1,4 s à espera da volta do cometa). Sem mini ilha, continua no anel do notch.
 
 **Origem do aviso**
