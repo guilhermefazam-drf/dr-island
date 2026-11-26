@@ -66,7 +66,7 @@ struct JiraPage: View {
             }
             .disabled(!enabled)
             Section("Gestão") {
-                ToggleRow("Mostrar a página «Gestão»", detail: "A segunda página da ilha, com os gráficos de manager. Passa-se a ela com um deslize horizontal de dois dedos, pelos pontinhos no fundo ou pelo botão do card da sprint. Desligada, a ilha fica só com o resumo.", isOn: $showManagement)
+                ToggleRow("Mostrar a página «Gestão»", detail: "A segunda página da ilha, com os gráficos de manager. Passa-se a ela pelo botão de gráficos no topo da ilha, com um deslize horizontal de dois dedos, pelos pontinhos no fundo ou pelo botão do card da sprint. Desligada, a ilha fica só com o resumo, e o botão de gráficos volta a ligá-la.", isOn: $showManagement)
             }
             .disabled(!enabled)
             Section("Tasks") {

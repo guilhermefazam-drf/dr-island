@@ -1008,7 +1008,7 @@ struct IslandView: View {
                     .clipShape(shape)
             }
             .overlay(alignment: .topLeading) { watermark.opacity(showContent ? 1 : 0) }   // fixed: it stays on both pages
-            .overlay(alignment: .topTrailing) { HStack(spacing: 2) { restartButton; gearButton } }
+            .overlay(alignment: .topTrailing) { HStack(alignment: .top, spacing: 2) { liveBadge; managementButton; restartButton; gearButton } }
             .overlay(alignment: .bottom) {
                 if showManagement {
                     IslandPageDots(page: state.page) { state.go(to: $0) }
@@ -1030,6 +1030,46 @@ struct IslandView: View {
             }
             .clipShape(shape)
             .rotation3DEffect(.degrees(hinge), axis: (x: 1, y: 0, z: 0), anchor: .top, perspective: 0.5)
+    }
+
+    /// «ao vivo» with a green dot while the readings are current; «sem ligação» in red when they are stale.
+    @ViewBuilder private var liveBadge: some View {
+        let colour = isOffline ? Color(notchPalette.red) : Color(notchPalette.green)
+        HStack(spacing: 5) {
+            Circle().fill(colour).frame(width: 6, height: 6)
+                .background(Circle().fill(colour.opacity(0.25)).padding(-3))
+            Text(isOffline ? "sem ligação" : "ao vivo").font(.system(size: 11))
+        }
+        .foregroundStyle(headerInk.opacity(0.65))
+        .padding(.trailing, 6)
+        .frame(height: metrics.height)
+        .islandTip(isOffline ? "Sem ligação: os números podem estar desatualizados" : "Os dados atualizam-se sozinhos")
+        .scaleEffect(showContent || reduceMotion ? 1 : 0.5)
+        .opacity(showContent ? 1 : 0)
+        .allowsHitTesting(showContent)
+    }
+
+    /// Turns to the «Gestão» page (the sprint charts) and back; the same as swiping sideways or the dots at the bottom.
+    /// Always shown: with the page turned off in the settings, clicking it turns the page on, so the charts are one
+    /// click away instead of hidden behind a setting.
+    private var managementButton: some View {
+        let onCharts = showManagement && state.page == .management
+        return Button(action: {
+            if !showManagement { showManagement = true }
+            state.go(to: onCharts ? .overview : .management)
+        }) {
+            Image(systemName: "chart.line.uptrend.xyaxis").font(.system(size: 12, weight: .medium))
+                .foregroundStyle(onCharts ? Color(notchPalette.accent) : headerInk.opacity(0.65))
+                .frame(width: 24, height: 24)
+                .background(RoundedRectangle(cornerRadius: 7).fill(onCharts ? Color(notchPalette.accent).opacity(0.18) : .clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .islandTip(onCharts ? "Voltar à vista geral" : "Gestão: gráficos da sprint")
+        .padding(.top, (metrics.height - 24) / 2)
+        .scaleEffect(showContent || reduceMotion ? 1 : 0.5)
+        .opacity(showContent ? 1 : 0)
+        .allowsHitTesting(showContent)
     }
 
     private var restartButton: some View {
