@@ -91,7 +91,7 @@ final class PullRequestStore {
             snapshot = fresh
             status = .ok
             failures = 0
-            return interval
+            return fresh.nextRefresh(after: interval)
         } catch {
             failures += 1
             ErrorLog.record("GitHub", error: error)

@@ -68,7 +68,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jir
 
 | Parâmetro | Valor |
 |---|---|
-| Intervalo | default 120s (60–600s) |
+| Intervalo | default 120s (60–600s); de 30 em 30 s enquanto um PR teu tem o CI a correr |
 | Mínimo entre pedidos | 1 a cada 20s |
 | "Atualizar agora" | debounce 3s; ignora cache/bloqueio, mas NÃO corta um bloqueio ditado pelo servidor |
 | Após arranque | leitura em cache recente evita pedido |
@@ -181,7 +181,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jir
 | novo review | PR novo em "a rever" com pedido pendente |
 | menção | PR onde fui mencionado |
 | novo comentário | sobem os comentários dos OUTROS (total − meus); os meus não avisam; não em PRs a rever. Ver nota abaixo |
-| CI falhou / CI passou / aprovado / alterações pedidas / conflitos | só PRs próprios |
+| CI a correr / CI falhou / CI passou / aprovado / alterações pedidas / conflitos | só PRs próprios |
 | merged | PR sai da lista, é meu e está nos merged recentes; a mensagem inclui o título do PR (guardado na fingerprint): "GIT - PR merged: #123 Título" |
 | left (de outra pessoa) | a mensagem junta as iniciais de quem abriu o PR (guardadas na fingerprint): "GIT - PR #123 de LC foi aceito"; sem iniciais (PRs meus fechados sem merge, ou guardados por versões antigas): "GIT - PR #123 saiu da lista" |
 | fechado/left | PR sai da lista; só reportado se `alertOnClose`; PRs revistos ainda abertos não contam como fechados; menções não reportam saída |
@@ -201,7 +201,7 @@ Blocos disponíveis no layout: Claude, Pull requests, Sprint atual, Backlog, Jir
 |---|---|
 | crítico | CI falhou, offline |
 | aviso | alterações pedidas, conflitos |
-| info | review pedido, comentário, menção, Jira, resumo |
+| info | review pedido, CI a correr, comentário, menção, Jira, resumo |
 | sucesso | aprovado, CI passou, merged, online, nova sessão |
 | neutro | fechado |
 
@@ -356,7 +356,7 @@ Bloco "Foco" (`showFocus`, default desligado).
 **Resumo/briefing**
 - Enquanto o resumo está ativo, o bloco "Avisos recentes" fica escondido (mostraria as mesmas linhas).
 - Digest do que mudou desde a última vez que viste a ilha (`briefingLastSeen`; sem isso, 24h atrás).
-- Abre sozinho no máximo 1×/dia, a partir das 05:00, só se houver algo novo e `briefingAuto` ligado (default).
+- Anunciado sozinho ~30 s depois de a app arrancar (relançar ou ligar o Mac) e ~60 s depois de o Mac acordar, a qualquer hora, se houver algo novo desde a última vez que viste a ilha. Fora disso abre sozinho no máximo 1×/dia, a partir das 05:00. Sempre só com algo novo e `briefingAuto` ligado (default).
 - Anunciado na mini ilha ("Resumo do dia: 3 PRs · 2 Jira"); o bloco completo aparece na abertura seguinte até "ok" (marca como visto).
 - Etiquetas: "Desde as 09:30", "Desde ontem · 18:12", "Desde 12 out · 18:12". O botão "resumo" mostra-o manualmente.
 

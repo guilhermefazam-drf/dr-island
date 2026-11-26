@@ -28,7 +28,7 @@ public struct PRFingerprint: Codable, Equatable, Sendable {
 
 public struct PRChange: Codable, Equatable, Identifiable, Sendable {
     public enum Kind: String, Codable, Sendable {
-        case reviewRequested, ciFailed, ciPassed, approved, changesRequested, conflicts, left
+        case reviewRequested, ciStarted, ciFailed, ciPassed, approved, changesRequested, conflicts, left
         case newComment, mentioned, merged
         /// Jira tasks, same channels (see `JiraDiff`).
         case jiraNew, jiraStatus, jiraComment, jiraApprovers
@@ -74,7 +74,7 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
         switch kind {
         case .ciFailed, .offline: return .critical
         case .changesRequested, .conflicts: return .warning
-        case .reviewRequested: return .info
+        case .reviewRequested, .ciStarted: return .info
         case .approved, .ciPassed: return .success
         case .left: return .neutral
         case .merged, .claudeSession, .online: return .success
@@ -87,6 +87,7 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
     public var label: String {
         switch kind {
         case .reviewRequested: return "novo review"
+        case .ciStarted: return "CI a correr"
         case .ciFailed: return "CI falhou"
         case .ciPassed: return "CI passou"
         case .approved: return "aprovado"
@@ -113,6 +114,7 @@ public struct PRChange: Codable, Equatable, Identifiable, Sendable {
     private var body: String {
         switch kind {
         case .reviewRequested: return "Review pedido: \(ref)"
+        case .ciStarted: return "CI a correr: \(ref)"
         case .ciFailed: return "CI falhou: \(ref)"
         case .ciPassed: return "CI passou: \(ref)"
         case .approved: return "PR aprovado: \(ref)"
@@ -162,6 +164,7 @@ public enum PullRequestDiff {
             if let now = pr.commentCount, let was = before.commentCount, pr.role != .reviewRequested,
                now - (pr.ownCommentCount ?? 0) > was - (before.ownCommentCount ?? 0) { change(.newComment) }
             guard pr.role == .authored, before.role == .authored else { continue }
+            if pr.ci == .pending, before.ci != .pending { change(.ciStarted) }
             if pr.ci == .failing, before.ci != .failing { change(.ciFailed) }
             if pr.ci == .passing, before.ci != .passing { change(.ciPassed) }
             if pr.review == .approved, before.review != .approved { change(.approved) }

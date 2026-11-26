@@ -41,6 +41,12 @@ import Testing
         #expect(!DayBriefing.shouldAutoShow(lastShown: nil, pending: 4, now: date(21, 3), calendar: calendar))
     }
 
+    @Test func afterLaunchShowsWhateverChangedAtAnyHour() {
+        // Already shown today and before five: a launch or a wake still announces what changed since the last look.
+        #expect(DayBriefing.shouldAutoShow(lastShown: date(21, 2), pending: 1, now: date(21, 3), afterLaunch: true, calendar: calendar))
+        #expect(!DayBriefing.shouldAutoShow(lastShown: nil, pending: 0, now: date(21, 9), afterLaunch: true, calendar: calendar))
+    }
+
     @Test func sinceLabelNamesTodayYesterdayAndOlder() {
         let now = date(21, 12)
         #expect(DayBriefing.sinceLabel(date(21, 9, 30), now: now, calendar: calendar).hasPrefix("Desde as "))

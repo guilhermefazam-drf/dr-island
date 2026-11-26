@@ -51,9 +51,12 @@ public enum DayBriefing {
             .joined(separator: " · ")
     }
 
-    /// The briefing opens by itself at most once per calendar day, from `autoFromHour`, and only when something happened.
-    public static func shouldAutoShow(lastShown: Date?, pending: Int, now: Date, calendar: Calendar = .current) -> Bool {
-        guard pending > 0, calendar.component(.hour, from: now) >= autoFromHour else { return false }
+    /// The briefing opens by itself only when something happened: right after the app starts or the Mac wakes (what
+    /// changed since the island was last seen), and otherwise at most once per calendar day, from `autoFromHour`.
+    public static func shouldAutoShow(lastShown: Date?, pending: Int, now: Date, afterLaunch: Bool = false, calendar: Calendar = .current) -> Bool {
+        guard pending > 0 else { return false }
+        if afterLaunch { return true }
+        guard calendar.component(.hour, from: now) >= autoFromHour else { return false }
         guard let lastShown else { return true }
         return !calendar.isDate(lastShown, inSameDayAs: now)
     }

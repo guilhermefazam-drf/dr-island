@@ -60,12 +60,14 @@ final class IslandController {
                 self?.instances.values.forEach { $0.peek(changes) }
             }
         }
-        // The morning briefing: checked a little after launch and after a wake (the stores need a moment to catch up), then every 5 min.
-        checkBriefing(after: 45)
-        for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification] {
-            NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.checkBriefing(after: 60) }
-            }
+        // The briefing: what changed since the island was last seen, announced a little after launch and after the Mac
+        // wakes (the stores need a moment to catch up); otherwise once a day in the morning, checked every 5 min.
+        checkBriefing(after: 30, afterLaunch: true)
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkBriefing(after: 60, afterLaunch: true) }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkBriefing(after: 60) }
         }
         briefingTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.openBriefingIfDue() }
@@ -104,15 +106,15 @@ final class IslandController {
     }
 
     /// The stores need a moment to catch up after launch or a wake before the briefing has anything to say.
-    private func checkBriefing(after seconds: Double) {
+    private func checkBriefing(after seconds: Double, afterLaunch: Bool = false) {
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(seconds))
-            self?.openBriefingIfDue()
+            self?.openBriefingIfDue(afterLaunch: afterLaunch)
         }
     }
 
-    private func openBriefingIfDue() {
-        guard Briefing.shouldOpenByItself() else { return }
+    private func openBriefingIfDue(afterLaunch: Bool = false) {
+        guard Briefing.shouldOpenByItself(afterLaunch: afterLaunch) else { return }
         let point = NSEvent.mouseLocation
         guard let target = instances.values.first(where: { $0.containsMouse(point) }) ?? instances.values.first else { return }
         let summary = Briefing.summaryText()

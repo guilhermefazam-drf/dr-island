@@ -77,6 +77,20 @@ import Testing
         #expect(kinds(PullRequestDiff.changes(from: old, to: snap(authored: [pr(1, conflicts: true)]))) == [.conflicts])
     }
 
+    @Test func ciStartingOnOwnPRIsReportedOnce() {
+        let old = PullRequestDiff.fingerprints(of: snap(authored: [pr(1, ci: .passing)]))
+        let running = snap(authored: [pr(1, ci: .pending)])
+        #expect(kinds(PullRequestDiff.changes(from: old, to: running)) == [.ciStarted])
+        #expect(PullRequestDiff.changes(from: PullRequestDiff.fingerprints(of: running), to: running).isEmpty)
+    }
+
+    @Test func runningCIShortensTheNextReading() {
+        #expect(snap(authored: [pr(1, ci: .pending)]).nextRefresh(after: 120) == PullRequestSnapshot.ciRunningRefresh)
+        #expect(snap(authored: [pr(1, ci: .passing)]).nextRefresh(after: 120) == 120)
+        // Someone else's PR waiting on CI is not the user's to watch.
+        #expect(snap(review: [pr(2, role: .reviewRequested, ci: .pending)]).nextRefresh(after: 120) == 120)
+    }
+
     @Test func alreadyFailingDoesNotRepeat() {
         let s = snap(authored: [pr(1, ci: .failing)])
         #expect(PullRequestDiff.changes(from: PullRequestDiff.fingerprints(of: s), to: s).isEmpty)

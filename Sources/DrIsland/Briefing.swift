@@ -41,10 +41,11 @@ enum Briefing {
         defaults.set(now.timeIntervalSince1970, forKey: SettingsKey.briefingLastSeen)
     }
 
-    /// True once a day, in the morning, when there is something new and the briefing is allowed to open by itself.
-    static func shouldOpenByItself(now: Date = Date()) -> Bool {
+    /// True when there is something new and the briefing is allowed to open by itself: after a launch or a wake, or
+    /// once a day in the morning.
+    static func shouldOpenByItself(afterLaunch: Bool = false, now: Date = Date()) -> Bool {
         guard defaults.bool(forKey: SettingsKey.briefingAuto), !isActive else { return false }
-        return DayBriefing.shouldAutoShow(lastShown: lastShown, pending: pendingCount(now: now), now: now)
+        return DayBriefing.shouldAutoShow(lastShown: lastShown, pending: pendingCount(now: now), now: now, afterLaunch: afterLaunch)
     }
 
     /// "3 PRs · 2 Jira" for what the briefing would list, for the mini island.

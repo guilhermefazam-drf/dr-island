@@ -80,6 +80,14 @@ public struct PullRequestSnapshot: Equatable, Sendable {
 
     public var attention: PullRequest.Attention { authored.map(\.attention).max() ?? .none }
 
+    /// How soon to read again while one of the user's PRs has CI running, so its result shows within half a minute.
+    public static let ciRunningRefresh: TimeInterval = 30
+
+    /// The next reading: sooner while CI runs on one of the user's PRs, else the configured interval.
+    public func nextRefresh(after interval: TimeInterval) -> TimeInterval {
+        authored.contains { $0.ci == .pending } ? min(interval, Self.ciRunningRefresh) : interval
+    }
+
     /// A PR whose mergeability GitHub is still computing keeps the conflict state it had in the last reading, so it
     /// does not flip off and on (which announced "Conflitos" again each time it came back).
     public func resolvingUnknownConflicts(using old: [PRFingerprint]?) -> PullRequestSnapshot {
