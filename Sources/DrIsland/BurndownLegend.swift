@@ -5,7 +5,7 @@ import DrIslandCore
 struct BurndownLegend: View {
     @Environment(\.islandPalette) private var palette
     private var items: [(title: String, color: Color, dashed: Bool)] {
-        [("Por fazer", Color(palette.accent), false), ("Ideal", Color(palette.textSecondary), true), ("Âmbito", Color(palette.neutral).opacity(0.6), false)]
+        [("Por fazer", Color(palette.accent), false), ("Ideal", Color(palette.textTertiary), true), ("Âmbito", Color(palette.neutral).opacity(0.55), false)]
     }
 
     var body: some View {

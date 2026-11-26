@@ -30,7 +30,7 @@ struct DayPage: View {
                 Text("Mostra o que a ilha registou: avisos de PRs e Jira, dos últimos 30 dias (até 300).")
             }
             Section("Eventos por hora") {
-                HourlyLineChart(counts: counts, range: range, nowHour: isToday ? calendar.component(.hour, from: Date()) : nil, height: 150, labelStride: 2)
+                HourlyColumnChart(counts: counts, range: range, nowHour: isToday ? calendar.component(.hour, from: Date()) : nil, height: 150, labelStride: 2)
                     // Settings follow the system appearance, not the island's theme.
                     .environment(\.islandPalette, (colorScheme == .dark ? IslandTheme.grafite : IslandTheme.claro).palette)
                     .padding(.vertical, 6)

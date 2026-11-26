@@ -29,7 +29,7 @@ struct BugsBody: View {
         .frame(height: IslandLayout.managementSummary)
     }
 
-    private var legend: [(title: String, color: Color)] { [("Criados", Color(palette.red)), ("Resolvidos", Color(palette.green))] }
+    private var legend: [(title: String, color: Color)] { [("Criados", BugsChart.createdColor(palette)), ("Resolvidos", BugsChart.resolvedColor(palette))] }
     private var created: Int { result.weeks.map(\.created).reduce(0, +) }
     private var resolved: Int { result.weeks.map(\.resolved).reduce(0, +) }
 }
