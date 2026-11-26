@@ -21,7 +21,7 @@ struct KPITile: View {
     }
 
     struct Model: Identifiable {
-        let id: BentoLayout.KPI
+        let id: String
         let title: String
         let icon: String
         let source: IslandBlock
@@ -31,6 +31,8 @@ struct KPITile: View {
         var gauge: Gauge = .none
         var valueColor: Color?
         var aside: Aside?
+        /// Keeps the title at Compacto (the «Gestão» numbers mean nothing without it).
+        var titleInCompact = false
         var tip: String?
         var action: (() -> Void)?
     }
@@ -94,8 +96,13 @@ struct KPITile: View {
     private var compact: some View {
         HStack(spacing: 8) {
             SourceTile(icon: model.icon, source: model.source)
+            if model.titleInCompact {
+                Text(model.title).font(.system(size: CGFloat(metrics.metaSize), weight: .semibold))
+                    .foregroundStyle(Color(palette.textSecondary)).lineLimit(1)
+                Spacer(minLength: 4)
+            }
             number(size: CGFloat(metrics.titleSize) + 3)
-            Spacer(minLength: 0)
+            if !model.titleInCompact { Spacer(minLength: 0) }
             if let aside = model.aside {
                 (Text(aside.label.lowercased() + " ").foregroundStyle(Color(palette.textSecondary))
                     + Text(aside.value).fontWeight(.semibold).foregroundStyle(aside.color ?? Color(palette.text)))

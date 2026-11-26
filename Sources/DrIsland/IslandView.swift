@@ -411,14 +411,14 @@ struct IslandView: View {
             }
             let weekTip = store.weeklyResetsAt.map { "Semana reinicia em " + SprintInfo.remainingLabel($0.timeIntervalSince(now)) }
             let tip = [statusMessage, showWeekly ? weekTip : nil].compactMap { $0 }.joined(separator: " · ")
-            return .init(id: kpi, title: "Claude", icon: "sparkle", source: .claude,
+            return .init(id: kpi.rawValue, title: "Claude", icon: "sparkle", source: .claude,
                          value: (store.isEstimate ? "≈" : "") + "\(Int((fraction * 100).rounded()))", unit: "%",
                          detail: store.hasValue ? reset : "sem leitura", gauge: .bar(fraction, colour), valueColor: colour,
                          aside: showWeekly ? week : nil, tip: tip.isEmpty ? nil : tip)
         case .pullRequests:
             let mine = prStore.snapshot.authored.count
             let review = includeReviews ? prStore.snapshot.reviewRequested.count : 0
-            return .init(id: kpi, title: "Pull requests", icon: "arrow.triangle.pull", source: .pullRequests,
+            return .init(id: kpi.rawValue, title: "Pull requests", icon: "arrow.triangle.pull", source: .pullRequests,
                          value: "\(mine + review)", unit: "abertos", detail: "\(mine) teus · \(review) a rever",
                          gauge: .stack([(Double(mine), Color(p.green)), (Double(review), Color(p.purple))]))
         case .sprint:
@@ -427,7 +427,7 @@ struct IslandView: View {
             let calendar = Calendar.current
             let total = sprint.map { max(calendar.dateComponents([.day], from: calendar.startOfDay(for: $0.start), to: calendar.startOfDay(for: $0.end)).day ?? 0, 1) } ?? 0
             let day = sprint.map { min(max((calendar.dateComponents([.day], from: calendar.startOfDay(for: $0.start), to: calendar.startOfDay(for: now)).day ?? 0) + 1, 1), total) } ?? 0
-            return .init(id: kpi, title: sprint?.name ?? "Sprint", icon: "flag", source: .sprint,
+            return .init(id: kpi.rawValue, title: sprint?.name ?? "Sprint", icon: "flag", source: .sprint,
                          value: "\(day)", unit: "/ \(total) dias",
                          detail: "\(section?.mineCount ?? 0) tuas · \(section?.approvalCount ?? 0) aprovações",
                          gauge: .bar(sprint?.progress(now: now) ?? 0, Color(p.accent)),
@@ -438,18 +438,18 @@ struct IslandView: View {
             let total = config.roundsBeforeLongBreak
             let done = timer.phase == .longBreak ? total : timer.completedRounds % total
             let detail = timer.phase == .focus ? "ronda \(timer.completedRounds % total + 1) de \(total)" : timer.phase.title
-            return .init(id: kpi, title: "Foco", icon: "timer", source: .focus,
+            return .init(id: kpi.rawValue, title: "Foco", icon: "timer", source: .focus,
                          value: String(format: "%d:%02d", remaining / 60, remaining % 60),
                          detail: detail + (timer.isRunning ? "" : " · em pausa"),
                          gauge: .dots(total: total, done: done, Color(p.green)),
                          tip: timer.isRunning ? "Pausar" : "Começar", action: { focusStore.toggle() })
         case .jira:
-            return .init(id: kpi, title: "Jira", icon: "checklist", source: .jira,
+            return .init(id: kpi.rawValue, title: "Jira", icon: "checklist", source: .jira,
                          value: "\(jiraStore.tasks.count)", unit: "tasks", detail: "\(approvalCount) aprovações")
         case .alerts:
             let today = todayCounts.reduce(0, +)
             let latest = recentAlerts.first.map { "último: " + AlertsBlock.relative($0.date, now: now) } ?? "sem avisos"
-            return .init(id: kpi, title: "Avisos", icon: "bell", source: .alerts,
+            return .init(id: kpi.rawValue, title: "Avisos", icon: "bell", source: .alerts,
                          value: "\(today)", unit: "hoje", detail: latest, tip: "Ver o histórico", action: openHistory)
         }
     }
@@ -626,7 +626,7 @@ struct IslandView: View {
     private var managementColumns: Int { layout.columnCount >= 2 ? 2 : 1 }
     private var managementGridHeight: CGFloat { min(IslandLayout.managementGrid(columns: managementColumns, metrics: islandMetrics), maxColumnHeight) }
     private var managementHeight: CGFloat {
-        metrics.height + 6 + IslandLayout.managementHeader + 8 + managementGridHeight + 10
+        metrics.height + 6 + ManagementPage.topHeight(columns: managementColumns, metrics: islandMetrics) + managementGridHeight + 10
     }
 
     private var contentHeight: CGFloat {

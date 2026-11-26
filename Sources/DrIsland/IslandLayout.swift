@@ -18,18 +18,17 @@ enum IslandLayout {
 
     // The «Gestão» page: header strip, the burndown card (title, chart, legend, summary) and the gaps between.
     static let managementHeader: CGFloat = 24
-    static let managementChart: CGFloat = 110
     static let managementSummary: CGFloat = 18
-    static let managementFlowRow: CGFloat = 14
-    /// A «Gestão» card's content: its title row, the chart, the legend and the summary.
+    /// The plot of a «Gestão» card (its legend lives in the card header).
+    static func managementChart(_ m: IslandMetrics) -> CGFloat { m.rowHasMeta ? 136 : 88 }
+    /// A «Gestão» card's content: the header, the chart and the summary pills, 8 pt apart.
     static func managementCardContent(_ m: IslandMetrics) -> CGFloat {
-        CGFloat(m.cardHeader) + 6 + managementChart + 6 + 14 + 6 + managementSummary
+        CGFloat(m.cardHeader) + 8 + managementChart(m) + 8 + managementSummary
     }
-    static let managementCardGap: CGFloat = 8
     /// The cards of the «Gestão» page: four in a column, or two rows of two when the island is wide.
     static func managementGrid(columns: Int, metrics m: IslandMetrics) -> CGFloat {
         let rows: CGFloat = columns >= 2 ? 2 : 4
-        return rows * CGFloat(m.card(Double(managementCardContent(m)))) + (rows - 1) * managementCardGap
+        return rows * CGFloat(m.card(Double(managementCardContent(m)))) + (rows - 1) * CGFloat(m.cardGap)
     }
 
     // Content heights of the blocks; a block drawn on a card adds the density's card padding on each side.

@@ -9,24 +9,27 @@ struct VelocityCard: View {
 
     var body: some View {
         let result = store.side.velocity(unit: store.effectiveUnit)
-        VStack(alignment: .leading, spacing: 6) {
-            CardTitle(title: "Velocity", icon: "speedometer")
+        let unit = store.effectiveUnit == .points ? "pts" : "tasks"
+        ManagementCardFrame(title: "Velocity", icon: "speedometer") {
+            ChartKey(items: [.init(label: "Planeado", color: Color(palette.text).opacity(0.18)),
+                             .init(label: "Concluído", color: Color(palette.accent))])
+        } content: {
             if result.sprints.isEmpty {
                 ListNote(text: message)
             } else {
-                VelocityChart(result: result).frame(height: IslandLayout.managementChart)
-                VelocityLegend()
-                HStack(spacing: 6) {
-                    RowTag("média \(result.averageCompleted.formatted(.number.precision(.fractionLength(0...1)))) \(store.effectiveUnit == .points ? "pontos" : "tasks")", Color(palette.green))
-                    RowTag("\(result.sprints.count) sprints", Color(palette.neutral))
-                    if store.side.velocityPhase == .loading { RowTag("a ler mais…", Color(palette.neutral)) }
-                    Spacer(minLength: 0)
+                VelocityChart(result: result).frame(height: IslandLayout.managementChart(metrics))
+            }
+        } footer: {
+            if !result.sprints.isEmpty {
+                Pill("média \(ManagementKPIs.format(result.averageCompleted.rounded())) \(unit)", Color(palette.green))
+                Pill("\(result.sprints.count) sprints", Color(palette.neutral))
+                let planned = result.sprints.map(\.planned).reduce(0, +)
+                if planned > 0 {
+                    Pill("cumpre \(Int((result.sprints.map(\.completed).reduce(0, +) / planned * 100).rounded()))% do plano", Color(palette.neutral))
                 }
-                .frame(height: IslandLayout.managementSummary)
+                if store.side.velocityPhase == .loading { Pill("a ler mais…", Color(palette.neutral)) }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: IslandLayout.managementCardContent(metrics), maxHeight: IslandLayout.managementCardContent(metrics), alignment: .topLeading)
-        .blockCard()
     }
 
     private var message: String {
