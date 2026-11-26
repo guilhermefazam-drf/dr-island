@@ -18,7 +18,7 @@ final class ManagementStore {
     private(set) var snapshot: SprintSnapshot?
     private(set) var status: Status = .idle
     /// The bugs and velocity charts' data.
-    let side = ManagementSideData()
+    let side: ManagementSideData
 
     /// False when the site has no story-points field: only «tasks» makes sense then.
     var hasPointsField: Bool { points != nil }
@@ -36,11 +36,17 @@ final class ManagementStore {
     @ObservationIgnored private var config: JiraConfig?
     @ObservationIgnored private var sprintField: String?
     private var points: (id: String, name: String)?
+    /// Read once per session: the site's statuses (and the fields above) do not change while the app runs.
+    @ObservationIgnored private var statuses: (categories: [String: String], names: [String: String])?
+    /// Open sprints read in the last moments: going back to one (with ‹ ›) shows it at once and skips Jira while fresh.
+    @ObservationIgnored private var recent: [Int: SprintSnapshot] = [:]
+    private static let openSprintFreshFor: TimeInterval = 120
     /// Guards against a slower, older load overwriting a newer selection.
     @ObservationIgnored private var generation = 0
 
-    init(cache: SprintMetricsCache = NoSprintMetricsCache()) {
+    init(cache: SprintMetricsCache = SprintSnapshotFileCache.standard()) {
         self.cache = cache
+        self.side = ManagementSideData(cache: cache)
     }
 
     /// Called when the «Gestão» page comes into view: reads (or refreshes) unless a read is already running.
@@ -77,9 +83,16 @@ final class ManagementStore {
             }
             self.config = config
             do {
-                let all = try await self.client.fetchBoards(config)
+                // The boards, the fields and the statuses at once; the last two only on the first opening.
+                let client = self.client
+                let needsFields = self.sprintField == nil, needsStatuses = self.statuses == nil
+                async let boardsRead = client.fetchBoards(config)
+                async let fieldsRead = needsFields ? client.fetchFieldIDs(config) : nil
+                async let statusesRead = needsStatuses ? try? client.fetchStatuses(config) : nil
+                let all = try await boardsRead
+                if let fields = try await fieldsRead { self.sprintField = fields.sprint; self.points = fields.points }
+                if let statuses = await statusesRead { self.statuses = statuses }
                 let chosen = Settings.jiraSprintBoards
-                if self.sprintField == nil { self.sprintField = try await self.client.sprintFieldID(config) }
                 var boards = all
                 if !chosen.isEmpty {
                     boards = all.filter { chosen.contains($0.id) }
@@ -91,8 +104,6 @@ final class ManagementStore {
                 }
                 guard mine == self.generation else { return }
                 self.boards = boards
-                self.points = try await self.client.fetchPointsField(config)
-                guard mine == self.generation else { return }
                 // Keep the manager's selection across reopenings when it is still available.
                 guard let board = boards.first(where: { $0.id == self.selectedBoard }) ?? boards.first else {
                     self.sprints = []
@@ -137,7 +148,7 @@ final class ManagementStore {
             let list = try await client.fetchBoardSprints(config, boardID: id)
             guard mine == generation else { return }
             sprints = list
-            side.loadVelocity(config: config, sprints: list, sprintField: sprintField, points: points)
+            side.loadVelocity(config: config, sprints: list, sprintField: sprintField, points: points, statuses: statuses)
             guard let pick = list.first(where: { $0.id == preferred }) ?? list.first(where: { $0.state == "active" }) ?? list.first else {
                 selectedSprint = nil
                 snapshot = nil
@@ -156,6 +167,14 @@ final class ManagementStore {
     private func loadSprint(_ sprint: SprintRecord, config: JiraConfig, generation mine: Int) async {
         guard mine == generation else { return }
         selectedSprint = sprint.id
+        if let kept = recent[sprint.id] {
+            snapshot = kept
+            status = .ok
+            if Date().timeIntervalSince(kept.fetchedAt) < Self.openSprintFreshFor {
+                side.loadBugs(config: config, project: Backlog.guessProject(from: kept.issues.map(\.key)))
+                return
+            }
+        }
         if let cached = cache.load(sprintID: sprint.id) {
             snapshot = cached
             status = .ok
@@ -171,11 +190,11 @@ final class ManagementStore {
             return
         }
         do {
-            let fresh = try await client.fetchSprintSnapshot(config, sprint: sprint, sprintField: sprintField, points: points)
+            let fresh = try await client.fetchSprintSnapshot(config, sprint: sprint, sprintField: sprintField, points: points, statuses: statuses)
             guard mine == generation else { return }
             snapshot = fresh
             status = .ok
-            if sprint.state == "closed" { cache.save(fresh) }
+            if sprint.state == "closed" { cache.save(fresh) } else { recent[sprint.id] = fresh }
             side.loadBugs(config: config, project: Backlog.guessProject(from: fresh.issues.map(\.key)))
         } catch {
             guard mine == generation else { return }

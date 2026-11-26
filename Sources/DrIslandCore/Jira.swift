@@ -257,6 +257,16 @@ public struct JiraClient: Sendable {
         guard method == "GET" || method == "HEAD", request.httpBody == nil else { throw JiraError.readOnly }
     }
 
+    /// `DR_ISLAND_JIRA_TRACE=1`: every Jira read is printed to stderr with its time and size (development aid; the
+    /// query string is left out, it can hold JQL with names).
+    static let traces = ProcessInfo.processInfo.environment["DR_ISLAND_JIRA_TRACE"] != nil
+
+    static func trace(_ url: URL, status: Int, bytes: Int, seconds: Double) {
+        let ended = Date().timeIntervalSince1970
+        let line = String(format: "[jira] t=%.2f start=%.2f %5.0f ms %7d B %d %@\n", ended, ended - seconds, seconds * 1000, bytes, status, url.path)
+        FileHandle.standardError.write(Data(line.utf8))
+    }
+
     func get(_ url: URL, authorization: String) async throws -> Data {
         var request = URLRequest(url: url, timeoutInterval: 20)
         request.setValue(authorization, forHTTPHeaderField: "Authorization")
@@ -264,8 +274,10 @@ public struct JiraClient: Sendable {
         try Self.requireReadOnly(request)
         let data: Data
         let response: URLResponse
+        let started = Date()
         do { (data, response) = try await session.data(for: request) } catch { throw JiraError.network }
         guard let http = response as? HTTPURLResponse else { throw JiraError.invalidResponse }
+        if Self.traces { Self.trace(url, status: http.statusCode, bytes: data.count, seconds: Date().timeIntervalSince(started)) }
         switch http.statusCode {
         case 200..<300: return data
         case 401, 403: throw JiraError.unauthorized

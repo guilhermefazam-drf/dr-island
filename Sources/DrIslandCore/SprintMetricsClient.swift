@@ -164,10 +164,25 @@ extension JiraClient {
         return (categories, names)
     }
 
-    /// Every issue currently in the sprint, with its changelog. Issues whose changelog came back truncated get
-    /// the rest from the changelog endpoint. All requests are GETs.
+    /// The Sprint field's id and the story-points field, from one read of `GET /rest/api/3/field` (the two used to
+    /// be read separately, the same 180 KB twice).
+    public func fetchFieldIDs(_ config: JiraConfig) async throws -> (sprint: String?, points: (id: String, name: String)?) {
+        let (site, header) = try prepare(config)
+        let data = try await get(site.appendingPathComponent("rest/api/3/field"), authorization: header)
+        guard (try? JSONSerialization.jsonObject(with: data)) is [[String: Any]] else { throw JiraError.invalidResponse }
+        return (SprintParser.sprintFieldID(data), SprintMetricsParser.pointsField(data))
+    }
+
+    /// How many issues' changelogs are read at once: each read takes ~200 ms, so one after the other they added up to
+    /// seconds; a few at a time stays well inside Jira Cloud's rate limits.
+    static let changelogConcurrency = 4
+
+    /// Every issue currently in the sprint, with its changelog. Issues whose changelog came back truncated (the search
+    /// carries only the latest entries) get the rest from the changelog endpoint, a few at a time. `statuses`, when the
+    /// caller already has them, saves reading `/status` again for each sprint. All requests are GETs.
     public func fetchSprintSnapshot(_ config: JiraConfig, sprint: SprintRecord, sprintField: String,
-                                    points: (id: String, name: String)?) async throws -> SprintSnapshot {
+                                    points: (id: String, name: String)?,
+                                    statuses known: (categories: [String: String], names: [String: String])? = nil) async throws -> SprintSnapshot {
         let (site, header) = try prepare(config)
         var issues: [SprintIssue] = []
         var truncated: [String] = []
@@ -186,22 +201,46 @@ extension JiraClient {
             if token == nil || page.issues.isEmpty { break }
         }
 
-        for key in truncated {
-            guard let index = issues.firstIndex(where: { $0.key == key }) else { continue }
-            var pages: [[[String: Any]]] = []
-            var start = 0
-            for _ in 0..<50 {
-                guard let url = SprintMetricsRequests.changelogURL(site: site, key: key, startAt: start) else { throw JiraError.invalidSite }
-                guard let page = SprintMetricsParser.changelogPage(try await get(url, authorization: header)) else { throw JiraError.invalidResponse }
-                pages.append(page.histories)
-                if page.isLast || page.histories.isEmpty { break }
-                start += page.histories.count
+        async let statusRead: (categories: [String: String], names: [String: String]) = {
+            if let known { return known }
+            return try await fetchStatuses(config)
+        }()
+        let pointsID = points?.id
+        let events = try await withThrowingTaskGroup(of: (String, [SprintIssueEvent]).self) { group in
+            var pending = truncated[...]
+            var found: [String: [SprintIssueEvent]] = [:]
+            func addNext() {
+                guard let key = pending.popFirst() else { return }
+                group.addTask {
+                    (key, try await fullChangelog(site: site, header: header, key: key, sprintField: sprintField, pointsField: pointsID))
+                }
             }
-            let histories = mergeChangelogPages(initial: [], pages: pages)
-            issues[index].events = ChangelogParser.events(fromHistories: histories, sprintField: sprintField, pointsField: points?.id)
+            for _ in 0..<Self.changelogConcurrency { addNext() }
+            while let (key, list) = try await group.next() {
+                found[key] = list
+                addNext()
+            }
+            return found
+        }
+        for (key, list) in events {
+            if let index = issues.firstIndex(where: { $0.key == key }) { issues[index].events = list }
         }
 
-        let statuses = try await fetchStatuses(config)
+        let statuses = try await statusRead
         return SprintSnapshot(sprint: sprint, issues: issues, statusCategories: statuses.categories, fetchedAt: Date(), statusNames: statuses.names)
+    }
+
+    /// Every page of one issue's changelog, turned into the burndown's events.
+    private func fullChangelog(site: URL, header: String, key: String, sprintField: String, pointsField: String?) async throws -> [SprintIssueEvent] {
+        var pages: [[[String: Any]]] = []
+        var start = 0
+        for _ in 0..<50 {
+            guard let url = SprintMetricsRequests.changelogURL(site: site, key: key, startAt: start) else { throw JiraError.invalidSite }
+            guard let page = SprintMetricsParser.changelogPage(try await get(url, authorization: header)) else { throw JiraError.invalidResponse }
+            pages.append(page.histories)
+            if page.isLast || page.histories.isEmpty { break }
+            start += page.histories.count
+        }
+        return ChangelogParser.events(fromHistories: mergeChangelogPages(initial: [], pages: pages), sprintField: sprintField, pointsField: pointsField)
     }
 }
