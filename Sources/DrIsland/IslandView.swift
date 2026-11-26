@@ -404,10 +404,17 @@ struct IslandView: View {
             let fraction = store.sessionFraction
             let colour = Brand.color(forFraction: fraction, amber: amber, red: red, palette: p)
             let reset = store.sessionResetsAt.map { "reinicia em " + SprintInfo.remainingLabel($0.timeIntervalSince(now)) } ?? "Sessão · 5 h"
+            // The week sits beside the session, in its own threshold colour, when the reading has it.
+            let week = store.weeklyFraction.map { weekly in
+                KPITile.Aside(label: "Semana", value: "\(Int((weekly * 100).rounded()))%",
+                              color: Brand.color(forFraction: weekly, amber: amber, red: red, palette: p))
+            }
+            let weekTip = store.weeklyResetsAt.map { "Semana reinicia em " + SprintInfo.remainingLabel($0.timeIntervalSince(now)) }
+            let tip = [statusMessage, showWeekly ? weekTip : nil].compactMap { $0 }.joined(separator: " · ")
             return .init(id: kpi, title: "Claude", icon: "sparkle", source: .claude,
                          value: (store.isEstimate ? "≈" : "") + "\(Int((fraction * 100).rounded()))", unit: "%",
                          detail: store.hasValue ? reset : "sem leitura", gauge: .bar(fraction, colour), valueColor: colour,
-                         tip: statusMessage)
+                         aside: showWeekly ? week : nil, tip: tip.isEmpty ? nil : tip)
         case .pullRequests:
             let mine = prStore.snapshot.authored.count
             let review = includeReviews ? prStore.snapshot.reviewRequested.count : 0

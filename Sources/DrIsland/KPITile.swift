@@ -13,6 +13,13 @@ struct KPITile: View {
         case dots(total: Int, done: Int, Color)
     }
 
+    /// A second, smaller figure on the right of the number (e.g. the Claude week next to the session).
+    struct Aside {
+        let label: String
+        let value: String
+        var color: Color?
+    }
+
     struct Model: Identifiable {
         let id: BentoLayout.KPI
         let title: String
@@ -23,6 +30,7 @@ struct KPITile: View {
         var detail: String
         var gauge: Gauge = .none
         var valueColor: Color?
+        var aside: Aside?
         var tip: String?
         var action: (() -> Void)?
     }
@@ -60,7 +68,20 @@ struct KPITile: View {
             }
             .frame(height: CGFloat(metrics.tile))
             Spacer().frame(height: 8)
-            number(size: Self.valueSize).frame(height: Self.valueSize, alignment: .bottomLeading)
+            HStack(alignment: .bottom, spacing: 8) {
+                number(size: Self.valueSize)
+                Spacer(minLength: 0)
+                if let aside = model.aside {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text(aside.label).font(.system(size: CGFloat(metrics.metaSize) - 1, weight: .medium))
+                            .foregroundStyle(Color(palette.textSecondary))
+                        Text(aside.value).font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(aside.color ?? Color(palette.text))
+                    }
+                    .lineLimit(1)
+                }
+            }
+            .frame(height: Self.valueSize, alignment: .bottomLeading)
             Spacer().frame(height: 4)
             Text(model.detail).font(.system(size: CGFloat(metrics.metaSize)))
                 .foregroundStyle(Color(palette.textSecondary)).lineLimit(1).truncationMode(.tail)
@@ -75,6 +96,12 @@ struct KPITile: View {
             SourceTile(icon: model.icon, source: model.source)
             number(size: CGFloat(metrics.titleSize) + 3)
             Spacer(minLength: 0)
+            if let aside = model.aside {
+                (Text(aside.label.lowercased() + " ").foregroundStyle(Color(palette.textSecondary))
+                    + Text(aside.value).fontWeight(.semibold).foregroundStyle(aside.color ?? Color(palette.text)))
+                    .font(.system(size: CGFloat(metrics.metaSize)).monospacedDigit())
+                    .lineLimit(1)
+            }
         }
     }
 
