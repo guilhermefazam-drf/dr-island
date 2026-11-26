@@ -207,6 +207,59 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .strip .evc .b{font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .oneline{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--i-muted)}
 
+/* ===== gestão (charts page) ===== */
+.island{--i-plot:var(--i-collar)}
+.island[data-itheme="claro"]{--i-plot:#ffffff}
+.p-red{background:color-mix(in srgb,var(--i-red) 18%,transparent);color:var(--i-red)}
+.gbar{display:flex;align-items:center;gap:10px;margin-bottom:var(--cardgap);flex-wrap:wrap}
+.gbar .tabs{margin-left:0}
+.gbar .spr{display:flex;align-items:center;gap:2px;margin-left:auto;font-size:var(--fs-sm);font-weight:600;white-space:nowrap}
+.gbar .spr button{width:22px;height:22px;border:0;background:transparent;color:var(--i-muted);border-radius:6px;display:grid;place-items:center;cursor:pointer}
+.gbar .spr button:hover{background:var(--i-surface2)}
+.gbar .spr svg{width:12px;height:12px}
+.ibtn.on{background:color-mix(in srgb,var(--i-accent) 18%,transparent);color:var(--i-accent)}
+.ibtn.on svg{stroke:currentColor}
+.gk{display:flex;gap:10px;align-items:center;font-size:var(--fs-sm);color:var(--i-muted);margin-left:auto;white-space:nowrap}
+.gk i{display:inline-block;width:10px;height:2px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.gk i.sq{width:8px;height:8px;border-radius:2px}
+.gk i.ds{background:repeating-linear-gradient(90deg,currentColor 0 3px,transparent 3px 5px)!important;height:1.5px}
+.island[data-density="compact"] .gk{display:none}
+.chart{position:relative;display:block}
+.chart svg{display:block;overflow:visible}
+.chart text{font:500 9.5px var(--f-ui);fill:var(--i-faint);font-variant-numeric:tabular-nums}
+.chart text.v{fill:var(--i-text);font-weight:650;font-size:10.5px}
+.chart .hit{fill:transparent;cursor:default}
+.chart .grp{transition:opacity .12s}
+.chart.hovering .grp:not(.on){opacity:.35}
+.gcols{align-items:stretch}
+.gcols .card{display:flex;flex-direction:column}
+.gcols .gfoot{margin-top:auto;padding-top:8px}
+.gfoot{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.island[data-density="compact"] .gfoot{margin-top:5px}
+.ctip{position:absolute;pointer-events:none;z-index:5;min-width:128px;white-space:nowrap;background:var(--i-plot);border:1px solid var(--i-border);border-radius:9px;padding:7px 9px;box-shadow:0 6px 18px rgba(0,0,0,.35);font-size:var(--fs-sm);transform:translateY(-50%);opacity:0;transition:opacity .1s}
+.ctip.show{opacity:1}
+.ctip > div{position:relative;z-index:1}
+.ctip::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--i-surface2)}
+.ctip b{display:block;font-weight:650;margin-bottom:3px;color:var(--i-text)}
+.ctip .l{display:flex;align-items:center;gap:6px;color:var(--i-muted);line-height:1.6}
+.ctip .l i{width:7px;height:7px;border-radius:2px;flex:none}
+.ctip .l span{margin-left:auto;padding-left:10px;color:var(--i-text);font-variant-numeric:tabular-nums;font-weight:600}
+.seg2{display:flex;height:26px;gap:2px;border-radius:7px;overflow:hidden}
+.island[data-density="compact"] .seg2{height:20px}
+.seg2 span{display:flex;align-items:center;padding:0 8px;font-size:var(--fs-sm);font-weight:700;min-width:0;border-radius:4px}
+.flowkey{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:7px 0 2px;font-size:var(--fs-sm);color:var(--i-muted)}
+.flowkey b{display:block;color:var(--i-text);font-weight:600;font-size:var(--fs)}
+.flowkey i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:baseline}
+.island[data-density="compact"] .flowkey{display:none}
+.seg2 .fill-on{color:#0b0c10}
+.island[data-itheme="claro"] .seg2 .fill-on{color:#fff}
+.seg2 span:not(.fill-on){color:var(--i-text)}
+.island[data-density="compact"] .gkpi .k-top span{display:inline}
+.island[data-density="compact"] .gkpi .k-num{margin-left:auto}
+.pdots{display:flex;justify-content:center;gap:6px;margin-top:10px}
+.pdots i{width:6px;height:6px;border-radius:50%;background:var(--i-surface2)}
+.pdots i.on{background:var(--i-text)}
+
 /* ===== current (as-is) ===== */
 .cur{--c-card:rgba(255,255,255,.055);font-family:var(--f-ui);background:#000;color:#f2f2f2;border-radius:0 0 34px 34px;padding:0 24px 14px;position:relative}
 .cur .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:190px;height:32px;background:#000;border-radius:0 0 12px 12px}
@@ -288,17 +341,34 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 
   <section id="lab">
     <h2>2 · Laboratório</h2>
-    <p class="sub">Troca o layout, o tema e a densidade. Todos os exemplos usam 2 colunas. Passa o rato pelas linhas e experimenta as abas do card Git.</p>
+    <p class="sub">Troca o layout, o tema, a página e a densidade. Todos os exemplos usam 2 colunas. Passa o rato pelas linhas e pelos gráficos, e experimenta as abas. Na ilha, o botão de gráficos no topo também troca de página.</p>
     <div class="bar">
       <div class="ctl"><label>Layout</label><div class="seg" id="segLayout">
         <button data-v="atual">Atual</button><button data-v="camadas">A · Camadas</button><button data-v="bento">B · Bento</button></div></div>
       <div class="ctl"><label>Tema</label><div class="seg" id="segTheme">
         <button data-v="grafite">Grafite</button><button data-v="meia-noite">Meia-noite</button><button data-v="aurora">Aurora</button><button data-v="claro">Claro</button></div></div>
+      <div class="ctl"><label>Página</label><div class="seg" id="segPage">
+        <button data-v="resumo">Resumo</button><button data-v="gestao">Gestão · gráficos</button></div></div>
       <div class="ctl"><label>Densidade</label><div class="seg" id="segDensity">
         <button data-v="normal">Normal</button><button data-v="compact">Compacto</button></div></div>
     </div>
     <div class="stage"><div class="menubar"><span>Finder &nbsp; Ficheiro &nbsp; Editar</span><span>qua 25 nov 10:12</span></div><div class="stage-inner" id="stage"></div></div>
     <p class="stage-note" id="stageNote"></p>
+  </section>
+
+  <section>
+    <h2>Gráficos da Gestão · antes e depois</h2>
+    <p class="sub">Hoje, os quatro gráficos são Swift Charts com os estilos de origem: eixos cheios, barras grossas, vermelho contra verde e nada que os ligue aos cards do resumo. A proposta usa as mesmas peças do resto da ilha. No laboratório, escolhe «Gestão · gráficos».</p>
+    <div class="notes">
+      <div class="note"><h3>Números primeiro</h3><p>Uma faixa de 4 números da sprint, como os KPIs do Bento: concluído, dias que faltam, ritmo face ao ideal e bloqueadas. O estado vai numa pill («atrás do ideal», «precisa de ajuda»).</p></div>
+      <div class="note"><h3>Card igual aos outros</h3><p>Tile azul Jira, título, legenda no lado direito do cabeçalho (some no compacto) e pills de resumo no fundo. Os quatro cards de cada linha têm a mesma altura.</p></div>
+      <div class="note"><h3>Burndown que responde</h3><p>Área suave por baixo do «por fazer», valor atual no ponto, «hoje» como pill, os dias que faltam sombreados e uma previsão tracejada até ao fim da sprint («sobram ~8 pts»).</p></div>
+      <div class="note"><h3>Fluxo sem barras soltas</h3><p>Uma barra segmentada com os pontos dentro de cada parte, o tempo médio em cada estado e as tasks paradas há mais tempo, como linhas da lista (com ícone, chave e pill de dias).</p></div>
+      <div class="note"><h3>Bugs em espelho</h3><p>Criados para cima (vermelho) e resolvidos para baixo (azul) na mesma escala. O saldo de cada semana lê-se pela diferença de alturas, e o par vermelho/azul distingue-se com daltonismo.</p></div>
+      <div class="note"><h3>Velocity com o plano por trás</h3><p>O planeado é uma barra larga e discreta, com o concluído fino por dentro. A média é uma linha com etiqueta à direita e a última sprint mostra o valor.</p></div>
+      <div class="note"><h3>Tooltip ao passar o rato</h3><p>Ao lado do ponto, com os valores daquele dia, semana ou sprint. Nas barras, as outras ficam esbatidas. No burndown, aparece uma guia vertical.</p></div>
+      <div class="note"><h3>Eixos limpos</h3><p>O topo é o primeiro valor redondo acima dos dados (35 → 40), com 3 marcas, grelha de 1 px quase invisível e datas sem se sobreporem.</p></div>
+    </div>
   </section>
 
   <section>
@@ -404,9 +474,9 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 </div>
 
 <script>
-const S={layout:"camadas",theme:"grafite",density:"normal",gitTab:"mine",jiraTab:"tasks"};
+const S={layout:"camadas",theme:"grafite",density:"normal",page:"resumo",gitTab:"mine",jiraTab:"tasks",board:"clinica",unit:"pts"};
 try{const s=JSON.parse(localStorage.getItem("drisland-lab")||"{}");Object.assign(S,s)}catch(e){}
-const save=()=>{try{localStorage.setItem("drisland-lab",JSON.stringify({layout:S.layout,theme:S.theme,density:S.density}))}catch(e){}};
+const save=()=>{try{localStorage.setItem("drisland-lab",JSON.stringify({layout:S.layout,theme:S.theme,density:S.density,page:S.page}))}catch(e){}};
 
 const I={
  spark:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg>',
@@ -425,6 +495,11 @@ const I={
  story:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
  bolt:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
  play:'<svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>',
+ flow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h10M4 12h16M4 18h7"/></svg>',
+ gauge:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 18a8 8 0 1 1 16 0"/><path d="m12 18 4-6"/></svg>',
+ clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+ chevL:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 5-7 7 7 7"/></svg>',
+ chevR:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 5 7 7-7 7"/></svg>',
  logo:'<svg viewBox="0 0 24 24" fill="none"><rect x="1" y="3" width="22" height="18" rx="5" fill="currentColor" opacity=".25"/><path d="M5 15l4-4 3 3 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 
@@ -470,7 +545,7 @@ const bar=(label,val,f,col)=>`<div><div class="bl"><span>${label}</span><b>${val
 
 function ihead(compact){
   return `<div class="ihead"><div class="left"><span class="logo" style="color:var(--i-muted)">${I.logo}${compact?"":"doutor<b style='font-weight:700'>finanças</b>"}</span>${compact?"":`<span class="hello">Bom dia <span class="imuted" style="font-weight:400">· qua, 25 nov</span></span>`}</div>
-  <div class="right"><span class="live">ao vivo</span><button class="ibtn" aria-label="Gestão">${I.chart}</button><button class="ibtn" aria-label="Atualizar">${I.refresh}</button><button class="ibtn" aria-label="Definições">${I.gear}</button></div></div>`;
+  <div class="right"><span class="live">ao vivo</span><button class="ibtn${S.page==="gestao"?" on":""}" data-page-toggle aria-label="Gestão">${I.chart}</button><button class="ibtn" aria-label="Atualizar">${I.refresh}</button><button class="ibtn" aria-label="Definições">${I.gear}</button></div></div>`;
 }
 function claudeCard(){
   const c=D.claude;
@@ -553,21 +628,180 @@ function renderAtual(){
   <div class="dockc"><div>${D.apps.map(([l,c])=>`<span class="app" style="background:${c};width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font:700 10px var(--f-ui);color:#fff">${l}</span>`).join("")}</div></div></div>`;
 }
 
+/* ===== Gestão (the charts page), in the same card system as the overview ===== */
+const G={
+ days:["18/11","19/11","20/11","21/11","24/11","25/11","26/11","27/11","28/11","01/12","02/12","03/12"],
+ today:8,
+ remaining:[33,33,31,28,27,24,21,18,15],
+ scope:[33,33,33,33,35,35,35,35,35],
+ flow:[{n:"Por fazer",v:7,t:"~4,8 d",c:"faint"},{n:"Em curso",v:8,t:"~1,5 d",c:"accent"},{n:"Concluído",v:20,t:"—",c:"green"}],
+ stale:[
+  {k:"TEP-7",t:"Exportar faturas em lote",m:"Em curso · bloqueada",ic:"flag",col:"red",p:[["2 d","red"]]},
+  {k:"TEP-8",t:"Rever textos do onboarding",m:"Por fazer · sem dono",ic:"clock",col:"amber",p:[["9 d","amber"]]},
+  {k:"TEP-10",t:"Limpar logs antigos da API",m:"Por fazer · Tiago L.",ic:"clock",col:"amber",p:[["9 d","amber"]]}],
+ bugs:{weeks:["6/10","13/10","20/10","27/10","3/11","10/11","17/11","24/11"],created:[3,5,2,4,6,3,4,5],resolved:[2,4,3,3,4,5,3,2],open:14,median:"3,5"},
+ vel:{names:["#13","#14","#15","#16","#17","#18"],planned:[26,28,30,24,32,27],done:[22,20,27,23,23,27]}
+};
+const niceTop=(m,t=3)=>{const target=m*1.05,mag=Math.pow(10,Math.floor(Math.log10(target/t)));let best=null;
+  for(const sc of [.1,1,10])for(const b of [1,2,5]){const st=Math.max(b*mag*sc,1),top=Math.ceil(target/st)*st,n=Math.round(top/st);
+   if(n<2||n>t+1)continue;if(!best||top<best.top||(top===best.top&&st>best.step))best={top,step:st}}
+  return best||{top:Math.ceil(target),step:1}};
+const tipAttr=(title,lines)=>`data-tip='${JSON.stringify({title,lines}).replace(/'/g,"&#39;")}'`;
+const cssv=n=>`var(--i-${n})`;
+let gradSeq=0;
+
+function gestaoGeom(){
+  const W=gestaoWidth(),padX=isC()?14:22,gap=isC()?8:12,pad=isC()?9:14;
+  return {W,cw:Math.floor((W-2*padX-gap)/2-2*pad-2),h:isC()?82:124};
+}
+function gestaoWidth(){return S.layout==="bento"?(isC()?620:780):(isC()?560:660)}
+
+function burndownSVG(w,h){
+  const n=G.days.length,T=G.today,padL=22,padR=40,padT=18,padB=16;
+  const sc=niceTop(Math.max(...G.scope)),x=i=>padL+(w-padL-padR)*i/(n-1),y=v=>padT+(h-padT-padB)*(1-v/sc.top);
+  const ideal=i=>G.scope[0]*(1-i/(n-1));
+  const pace=(G.scope[T]-G.remaining[T])/T, proj=Math.max(G.remaining[T]-pace*(n-1-T),0);
+  const id=`g${++gradSeq}`;
+  let s=`<svg width="${w}" height="${h}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${cssv("accent")};stop-opacity:.26"/><stop offset="1" style="stop-color:${cssv("accent")};stop-opacity:0"/></linearGradient></defs>`;
+  // what is left of the sprint, as a quiet band
+  s+=`<rect x="${x(T)}" y="${padT}" width="${x(n-1)-x(T)}" height="${h-padT-padB}" rx="4" style="fill:${cssv("text")};opacity:.035"/>`;
+  for(let v=0;v<=sc.top;v+=sc.step)s+=`<line x1="${padL}" x2="${w-padR+18}" y1="${y(v)}" y2="${y(v)}" style="stroke:${cssv("text")};opacity:.08" stroke-width="1"/><text x="${padL-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  G.days.forEach((d,i)=>{if((i%3===0&&n-1-i>=3)||i===n-1)s+=`<text x="${x(i)}" y="${h-3}" text-anchor="${i===0?"start":i===n-1?"end":"middle"}">${d}</text>`});
+  let step=`M${x(0)},${y(G.scope[0])}`;for(let i=1;i<=T;i++)step+=` H${x(i)} V${y(G.scope[i])}`;step+=` H${x(n-1)}`;
+  s+=`<path d="${step}" fill="none" style="stroke:${cssv("faint")}" stroke-width="1"/>`;
+  s+=`<line x1="${x(0)}" y1="${y(ideal(0))}" x2="${x(n-1)}" y2="${y(0)}" style="stroke:${cssv("faint")}" stroke-width="1" stroke-dasharray="3 3"/>`;
+  const line=G.remaining.map((v,i)=>`${i?"L":"M"}${x(i)},${y(v)}`).join(" ");
+  s+=`<path d="${line} L${x(T)},${y(0)} L${x(0)},${y(0)}Z" fill="url(#${id})"/>`;
+  s+=`<line x1="${x(T)}" y1="${y(G.remaining[T])}" x2="${x(n-1)}" y2="${y(proj)}" style="stroke:${cssv("accent")};opacity:.55" stroke-width="1.6" stroke-dasharray="4 3" stroke-linecap="round"/>`;
+  s+=`<path d="${line}" fill="none" style="stroke:${cssv("accent")}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  s+=`<line x1="${x(T)}" x2="${x(T)}" y1="${padT-4}" y2="${h-padB}" style="stroke:${cssv("amber")};opacity:.6" stroke-width="1"/>`;
+  s+=`<g transform="translate(${x(T)},${padT-9})"><rect x="-15" y="-7" width="30" height="13" rx="6.5" style="fill:color-mix(in srgb,${cssv("amber")} 22%,${cssv("plot")})"/><text x="0" y="3" text-anchor="middle" style="fill:${cssv("amber")};font-weight:650">hoje</text></g>`;
+  s+=`<circle cx="${x(n-1)}" cy="${y(proj)}" r="3" style="fill:${cssv("plot")};stroke:${cssv("accent")};opacity:.8" stroke-width="1.5"/><text x="${x(n-1)+6}" y="${y(proj)+3}">~${Math.round(proj)}</text>`;
+  s+=`<circle cx="${x(T)}" cy="${y(G.remaining[T])}" r="4" style="fill:${cssv("accent")};stroke:${cssv("plot")}" stroke-width="2"/>`;
+  s+=`<text class="v" x="${x(T)+8}" y="${y(G.remaining[T])-6}">${G.remaining[T]} pts</text>`;
+  s+=`<line class="guide" y1="${padT}" y2="${h-padB}" style="stroke:${cssv("text")};opacity:0" stroke-width="1"/>`;
+  const slot=(w-padL-padR)/(n-1);
+  for(let i=0;i<=T;i++)s+=`<rect class="hit" x="${x(i)-slot/2}" y="0" width="${slot}" height="${h}" data-x="${x(i)}" data-y="${y(Math.max(G.remaining[i],G.scope[i]))}" ${tipAttr(G.days[i]+(i===T?" · hoje":""),[["Por fazer",G.remaining[i]+" pts","accent"],["Ideal",ideal(i).toFixed(1).replace(".",",")+" pts","faint"],["Âmbito",G.scope[i]+" pts","faint"]])}/>`;
+  return s+`</svg>`;
+}
+
+function bugsSVG(w,h){
+  const B=G.bugs,n=B.weeks.length,padL=22,padR=6,padT=6,padB=16;
+  const top=niceTop(Math.max(...B.created,...B.resolved),2).top,mid=padT+(h-padT-padB)/2,half=(h-padT-padB)/2;
+  const slot=(w-padL-padR)/n,bw=Math.min(12,slot*.42);
+  let s=`<svg width="${w}" height="${h}">`;
+  s+=`<line x1="${padL}" x2="${w-padR}" y1="${mid}" y2="${mid}" style="stroke:${cssv("text")};opacity:.14"/>`;
+  s+=`<text x="${padL-6}" y="${padT+7}" text-anchor="end">${top}</text><text x="${padL-6}" y="${mid+3}" text-anchor="end">0</text><text x="${padL-6}" y="${h-padB}" text-anchor="end">${top}</text>`;
+  B.weeks.forEach((wk,i)=>{
+    const cx=padL+slot*(i+.5),hc=half*B.created[i]/top,hr=half*B.resolved[i]/top;
+    s+=`<g class="grp" data-g="${i}"><rect x="${cx-bw/2}" y="${mid-1.5-hc}" width="${bw}" height="${hc}" rx="3" style="fill:${cssv("red")}"/><rect x="${cx-bw/2}" y="${mid+1.5}" width="${bw}" height="${hr}" rx="3" style="fill:${cssv("accent")}"/></g>`;
+    if(i%2===0)s+=`<text x="${cx}" y="${h-3}" text-anchor="middle">${wk}</text>`;
+    s+=`<rect class="hit" x="${cx-slot/2}" y="0" width="${slot}" height="${h}" data-g="${i}" data-x="${cx}" data-y="${mid-hc-4}" ${tipAttr("Semana de "+wk,[["Criados",B.created[i],"red"],["Resolvidos",B.resolved[i],"accent"],["Saldo",(B.created[i]-B.resolved[i]>0?"+":"")+(B.created[i]-B.resolved[i]),"faint"]])}/>`;
+  });
+  return s+`</svg>`;
+}
+
+function velocitySVG(w,h){
+  const V=G.vel,n=V.names.length,padL=22,padR=42,padT=10,padB=16;
+  const sc=niceTop(Math.max(...V.planned,...V.done)),y=v=>padT+(h-padT-padB)*(1-v/sc.top);
+  const slot=(w-padL-padR)/n,pw=Math.min(22,slot*.55),dw=Math.min(9,pw*.42);
+  const avg=V.done.reduce((a,b)=>a+b,0)/n;
+  let s=`<svg width="${w}" height="${h}">`;
+  for(let v=0;v<=sc.top;v+=sc.step)s+=`<line x1="${padL}" x2="${w-padR}" y1="${y(v)}" y2="${y(v)}" style="stroke:${cssv("text")};opacity:.08"/><text x="${padL-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
+  V.names.forEach((nm,i)=>{
+    const cx=padL+slot*(i+.5),last=i===n-1;
+    s+=`<g class="grp" data-g="${i}"><rect x="${cx-pw/2}" y="${y(V.planned[i])}" width="${pw}" height="${y(0)-y(V.planned[i])}" rx="5" style="fill:${cssv("text")};opacity:.1"/>`;
+    s+=`<rect x="${cx-dw/2}" y="${y(V.done[i])}" width="${dw}" height="${y(0)-y(V.done[i])}" rx="3" style="fill:${cssv("accent")}"/></g>`;
+    if(last)s+=`<text class="v" x="${cx}" y="${y(Math.max(V.done[i],V.planned[i]))-5}" text-anchor="middle">${V.done[i]}</text>`;
+    s+=`<text x="${cx}" y="${h-3}" text-anchor="middle" ${last?`style="fill:${cssv("text")};font-weight:650"`:""}>${nm}</text>`;
+    const pct=Math.round(V.done[i]/V.planned[i]*100);
+    s+=`<rect class="hit" x="${cx-slot/2}" y="0" width="${slot}" height="${h}" data-g="${i}" data-x="${cx}" data-y="${y(Math.max(V.done[i],V.planned[i]))-4}" ${tipAttr("Sprint "+nm,[["Planeado",V.planned[i]+" pts","faint"],["Concluído",V.done[i]+" pts","accent"],["Cumprido",pct+"%","faint"]])}/>`;
+  });
+  s+=`<line x1="${padL}" x2="${w-padR+4}" y1="${y(avg)}" y2="${y(avg)}" style="stroke:${cssv("muted")};opacity:.8"/>`;
+  s+=`<text x="${w-padR+8}" y="${y(avg)-2}" style="fill:${cssv("muted")}">média</text><text class="v" x="${w-padR+8}" y="${y(avg)+10}">${Math.round(avg)}</text>`;
+  return s+`</svg>`;
+}
+
+function kpiTile(tile,icon,label,num,sub,extra=""){
+  return `<div class="card kpi gkpi"><div class="k-top"><span class="tile ${tile}">${I[icon]}</span><span>${label}</span></div><div class="k-num">${num}</div><div class="k-sub">${sub}</div>${extra}</div>`;
+}
+
+function renderGestao(){
+  const {W,cw,h}=gestaoGeom(),T=G.today,scope=G.scope[T],done=scope-G.remaining[T],pct=Math.round(done/scope*100);
+  const left=G.days.length-1-T, behind=Math.round(G.remaining[T]-G.scope[0]*(1-T/(G.days.length-1)));
+  const tabs=(key,opts)=>`<div class="tabs">${opts.map(([v,l])=>`<button data-gtab="${key}:${v}" aria-pressed="${S[key]===v}">${l}</button>`).join("")}</div>`;
+  const bar=`<div class="gbar">${tabs("board",[["clinica","Clínica"],["plataforma","Plataforma"],["backoffice","Backoffice"]])}
+    <div class="spr"><button aria-label="Sprint anterior">${I.chevL}</button>Sprint 18 · Clínica<button aria-label="Sprint seguinte">${I.chevR}</button></div>
+    ${tabs("unit",[["pts","Pontos"],["tasks","Tasks"]])}</div>`;
+  const kpis=`<div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+    ${kpiTile("c-jira","check","Concluído",`${pct}<small>%</small>`,`${done} de ${scope} pts`,`<div class="k-extra track"><div class="fill" style="width:${pct}%;background:var(--i-green)"></div></div>`)}
+    ${kpiTile("c-jira","clock","Faltam",`${left}<small>dias</small>`,`acaba a 03/12`,`<div class="k-extra track"><div class="fill" style="width:${Math.round(T/(G.days.length-1)*100)}%;background:var(--i-accent)"></div></div>`)}
+    ${kpiTile("c-jira","chart","Ritmo",`${behind}<small>pts atrás</small>`,`<span class="pill p-amber">atrás do ideal</span>`)}
+    ${kpiTile("c-jira","flag","Bloqueadas",`1`,`TEP-7 · há 2 d`,`<div class="k-extra"><span class="pill p-red">precisa de ajuda</span></div>`)}
+  </div>`;
+  const keys=items=>`<span class="gk">${items.map(([l,c,k])=>`<span><i class="${k||""}" style="background:var(--i-${c});color:var(--i-${c})"></i>${l}</span>`).join("")}</span>`;
+  const burn=`<div class="card">${head("c-jira","chart","Burndown",null,keys([["Por fazer","accent"],["Ideal","faint","ds"],["Previsão","accent","ds"]]))}
+    <div class="chart">${burndownSVG(cw,isC()?h:h+46)}<div class="ctip"></div></div>
+    <div class="gfoot"><span class="pill p-blue">${pct}% concluído</span><span class="pill p-amber">previsão: sobram ~8 pts</span><span class="pill p-grey">+2 pts de âmbito</span></div></div>`;
+  const total=G.flow.reduce((a,f)=>a+f.v,0);
+  const flow=`<div class="card">${head("c-jira","flow","Fluxo",`${total} pts`)}
+    <div class="seg2">${G.flow.map(f=>`<span class="${f.c==="faint"?"":"fill-on"}" style="flex:${f.v};background:${f.c==="faint"?"var(--i-surface2)":`var(--i-${f.c})`}" title="${f.n}: ${f.v} pts">${f.v}</span>`).join("")}</div>
+    <div class="flowkey">${G.flow.map(f=>`<div><i style="background:${f.c==="faint"?"var(--i-faint)":`var(--i-${f.c})`}"></i>${f.n}<b>${f.v} pts</b>${f.t==="—"?"":`${f.t} em média`}</div>`).join("")}</div>
+    <div class="sublabel" style="margin-top:8px">Paradas há mais tempo · ${G.stale.length}</div>
+    <div class="rows">${G.stale.slice(0,isC()?2:3).map(r=>`<div class="row"><span class="st" style="color:var(--i-${r.col})">${I[r.ic]}</span><span class="key">${r.k}</span><div class="t"><div class="tt">${r.t}</div><div class="meta">${r.m}</div></div><span class="trail">${pills(r.p)}</span></div>`).join("")}</div></div>`;
+  const B=G.bugs,bc=B.created.reduce((a,b)=>a+b,0),br=B.resolved.reduce((a,b)=>a+b,0);
+  const bugs=`<div class="card">${head("c-jira","bug","Bugs · 8 semanas",null,keys([["Criados","red","sq"],["Resolvidos","accent","sq"]]))}
+    <div class="chart">${bugsSVG(cw,h)}<div class="ctip"></div></div>
+    <div class="gfoot"><span class="pill p-red">${B.open} abertos</span><span class="pill p-grey">${bc} criados · ${br} resolvidos</span><span class="pill p-blue">mediana ${B.median} d</span></div></div>`;
+  const V=G.vel,avg=Math.round(V.done.reduce((a,b)=>a+b,0)/V.done.length);
+  const vel=`<div class="card">${head("c-jira","gauge","Velocity",null,keys([["Planeado","faint","sq"],["Concluído","accent","sq"]]))}
+    <div class="chart">${velocitySVG(cw,h)}<div class="ctip"></div></div>
+    <div class="gfoot"><span class="pill p-green">média ${avg} pts</span><span class="pill p-grey">${V.names.length} sprints</span><span class="pill p-grey">cumpre 85% do plano</span></div></div>`;
+  return `<div class="island" style="width:${W}px" data-itheme="${S.theme}" data-density="${S.density}"><div class="notch"></div>${ihead(isC())}
+    ${bar}${kpis}<div class="cols gcols" style="grid-template-columns:1fr 1fr">${burn}${flow}${bugs}${vel}</div>
+    <div class="pdots"><i></i><i class="on"></i></div></div>`;
+}
+
+/* Hover: a tooltip card for the point under the pointer; bars dim their neighbours, lines show a guide. */
+function wireCharts(root){
+  root.querySelectorAll(".chart").forEach(ch=>{
+    const tip=ch.querySelector(".ctip"),guide=ch.querySelector(".guide");
+    ch.querySelectorAll("[data-tip]").forEach(el=>{
+      el.addEventListener("mouseenter",()=>{
+        const d=JSON.parse(el.dataset.tip);
+        tip.innerHTML=`<div><b>${d.title}</b>${d.lines.map(([l,v,c])=>`<div class="l"><i style="background:var(--i-${c})"></i>${l}<span>${v}</span></div>`).join("")}</div>`;
+        // Beside the point, on the side with more room, so it never hides the mark it describes.
+        const x=+el.dataset.x,right=x<ch.clientWidth/2;
+        tip.style.top=(ch.clientHeight/2)+"px";tip.classList.add("show");
+        tip.style.left=(right?x+12:x-12-tip.offsetWidth)+"px";
+        if(el.dataset.g!=null){ch.classList.add("hovering");ch.querySelectorAll(".grp").forEach(g=>g.classList.toggle("on",g.dataset.g===el.dataset.g))}
+        if(guide){guide.setAttribute("x1",el.dataset.x);guide.setAttribute("x2",el.dataset.x);guide.style.opacity=.25}
+      });
+      el.addEventListener("mouseleave",()=>{tip.classList.remove("show");ch.classList.remove("hovering");if(guide)guide.style.opacity=0});
+    });
+  });
+}
+
 const notes={
  atual:"Recriação aproximada do snapshot real: Claude sem card, divisória entre colunas, avisos repetidos e o corte seco no fundo das colunas. Tema e densidade não se aplicam aqui.",
  camadas:"A · Camadas: as colunas de hoje, com cards de verdade, tile colorido por fonte, abas no Git (clica), meta numa segunda linha (some no compacto), Avisos e Resumo num só card e a música num card fino.",
- bento:"B · Bento: os números em cima e as listas por baixo. A música vive na dock. No compacto, os KPIs encolhem para uma linha e a faixa de eventos vira um resumo de uma linha."
+ bento:"B · Bento: os números em cima e as listas por baixo. A música vive na dock. No compacto, os KPIs encolhem para uma linha e a faixa de eventos vira um resumo de uma linha.",
+ gestao:"Gestão: a mesma linguagem do resumo. Em cima, quatro números da sprint (concluído, dias, ritmo, bloqueadas); por baixo, quatro cards com tile, legenda no cabeçalho e pills de resumo. Burndown com área, previsão tracejada e «hoje»; Fluxo como barra segmentada com as tasks paradas; Bugs criados para cima e resolvidos para baixo; Velocity com o planeado por trás do concluído. Passa o rato pelos gráficos."
 };
 function render(){
   const st=document.getElementById("stage");
-  st.innerHTML=S.layout==="atual"?renderAtual():S.layout==="bento"?renderBento():renderCamadas();
-  document.getElementById("stageNote").textContent=notes[S.layout]+(S.layout!=="atual"?` Largura: ${S.layout==="bento"?(isC()?620:780):(isC()?560:660)} pt.`:"");
-  for(const [id,key] of [["segLayout","layout"],["segTheme","theme"],["segDensity","density"]]){
+  const gest=S.page==="gestao"&&S.layout!=="atual";
+  st.innerHTML=S.layout==="atual"?renderAtual():gest?renderGestao():S.layout==="bento"?renderBento():renderCamadas();
+  document.getElementById("stageNote").textContent=(gest?notes.gestao:notes[S.layout])+(S.layout!=="atual"?` Largura: ${S.layout==="bento"?(isC()?620:780):(isC()?560:660)} pt.`:"");
+  for(const [id,key] of [["segLayout","layout"],["segTheme","theme"],["segPage","page"],["segDensity","density"]]){
     document.querySelectorAll(`#${id} button`).forEach(b=>{b.setAttribute("aria-pressed",b.dataset.v===S[key]);if(key!=="layout")b.disabled=S.layout==="atual"});
   }
   st.querySelectorAll("[data-git]").forEach(b=>b.onclick=()=>{S.gitTab=b.dataset.git;render()});
+  st.querySelectorAll("[data-gtab]").forEach(b=>b.onclick=()=>{const [k,v]=b.dataset.gtab.split(":");S[k]=v;render()});
+  st.querySelectorAll("[data-page-toggle]").forEach(b=>b.onclick=()=>{S.page=S.page==="gestao"?"resumo":"gestao";save();render()});
+  wireCharts(st);
 }
-for(const [id,key] of [["segLayout","layout"],["segTheme","theme"],["segDensity","density"]]){
+for(const [id,key] of [["segLayout","layout"],["segTheme","theme"],["segPage","page"],["segDensity","density"]]){
   document.querySelectorAll(`#${id} button`).forEach(b=>b.addEventListener("click",()=>{if(b.disabled)return;S[key]=b.dataset.v;save();render()}));
 }
 render();
