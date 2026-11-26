@@ -43,6 +43,8 @@ final class ManagementStore {
     private static let openSprintFreshFor: TimeInterval = 120
     /// Guards against a slower, older load overwriting a newer selection.
     @ObservationIgnored private var generation = 0
+    /// The load in flight: a new selection cancels it, so the old board's or sprint's reads stop using the network.
+    @ObservationIgnored private var loadTask: Task<Void, Never>?
 
     init(cache: SprintMetricsCache = SprintSnapshotFileCache.standard()) {
         self.cache = cache
@@ -71,7 +73,8 @@ final class ManagementStore {
         generation += 1
         let mine = generation
         status = .loading
-        Task { [weak self] in
+        loadTask?.cancel()
+        loadTask = Task { [weak self] in
             guard let self else { return }
             let account = Settings.jiraTokenAccount
             let token = await Task.detached(priority: .userInitiated) { SecretStore.read(account: account) ?? "" }.value
@@ -124,14 +127,17 @@ final class ManagementStore {
         guard let config else { return }
         generation += 1
         let mine = generation
-        Task { [weak self] in await self?.loadBoard(board, config: config, generation: mine) }
+        loadTask?.cancel()
+        side.cancelAll()   // the old board's velocity and bugs are of no use any more
+        loadTask = Task { [weak self] in await self?.loadBoard(board, config: config, generation: mine) }
     }
 
     func select(sprint: Int) {
         guard let config, let record = sprints.first(where: { $0.id == sprint }) else { return }
         generation += 1
         let mine = generation
-        Task { [weak self] in await self?.loadSprint(record, config: config, generation: mine) }
+        loadTask?.cancel()
+        loadTask = Task { [weak self] in await self?.loadSprint(record, config: config, generation: mine) }
     }
 
     private func loadBoard(_ id: Int, config: JiraConfig, generation mine: Int) async {
@@ -148,14 +154,18 @@ final class ManagementStore {
             let list = try await client.fetchBoardSprints(config, boardID: id)
             guard mine == generation else { return }
             sprints = list
-            side.loadVelocity(config: config, sprints: list, sprintField: sprintField, points: points, statuses: statuses)
-            guard let pick = list.first(where: { $0.id == preferred }) ?? list.first(where: { $0.state == "active" }) ?? list.first else {
+            // The selected sprint first, alone on the network: what is already on disk for the velocity shows now,
+            // the closed sprints still missing are read only once the sprint is on screen.
+            side.loadVelocity(config: config, sprints: list, sprintField: sprintField, points: points, statuses: statuses, fetchMissing: false)
+            if let pick = list.first(where: { $0.id == preferred }) ?? list.first(where: { $0.state == "active" }) ?? list.first {
+                await loadSprint(pick, config: config, generation: mine)
+            } else {
                 selectedSprint = nil
                 snapshot = nil
                 status = .ok
-                return
             }
-            await loadSprint(pick, config: config, generation: mine)
+            guard mine == generation else { return }
+            side.loadVelocity(config: config, sprints: list, sprintField: sprintField, points: points, statuses: statuses)
         } catch {
             guard mine == generation else { return }
             sprints = []

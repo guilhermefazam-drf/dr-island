@@ -28,6 +28,8 @@ final class ManagementSideData {
     @ObservationIgnored private var bugsGeneration = 0
     @ObservationIgnored private var velocityGeneration = 0
     @ObservationIgnored private var bugsProject: String?
+    @ObservationIgnored private var bugsTask: Task<Void, Never>?
+    @ObservationIgnored private var velocityTask: Task<Void, Never>?
     @ObservationIgnored private var bugsReadAt: Date?
     /// Moving between sprints of one project reuses its bugs for this long instead of reading them again.
     private static let bugsFreshFor: TimeInterval = 300
@@ -45,6 +47,16 @@ final class ManagementSideData {
         VelocityMetrics.compute(velocitySnapshots, unit: unit, now: Date(), calendar: .current)
     }
 
+    /// Stops the reads in flight (another board was chosen): their results would be dropped anyway.
+    func cancelAll() {
+        bugsGeneration += 1
+        velocityGeneration += 1
+        bugsTask?.cancel()
+        velocityTask?.cancel()
+        if bugsPhase == .loading { bugsPhase = .idle }
+        if velocityPhase == .loading { velocityPhase = .idle }
+    }
+
     func loadBugs(config: JiraConfig, project: String?) {
         guard let project else { bugs = nil; bugsPhase = .idle; bugsProject = nil; return }
         if project == bugsProject, bugsPhase == .ok, let readAt = bugsReadAt, Date().timeIntervalSince(readAt) < Self.bugsFreshFor { return }
@@ -53,7 +65,8 @@ final class ManagementSideData {
         bugsGeneration += 1
         let mine = bugsGeneration
         bugsPhase = .loading
-        Task { [weak self] in
+        bugsTask?.cancel()
+        bugsTask = Task { [weak self] in
             guard let self else { return }
             do {
                 let read = try await client.fetchBugs(config, project: project)
@@ -70,8 +83,9 @@ final class ManagementSideData {
     }
 
     func loadVelocity(config: JiraConfig, sprints: [SprintRecord], sprintField: String?, points: (id: String, name: String)?,
-                      statuses: (categories: [String: String], names: [String: String])? = nil) {
+                      statuses: (categories: [String: String], names: [String: String])? = nil, fetchMissing: Bool = true) {
         velocityGeneration += 1
+        velocityTask?.cancel()
         let mine = velocityGeneration
         let closed = Array(sprints.filter { $0.state == "closed" }.prefix(VelocityMetrics.defaultSprints))
         // What earlier openings left on disk shows at once.
@@ -82,9 +96,9 @@ final class ManagementSideData {
         guard let sprintField, !closed.isEmpty else { velocityPhase = closed.isEmpty ? .ok : .idle; return }
         let missing = closed.filter { closedSnapshots[$0.id] == nil }
         velocityPhase = missing.isEmpty ? .ok : .loading
-        guard !missing.isEmpty else { return }
+        guard !missing.isEmpty, fetchMissing else { return }
         let client = self.client
-        Task { [weak self] in
+        velocityTask = Task { [weak self] in
             do {
                 try await withThrowingTaskGroup(of: SprintSnapshot.self) { group in
                     var pending = missing[...]
